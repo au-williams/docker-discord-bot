@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits, ActionRowBuilder, ButtonBuilder, ButtonStyle, Events, EmbedBuilder, Embed } = require("discord.js");
+const { Client, GatewayIntentBits, ActionRowBuilder, ButtonBuilder, ButtonStyle, Events } = require("discord.js");
 const { guilds, token, user_id } = require("./config.json");
 
 const fs = require("fs");
@@ -6,7 +6,7 @@ const configFileName = "./config.json";
 const configFile = require(configFileName);
 
 const cron = require("cron");
-const catFactJob = new cron.CronJob('0 9 * * *', async () => SendCatFact());
+const catFactJob = new cron.CronJob("0 9 * * *", async () => SendCatFact());
 catFactJob.start();
 
 async function SendCatFact() {
@@ -68,15 +68,15 @@ const SendStartupLog = () => {
 };
 
 async function ValidateRoleMessages() {
-  for (const guildId in guilds) {
-    const { role_channel_id, role_message_buttons, role_message_content, role_message_id } = guilds[guildId];
+  for (const guild_id in guilds) {
+    const { role_channel_id, role_message_buttons, role_message_content, role_message_id } = guilds[guild_id];
     const channel = client.channels.cache.get(role_channel_id);
-    const clientGuild = client.guilds.cache.get(guildId);
+    const clientGuild = client.guilds.cache.get(guild_id);
     const message = role_message_id && await channel.messages.fetch(role_message_id).catch(_ => null);
 
     if (!message) {
       Log.Pending(`The role message for ${clientGuild.name} #${channel.name} was not found and will be resent!`);
-      SendRoleMessage(guildId);
+      SendRoleMessage(guild_id);
       return;
     }
 
@@ -85,19 +85,19 @@ async function ValidateRoleMessages() {
       emoji_id: data.emoji?.id
     }));
 
-    const isMessageContentChange = message.content !== role_message_content;
-    const isMessageButtonsChange = role_message_buttons.some((configButton, i) => {
+    const isMessageContentUpdate = message.content !== role_message_content;
+    const isMessageButtonsUpdate = role_message_buttons.some((configButton, i) => {
       const { role_name, emoji_id } = messageButtons[i];
       const isRoleNameUpdate = role_name !== configButton.role_name;
       const isEmojiIdUpdate = emoji_id !== configButton.emoji_id && channel.guild.emojis.cache.some(({ id }) => id === configButton.emoji_id);
       return isRoleNameUpdate || isEmojiIdUpdate;
     });
 
-    if (isMessageContentChange || isMessageButtonsChange) {
-      Log.Pending(`The role message for ${clientGuild.name} #${channel.name} has changed and will be resent.`);
+    if (isMessageContentUpdate || isMessageButtonsUpdate) {
+      Log.Pending(`The role message for ${clientGuild.name} #${channel.name} has updated and will be resent.`);
       await channel.messages.delete(role_message_id);
-      Log.Success(`... The existing role message was deleted!`);
-      SendRoleMessage(guildId);
+      Log.Success(`... The outdated role message was deleted!`);
+      SendRoleMessage(guild_id);
       return;
     }
 
@@ -121,7 +121,7 @@ async function SendRoleMessage(guildId) {
   channel.send({ content: role_message_content, components: [actions] }).then(({ content, id }) => {
     Log.Success(`... "${content}" was sent!`);
     configFile.guilds[guildId].role_message_id = id;
-    fs.writeFile(configFileName, JSON.stringify(configFile, null, 2), error => { if (error) Log.Warning(error); });
+    fs.writeFile(configFileName, JSON.stringify(configFile, null, 2), _ => null);
     Log.Success(`... "${id}" was saved to guilds[${guildId}].role_message_id in ${configFileName}!`);
   });
 }
@@ -145,7 +145,7 @@ client.on(Events.InteractionCreate, async interaction => {
   const isAddingMemberRole = !grantedConfigRoles.some(({ name }) => name === guildRole.name);
   if (isAddingMemberRole) interaction.member.roles.add(guildRole)
     .then(_ => Log.Success(`... Their "${guildRole.name}" role was granted!`))
-    .catch(e => Log.Warning(`... Their "${guildRole.name}" role was not granted! ${error}`)
+    .catch(e => Log.Warning(`... Their "${guildRole.name}" role was not granted! ${e}`)
   );
 
   return interaction.deferUpdate();
