@@ -9,6 +9,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "cron": "^2.2.0",
     "discord.js": "^14.7.1"
   }
 }

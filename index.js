@@ -1,9 +1,27 @@
-const { Client, GatewayIntentBits, ActionRowBuilder, ButtonBuilder, ButtonStyle, Events } = require("discord.js");
+const { Client, GatewayIntentBits, ActionRowBuilder, ButtonBuilder, ButtonStyle, Events, EmbedBuilder, Embed } = require("discord.js");
 const { guilds, token, user_id } = require("./config.json");
 
 const fs = require("fs");
 const configFileName = "./config.json";
 const configFile = require(configFileName);
+
+const cron = require("cron");
+const catFactJob = new cron.CronJob('0 9 * * *', async () => SendCatFact());
+catFactJob.start();
+
+async function SendCatFact() {
+  const message = await fetch("https://catfact.ninja/fact?max_length=256")
+    .then(response => response.json())
+    .then(data => data.fact);
+
+  for(const guildId in guilds) {
+    const { cat_facts_channel_id } = guilds[guildId];
+    const channel = cat_facts_channel_id && client.channels.cache.get(cat_facts_channel_id);
+    channel?.send(message)
+      .then(_ => Log.Success(`A cat fact was sent to ${channel.guild.name} #${channel.name}!`))
+      .catch(e => Log.Warning(`Could not send cat fact to ${channel.guild.name} #${channel.name}! ${e}`))
+  }
+}
 
 const client = new Client({
   intents: [
