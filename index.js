@@ -18,11 +18,11 @@ async function SendCatFact(guildId) {
   while (!message) {
     let fact = await fetch("https://catfact.ninja/fact?max_length=256")
       .then(response => response.json())
-      .then(data => data.fact);
+      .then(data => data.fact.trim());
 
     if (!endsInPunctuation(fact)) fact += ".";
     if (!channelMessageContent.includes(fact)) message = fact;
-    else Log.Warning("Attempted to send duplicate cat fact.")
+    else Log.Warning("Attempted to send duplicate cat fact.");
   }
 
   channel
