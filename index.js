@@ -6,21 +6,29 @@ const configFileName = "./config.json";
 const configFile = require(configFileName);
 
 const cron = require("cron");
-const catFactJob = new cron.CronJob("0 9 * * *", async () => SendCatFact());
+const catFactJob = new cron.CronJob("0 9 * * *", async () => { for(const guildId in guilds) SendCatFact(guildId); });
 catFactJob.start();
 
-async function SendCatFact() {
-  const message = await fetch("https://catfact.ninja/fact?max_length=256")
-    .then(response => response.json())
-    .then(data => data.fact);
+async function SendCatFact(guildId) {
+  const { cat_facts_channel_id } = guilds[guildId];
+  const channel = cat_facts_channel_id && client.channels.cache.get(cat_facts_channel_id);
+  const channelMessageContent = await getAllMessagesContentFromChannel(channel);
+  let message = null;
 
-  for(const guildId in guilds) {
-    const { cat_facts_channel_id } = guilds[guildId];
-    const channel = cat_facts_channel_id && client.channels.cache.get(cat_facts_channel_id);
-    channel?.send(message)
-      .then(_ => Log.Success(`A cat fact was sent to ${channel.guild.name} #${channel.name}!`))
-      .catch(e => Log.Warning(`Could not send cat fact to ${channel.guild.name} #${channel.name}! ${e}`))
+  while (!message) {
+    let fact = await fetch("https://catfact.ninja/fact?max_length=256")
+      .then(response => response.json())
+      .then(data => data.fact);
+
+    if (!endsInPunctuation(fact)) fact += ".";
+    if (!channelMessageContent.includes(fact)) message = fact;
+    else Log.Warning("Attempted to send duplicate cat fact.")
   }
+
+  channel
+    .send(message)
+    .then(_ => Log.Success(`A cat fact was sent to ${channel.guild.name} #${channel.name}!`))
+    .catch(e => Log.Warning(`Could not send cat fact to ${channel.guild.name} #${channel.name}! ${e}`));
 }
 
 const client = new Client({
@@ -61,8 +69,10 @@ const SendStartupLog = () => {
     const missingGuildRoleNames = configGuildRoleNames.filter(roleName => !guild.roles.cache.some(({ name }) => name === roleName));
 
     if (missingGuildRoleNames.length) {
-      if (missingGuildRoleNames.length == 1) Log.Warning(`The "${missingGuildRoleNames[0]}" role defined in ${configFileName} was not found in ${guild.name}!`);
-      else Log.Warning(`The "${missingGuildRoleNames.join('", "')}" roles defined in ${configFileName} were not found in ${guild.name}!`);
+      if (missingGuildRoleNames.length == 1)
+        Log.Warning(`The "${missingGuildRoleNames[0]}" role defined in ${configFileName} was not found in ${guild.name}!`);
+      else
+        Log.Warning(`The "${missingGuildRoleNames.join('", "')}" roles defined in ${configFileName} were not found in ${guild.name}!`);
     }
   });
 };
@@ -113,7 +123,7 @@ async function SendRoleMessage(guildId) {
   for (const { role_name, emoji_id } of role_message_buttons) {
     const button = new ButtonBuilder().setCustomId(role_name).setLabel(role_name).setStyle(ButtonStyle.Secondary);
     const isInvalidEmoji = emoji_id && !channel.guild.emojis.cache.some(guildEmoji => guildEmoji.id == emoji_id);
-    if (isInvalidEmoji) Log.Warning( `... The emoji_id "${emoji_id}" was not found in ${channel.guild.name}!`);
+    if (isInvalidEmoji) Log.Warning(`... The emoji_id "${emoji_id}" was not found in ${channel.guild.name}!`);
     else if (emoji_id) button.setEmoji(emoji_id);
     actions.addComponents(button);
   }
@@ -136,19 +146,48 @@ client.on(Events.InteractionCreate, async interaction => {
     return interaction.deferUpdate();
   }
 
-  const grantedConfigRoles = interaction.member.roles.cache.filter(({ name }) => guilds[interaction.guild.id].role_message_buttons.map(x => x.role_name).includes(name));
-  grantedConfigRoles.forEach(memberRole => interaction.member.roles.remove(memberRole)
+  const grantedConfigRoles = interaction.member.roles.cache.filter(({ name }) =>
+    guilds[interaction.guild.id].role_message_buttons.map(x => x.role_name).includes(name));
+
+  grantedConfigRoles.forEach(memberRole => interaction.member.roles
+    .remove(memberRole)
     .then(_ => Log.Success(`... Their "${memberRole.name}" role was removed!`))
     .catch(e => Log.Warning(`... Their "${memberRole.name}" role was not removed! ${e}`))
   );
 
   const isAddingMemberRole = !grantedConfigRoles.some(({ name }) => name === guildRole.name);
-  if (isAddingMemberRole) interaction.member.roles.add(guildRole)
-    .then(_ => Log.Success(`... Their "${guildRole.name}" role was granted!`))
-    .catch(e => Log.Warning(`... Their "${guildRole.name}" role was not granted! ${e}`)
-  );
+  if (isAddingMemberRole)
+    interaction.member.roles
+      .add(guildRole)
+      .then(_ => Log.Success(`... Their "${guildRole.name}" role was granted!`))
+      .catch(e => Log.Warning(`... Their "${guildRole.name}" role was not granted! ${e}`));
 
   return interaction.deferUpdate();
 });
+
+function endsInPunctuation(str) {
+  const punctuationMarks = [".", ",", ";", ":", "!", "?", "-", "(", ")", "[", "]", "{", "}"];
+  return punctuationMarks.includes(str.slice(-1));
+}
+
+async function getAllMessagesContentFromChannel(channel) {
+  // Fetch the last message in the channel
+  let lastMessage = await channel.messages.fetch({ limit: 1 });
+  let messagesContent = [];
+
+  // Loop through all the messages in the channel
+  while (lastMessage) {
+    // Get up to 100 messages before the last message
+    let fetchedMessages = await channel.messages.fetch({ limit: 100, before: lastMessage.id });
+    let fetchedMessagesContent = Array.from(fetchedMessages.values()).map((message) => message.content);
+    messagesContent = messagesContent.concat(fetchedMessagesContent);
+
+    // If we fetched less than 100 messages, we've reached the beginning of the channel
+    if (fetchedMessages.size < 100) lastMessage = null;
+    else lastMessage = fetchedMessages.last();
+  }
+
+  return messagesContent;
+}
 
 client.login(token);
