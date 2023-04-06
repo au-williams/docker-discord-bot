@@ -1,11 +1,4 @@
 {
-  "user_id": "<< YOUR_BOTS_USER_ID >>",
-  "token": "<< YOUR_BOTS_TOKEN >>",
-  "guilds": {
-    "<< YOUR_GUILD_ID >>": {
-      "role_channel_id": "<< YOUR_ROLE_CHANNEL_ID >>",
-      "role_message_buttons": [{ "role_name": "<< YOUR_ROLE_NAME >>", "emoji_id": "<< YOUR_OPTIONAL_EMOJI_ID >>"}],
-      "role_message_content": "<< YOUR_ROLE_MESSAGE_CONTENT >>"
-    }
-  }
+  "bot_user_id": "YOUR_BOTS_USER_ID",
+  "login_token": "YOUR_BOTS_LOGIN_TOKEN"
 }
