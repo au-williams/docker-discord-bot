@@ -2,5 +2,5 @@
   "channel_ids": ["YOUR CHANNEL IDS HERE"],
   "temp_directory": "..\\temp_storage\\",
   "plex_directory": "YOUR LIBRARY'S DOWNLOADS FOLDER HERE",
-  "suppress_embed": false
+  "plex_user_role_id": "YOUR PLEX DISCORD ROLE ID"
 }

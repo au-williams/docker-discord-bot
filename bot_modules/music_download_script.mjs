@@ -1,164 +1,311 @@
+/* eslint-disable no-case-declarations */
 import { basename } from "path";
 import { createRequire } from "module";
-import { extract } from "@extractus/oembed-extractor";
-import { parseFile } from "music-metadata";
+import { getUrlFromString, getFileSizeFromPath, tryDeleteDiscordMessages } from "../utilities.mjs";
 const require = createRequire(import.meta.url);
 const config = require("./music_download_config.json");
-const youtubedl = require("youtube-dl-exec");
 const fs = require("fs-extra");
+const youtubedl = require("youtube-dl-exec");
+const { ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle } = require("discord.js");
 
 // ------------- //
 // Discord Hooks //
 // ------------- //
 
-export const OnMessageCreate = async (client, message) => {
-  // Verify the message channel and message author
-  const isConfigChannel = config.channel_ids.includes(message.channel.id);
-  if (!isConfigChannel || message.author.bot) return;
-  message.suppressEmbeds(config.suppress_embed);
+export const OnMessageCreate = async ({ message }) => {
+  // ---------------------------------------------------- //
+  // check validity of message channel and message author //
+  // ---------------------------------------------------- //
 
-  // Verify the message content contains a URL
-  const url = GetUrlFromString(message.content);
-  if (!url) {
+  const isChannel = config.channel_ids.includes(message.channel.id);
+  if (!isChannel || message.author.bot) return null;
+
+  // ---------------------------------------------------- //
+  // check validity of message content (needs a good URL) //
+  // ---------------------------------------------------- //
+
+  const url = getUrlFromString(message.content);
+
+  if (url === null) {
     const reply = await message.reply("Please only send music links to this channel.");
-    setTimeout(() => message.delete() && reply.delete(), 10000);
+    setTimeout(async () => tryDeleteDiscordMessages(message, reply), 10000);
     return `Deleted message without link from ${message.author.tag}`;
   }
 
-  // Verify the message content URL is successfully downloaded
-  const isDownloadSuccess = await TryDownload(url, message.id);
-  if (!isDownloadSuccess) {
+  // ----------------------------------------------------- //
+  // start thread to show the user the bot is working hard //
+  // (else the bot will look unresponsive during download) //
+  // ----------------------------------------------------- //
+
+  await message.startThread({
+    name: "⏳ Processing your file",
+    autoArchiveDuration: 60
+  });
+
+  // ----------------------------------------------------- //
+  // download and get the filepath, or reply with an error //
+  // ----------------------------------------------------- //
+
+  const tempFilepath = await tryDownload(message.id, url).catch(async () => {
     const reply = await message.reply("This link is unsupported and cannot download.");
-    setTimeout(() => message.delete() && reply.delete(), 10000);
+    message.thread.setName("👎 Download was aborted").then(x => x.setArchived(true));
+    setTimeout(async () => tryDeleteDiscordMessages(message, reply), 10000);
     return `Deleted message with unsupported link from ${message.author.tag}`;
+  });
+
+  // ----------------------------------------------------- //
+  // send the file attachment or an error if one is thrown //
+  // ----------------------------------------------------- //
+
+  let resultContent = "";
+
+  message.thread
+    .send({
+      components: [
+        new ActionRowBuilder().addComponents(
+          getMp3FormatButtonBuilder({ isDisabled: tempFilepath.endsWith(".mp3") }),
+          getPlexImportButtonBuilder({ isDisabled: false })
+        )
+      ],
+      files: [tempFilepath]
+    })
+    .then(async () => {
+      await message.thread.setName("👍 Download is ready");
+      resultContent = `Sent a reply with download link to ${message.author.tag}`;
+    })
+    .catch(async error => {
+      switch (error.code) {
+        case 40005:
+          const fileSize = getFileSizeFromPath(tempFilepath);
+          await message.thread.setName("👎 Upload exceeds limit");
+          await message.thread.send({
+            content: `File size ${fileSize}MB exceeds the servers upload limit.`,
+            components: [
+              new ActionRowBuilder().addComponents(
+                getMp3FormatButtonBuilder({ isDisabled: true }),
+                getPlexImportButtonBuilder({ isDisabled: false })
+              )
+            ]
+          });
+          resultContent = `Tried to send a reply with download link that exceeded upload limit to ${message.author.tag}`;
+          break;
+        default:
+          await message.thread.setName("👎 Upload was aborted");
+          await message.thread.send({
+            content: "The Discord API timed out and aborted the upload.",
+            components: [
+              new ActionRowBuilder().addComponents(
+                getMp3FormatButtonBuilder({ isDisabled: false }),
+                getPlexImportButtonBuilder({ isDisabled: false })
+              )
+            ]
+          });
+          resultContent = `Tried to send a reply with download link to ${message.author.tag} but the Discord API timed out.`;
+          break;
+      }
+    })
+    .finally(() => {
+      setTimeout(async () => message.thread.setArchived(true), 10000);
+      fs.unlinkSync(tempFilepath);
+    });
+
+  return resultContent;
+};
+
+const InteractionActions = Object.freeze({
+  GetMP3: "music_download_script_get_mp3",
+  PlexImport: "music_download_script_plex_import",
+  PlexDelete: "music_download_script_plex_delete"
+});
+
+export const OnInteractionCreate = ({ interaction }) => {
+  const isAction = Object.values(InteractionActions).includes(interaction.customId);
+  if (!isAction) return null;
+
+  switch (interaction.customId) {
+    case InteractionActions.GetMP3:
+      return OnGetMP3(interaction);
+    case InteractionActions.PlexImport:
+      return onPlexImport(interaction);
+    case InteractionActions.PlexDelete:
+      throw new Error("Not implemented");
   }
 
-  await SendDownloadMessage(message);
-  TryMoveDeleteFileFromTemp(message);
+  /**
+   * Download the URL in the native format and move to the library folder.
+   * @param {ButtonInteraction} interaction
+   * @returns {string} response
+   */
+  async function onPlexImport(interaction) {
+    // -------------------------------------------------------- //
+    // Verify the interaction user has the configured Plex role //
+    // -------------------------------------------------------- //
 
-  return `Sent a reply with download link to ${message.author.tag}`;
+    const starterMessage = await interaction.message.channel.fetchStarterMessage();
+
+    if (!interaction.member.roles.cache.has(config.plex_user_role_id)) {
+      const content = "You aren't authorized to import this into Plex.";
+      const files = [{ attachment: "assets\\you_are_arrested.png" }];
+      await interaction.reply({ content, files, ephemeral: true });
+      await starterMessage.thread.setArchived(true);
+      return `Denied importing a file into Plex for ${interaction.user.tag}`;
+    }
+
+    // -------------------------------------------------------- //
+    // Get dependencies and check for any invalid module states //
+    // -------------------------------------------------------- //
+
+    await interaction.deferReply({ ephemeral: true });
+    await starterMessage.thread.setArchived(true);
+
+    const url = getUrlFromString(starterMessage.content);
+    const tempFilepath = await tryDownload(interaction.message.id, url).catch(async () => {
+      await interaction.editReply("The message URL was changed and cannot be downloaded.");
+      await starterMessage.thread.setArchived(true);
+      return `Could not import changed URL into Plex for ${interaction.user.tag}`;
+    });
+
+    // ---------------------------------------------------------- //
+    // Edit the interaction buttons and interaction reply message //
+    // ---------------------------------------------------------- //
+
+    let replyContent = "Your file was already imported. Press the button again to delete it.";
+
+    if (!fs.existsSync(`${config.plex_directory}/${basename(tempFilepath)}`)) {
+      fs.moveSync(tempFilepath, `${config.plex_directory}/${basename(tempFilepath)}`);
+      replyContent = "Your file imported and will be visible after the next automated scan.";
+    }
+
+    const interactionButtons = interaction.message.components[0].components;
+    const mp3Button = interactionButtons.find(x => x.data.custom_id == InteractionActions.GetMP3);
+    const plexButton = getPlexDeleteButtonBuilder({ isDisabled: true });
+    const components = [new ActionRowBuilder().addComponents(mp3Button, plexButton)];
+
+    const files = [...interaction.message.attachments.values()];
+
+    await starterMessage.thread.setArchived(false);
+    await interaction.message.edit({ content: interaction.message.content, files, components });
+    await interaction.editReply({ content: replyContent, ephemeral: true });
+    await starterMessage.thread.setArchived(true);
+
+    return `Imported a file into Plex for ${interaction.user.tag}`;
+  }
+
+  /**
+   * Download the URL as MP3 and append it to the interaction message.
+   * @param {ButtonInteraction} interaction
+   * @returns {string} response
+   */
+  async function OnGetMP3(interaction) {
+    // -------------------------------------------------------- //
+    // Get dependencies and check for any invalid module states //
+    // -------------------------------------------------------- //
+    const starterMessage = await interaction.message.channel.fetchStarterMessage();
+    await interaction.deferReply({ ephemeral: true });
+    await starterMessage.thread.setArchived(true);
+
+    const url = getUrlFromString(starterMessage.content);
+    const tempFilepath = await tryDownload(interaction.message.id, url, "mp3").catch(async () => {
+      await interaction.editReply("The message URL was changed and cannot be downloaded.");
+      return `Could not import changed URL into Plex for ${interaction.user.tag}`;
+    });
+
+    // ---------------------------------------------------------- //
+    // Edit the interaction buttons and interaction reply message //
+    // ---------------------------------------------------------- //
+
+    const content = interaction.message.content;
+    const buttons = interaction.message.components[0].components;
+    const mp3Button = getMp3FormatButtonBuilder({ isDisabled: true });
+    const plexButton = buttons.find(x => x.data.custom_id.includes("plex"));
+    const components = [new ActionRowBuilder().addComponents(mp3Button, plexButton)];
+
+    const files = [
+      ...interaction.message.attachments.values(),
+      new AttachmentBuilder(tempFilepath, { name: basename(tempFilepath) })
+    ];
+
+    let resultContent = `Uploaded a MP3 file for ${interaction.user.tag}`;
+    let replyContent = "Your MP3 file was uploaded successfully.";
+
+    await starterMessage.thread.setArchived(false);
+    await interaction.message
+      .edit({ content, files, components })
+      .catch(async error => {
+        switch (error.code) {
+          case 40005:
+            const fileSize = getFileSizeFromPath(tempFilepath);
+            replyContent = `MP3 file size ${fileSize}MB exceeds the servers upload limit.`;
+            resultContent = `Tried to edit a message with a download link that exceeded upload limit for ${interaction.user.tag}`;
+            break;
+          default:
+            replyContent = "Discord timed out and aborted the MP3 upload. Try again later.";
+            resultContent = `Tried to edit a message with a download link for ${interaction.user.tag} but the Discord API timed out.`;
+            break;
+        }
+      })
+      .finally(async () => {
+        await interaction.editReply(replyContent);
+        await starterMessage.thread.setArchived(true);
+        fs.unlinkSync(tempFilepath);
+      });
+
+    return resultContent;
+  }
 };
 
 // ------------ //
 // Module Logic //
 // ------------ //
 
-/**
- * Get the size of a file in megabytes rounded to two decimal places.
- * @param {string} filepath
- * @returns {number}
- */
-function GetFileSize(filepath) {
-  return Math.round((fs.statSync(filepath).size / (1024 * 1024) + Number.EPSILON) * 100) / 100;
-}
+const getMp3FormatButtonBuilder = ({ isDisabled }) =>
+  new ButtonBuilder()
+    .setDisabled(isDisabled)
+    .setEmoji("🎧")
+    .setCustomId(InteractionActions.GetMP3)
+    .setLabel(`Get as MP3`)
+    .setStyle(ButtonStyle.Primary);
 
-/**
- * Get the URL from a string regardless of its position therein.
- * @param {string} input
- * @returns {string|null}
- */
-function GetUrlFromString(input) {
-  const urlRegex = /(https?:\/\/[^\s]+)/;
-  const match = input.match(urlRegex);
-  return (match && match[1]) || null;
-}
+const getPlexImportButtonBuilder = ({ isDisabled }) =>
+  new ButtonBuilder()
+    .setDisabled(isDisabled)
+    .setEmoji("<:plex:1093751472522543214>")
+    .setCustomId(InteractionActions.PlexImport)
+    .setLabel("Import into Plex")
+    .setStyle(ButtonStyle.Secondary);
 
-/**
- * Send the embedded message with a thread containing the download link.
- * @param {string} filepath
- * @param {Message} message
- */
-async function SendDownloadMessage(message) {
-  // ------------------------------------------- //
-  // load dependencies and populate embed fields //
-  // ------------------------------------------- //
-  const filename = fs.readdirSync(`${config.temp_directory}/${message.id}`)[0];
-  const filepath = `${config.temp_directory}/${message.id}/${filename}`;
-
-  const fileSize = GetFileSize(filepath);
-  const metadata = await parseFile(filepath).catch(console.error);
-  const { artist, album, albumartist } = metadata.common;
-
-  const title = `${basename(filepath)} (${fileSize} MB)`;
-  const description = `- **Artist**: ${artist}\n- **Album**: ${album}\n- **Album Artist**: ${albumartist}`;
-  const url = (await extract(GetUrlFromString(message.content))).thumbnail_url;
-  const text = `Content may not appear in Plex until the next automated library refresh.`;
-
-  // ------------------------------------------- //
-  // send embed message and download file thread //
-  // ------------------------------------------- //
-
-  const replyMessage = await message.reply({
-    allowedMentions: { repliedUser: false },
-    embeds: [{ type: "rich", title, description, thumbnail: { url }, footer: { text } }]
-  });
-
-  const replyThread = await replyMessage
-    .startThread({ name: "⏳ Uploading your file" })
-    .then(async thr => thr.setLocked(true))
-    .catch(console.error);
-
-  if (fileSize < 8) {
-    await replyThread
-      .send({ files: [filepath] })
-      .then(() => replyThread.setName("👍 Download is ready").then(x => x.setArchived(true)))
-      .catch(() => {
-        replyThread.send({ content: `The Discord API timed out and aborted the upload.` });
-        replyThread.setName("👎 Upload was aborted").then(x => x.setArchived(true));
-      });
-  } else {
-    await replyThread
-      .send({ content: `File size ${fileSize}MB exceeds the 8MB upload limit.` })
-      .finally(() => replyThread.setName("👎 Upload exceeds limit").then(x => x.setArchived(true)));
-  }
-}
+const getPlexDeleteButtonBuilder = ({ isDisabled }) =>
+  new ButtonBuilder()
+    .setDisabled(isDisabled)
+    .setEmoji("<:plex:1093751472522543214>")
+    .setCustomId(InteractionActions.PlexDelete)
+    .setLabel("Delete from Plex")
+    .setStyle(ButtonStyle.Secondary);
 
 /**
  * Try downloading the file using yt-dlp and post processing with ffmpeg.
  * @param {string} url
  * @param {number} messageId
+ * @param {string?} audioFormat
  * @returns {bool} Success
  */
-async function TryDownload(url, messageId) {
-  const directory = `${config.temp_directory}/${messageId}/`;
-
-  await youtubedl(url, {
-    output: `${directory}/%(title)s.%(ext)s`,
+async function tryDownload(id, url, audioFormat) {
+  const options = {
+    output: `${config.temp_directory}/${id}/%(title)s.%(ext)s`,
     format: "bestaudio/best",
-    // audioFormat: "mp3",
+    audioFormat: audioFormat, // nullable
     audioQuality: 0,
     extractAudio: true,
     embedMetadata: true,
     embedThumbnail: true,
-    postprocessorArgs: `ffmpeg: -metadata album='Downloads' -metadata album_artist='Various Artists' -metadata year=''`
-  }).catch(() => null); // I don't care about this error and neither should you - it's handled in the calling function.
+    postprocessorArgs: `ffmpeg: -metadata album='Downloads' -metadata album_artist='Various Artists'`
+  };
 
-  return fs.existsSync(directory) && fs.readdirSync(directory).length;
-}
+  await youtubedl(url, options).catch(error => {
+    throw new Error(error);
+  });
 
-/**
- * Try moving the file from temp storage to the media library.
- * @param {Message} message Discord.js Message
- * @returns {string} Download filepath
- */
-function TryMoveDeleteFileFromTemp(message) {
-  const filename = fs.readdirSync(`${config.temp_directory}/${message.id}`)[0];
-  const tempFilepath = `${config.temp_directory}/${message.id}/${filename}`;
-  const plexFilepath = `${config.plex_directory}/${filename}`;
-
-  // ----------------------------------------- //
-  // move the file if it doesn't already exist //
-  // ----------------------------------------- //
-
-  if (!fs.existsSync(plexFilepath)) {
-    fs.moveSync(tempFilepath, plexFilepath);
-  }
-
-  // ----------------------------------------- //
-  // delete the temp folder and anything in it //
-  // ----------------------------------------- //
-
-  const rmDirectory = `${config.temp_directory}/${message.id}`;
-  const rmOptions = { recursive: true, force: true };
-  fs.rmSync(rmDirectory, rmOptions);
+  const filename = fs.readdirSync(`${config.temp_directory}/${id}`)[0];
+  const filepath = `${config.temp_directory}/${id}/${filename}`;
+  return filepath;
 }

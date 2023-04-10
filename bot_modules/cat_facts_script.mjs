@@ -7,7 +7,7 @@ const cron = require("cron");
 // Discord Hooks //
 // ------------- //
 
-export const OnReady = client => {
+export const OnReady = ({ client }) => {
   // todo: if missing yesterdays cat fact, send one regardless of cron
   const cronJob = new cron.CronJob("0 9 * * *", async () => SendCatFacts(client));
   cronJob.start();
@@ -53,9 +53,7 @@ async function getAllMessagesContentFromChannel(channel) {
   while (lastMessage) {
     // Get up to 100 messages before the last message
     let fetchedMessages = await channel.messages.fetch({ limit: 100, before: lastMessage.id });
-    let fetchedMessagesContent = Array.from(fetchedMessages.values()).map(
-      message => message.content
-    );
+    let fetchedMessagesContent = Array.from(fetchedMessages.values()).map(m => m.content);
     messagesContent = messagesContent.concat(fetchedMessagesContent);
 
     // If we fetched less than 100 messages, we've reached the beginning of the channel

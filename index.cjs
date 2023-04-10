@@ -1,4 +1,4 @@
-const { Client, GatewayIntentBits } = require("discord.js");
+const { Client, Events, GatewayIntentBits } = require("discord.js");
 const { bot_user_id, login_token } = require("./config.json");
 const fs = require("fs-extra");
 const bot_modules = [];
@@ -16,9 +16,29 @@ const client = new Client({
   ]
 });
 
-client.on("ready", () => InitializeModules().then(() => RunModuleFunction("OnReady", client)));
+client.on(Events.ClientReady, () => {
+  InitializeModules().then(() => RunModuleFunction("OnReady", { client }));
+});
 
-client.on("messageCreate", message => RunModuleFunction("OnMessageCreate", message));
+client.on(Events.MessageCreate, message => {
+  RunModuleFunction("OnMessageCreate", { client, message });
+});
+
+// Store the interactions being processed so their executions can't be spammed.
+const busyInteractions = new Set();
+
+client.on(Events.InteractionCreate, async interaction => {
+  const compositeKey = interaction.message.id + interaction.customId;
+
+  if (!interaction.isButton() || busyInteractions.has(compositeKey)) {
+    interaction.deferUpdate();
+    return null;
+  }
+
+  busyInteractions.add(compositeKey);
+  await RunModuleFunction("OnInteractionCreate", { client, interaction });
+  busyInteractions.delete(compositeKey);
+});
 
 // ------------ //
 // Script logic //
@@ -52,12 +72,12 @@ async function InitializeModules() {
   fs.emptyDir("./temp_storage/");
 }
 
-async function RunModuleFunction(functionName, param) {
+async function RunModuleFunction(functionName, params) {
   for (const module of bot_modules.filter(module => module.script[functionName])) {
     const log = { content: "", emoji: "" };
 
     try {
-      log.content = await module.script[functionName](client, param);
+      log.content = await module.script[functionName](params);
       log.emoji = "✅";
     } catch (error) {
       log.content = `${error.toString().replace("Error: ", "")}`;
