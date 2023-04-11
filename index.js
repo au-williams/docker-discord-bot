@@ -1,6 +1,6 @@
-const { Client, Events, GatewayIntentBits } = require("discord.js");
-const { bot_user_id, login_token } = require("./config.json");
-const fs = require("fs-extra");
+import { Client, Events, GatewayIntentBits } from "discord.js";
+import config from "./config.json" assert { type: "json" };
+import fs from "fs-extra";
 const bot_modules = [];
 
 // --------------------------------------------------- //
@@ -46,7 +46,7 @@ client.on(Events.InteractionCreate, async interaction => {
 
 async function InitializeModules() {
   console.log(
-    `Client "${client.users.cache.get(bot_user_id)?.username}" started` +
+    `Client "${client.users.cache.get(config.bot_user_id)?.username}" started` +
       ` with ${client.users.cache.size} user${client.users.cache.size === 1 ? "" : "s"}` +
       ` in ${client.channels.cache.size} channel${client.channels.cache.size === 1 ? "" : "s"}` +
       ` of ${client.guilds.cache.size} guild${client.guilds.cache.size === 1 ? "" : "s"}.`
@@ -56,9 +56,7 @@ async function InitializeModules() {
   // Populate bot_modules with scripts in ./bot_modules/ //
   // --------------------------------------------------- //
 
-  const filenames = require("fs")
-    .readdirSync(`./bot_modules/`)
-    .filter(x => x.endsWith(".mjs"));
+  const filenames = fs.readdirSync(`./bot_modules/`).filter(x => x.endsWith(".js"));
 
   for (const name of filenames)
     await import(`./bot_modules/${name}`).then(script => bot_modules.push({ name, script }));
@@ -97,4 +95,4 @@ async function RunModuleFunction(functionName, params) {
   }
 }
 
-client.login(login_token);
+client.login(config.login_token);

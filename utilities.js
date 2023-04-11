@@ -1,6 +1,4 @@
-import { createRequire } from "module";
-const require = createRequire(import.meta.url);
-const fs = require("fs");
+import fs from "fs";
 
 /**
  * Get the URL from a string regardless of its position therein.

@@ -1,7 +1,5 @@
-import { createRequire } from "module";
-const require = createRequire(import.meta.url);
-const config = require("./cat_facts_config.json");
-const cron = require("cron");
+import config from "./cat_facts_config.json" assert { type: "json" };
+import cron from "cron";
 
 // ------------- //
 // Discord Hooks //

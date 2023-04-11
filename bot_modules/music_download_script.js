@@ -1,12 +1,9 @@
-/* eslint-disable no-case-declarations */
+import { ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle } from "discord.js";
 import { basename } from "path";
-import { createRequire } from "module";
-import { getUrlFromString, getFileSizeFromPath, tryDeleteDiscordMessages } from "../utilities.mjs";
-const require = createRequire(import.meta.url);
-const config = require("./music_download_config.json");
-const fs = require("fs-extra");
-const youtubedl = require("youtube-dl-exec");
-const { ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle } = require("discord.js");
+import { getUrlFromString, getFileSizeFromPath, tryDeleteDiscordMessages } from "../utilities.js";
+import config from "./music_download_config.json" assert { type: "json" };
+import fs from "fs-extra";
+import youtubedl from "youtube-dl-exec";
 
 // ------------- //
 // Discord Hooks //
