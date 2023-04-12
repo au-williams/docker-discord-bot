@@ -7,7 +7,7 @@ import cron from "cron";
 
 export const OnReady = ({ client }) => {
   // todo: if missing yesterdays cat fact, send one regardless of cron
-  const cronJob = new cron.CronJob("0 9 * * *", async () => SendCatFacts(client));
+  const cronJob = new cron.CronJob("0 9 * * *", async () => sendCatFacts(client));
   cronJob.start();
 };
 
@@ -15,7 +15,7 @@ export const OnReady = ({ client }) => {
 // Module Logic //
 // ------------ //
 
-async function SendCatFacts(client) {
+async function sendCatFacts(client) {
   for (const channel_id of config.channel_ids) {
     const channel = client.channels.cache.get(channel_id);
     const channelMessageContent = await getAllMessagesContentFromChannel(channel);

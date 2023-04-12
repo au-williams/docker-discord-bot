@@ -109,23 +109,31 @@ export const OnMessageCreate = async ({ message }) => {
   return resultContent;
 };
 
-const InteractionActions = Object.freeze({
+const interactionActions = Object.freeze({
   GetMP3: "music_download_script_get_mp3",
   PlexImport: "music_download_script_plex_import",
   PlexDelete: "music_download_script_plex_delete"
 });
 
 export const OnInteractionCreate = ({ interaction }) => {
-  const isAction = Object.values(InteractionActions).includes(interaction.customId);
+  const isAction = Object.values(interactionActions).includes(interaction.customId);
   if (!isAction) return null;
 
   switch (interaction.customId) {
-    case InteractionActions.GetMP3:
-      return OnGetMP3(interaction);
-    case InteractionActions.PlexImport:
+    case interactionActions.GetMP3:
+      return onGetMP3(interaction);
+    case interactionActions.PlexImport:
       return onPlexImport(interaction);
-    case InteractionActions.PlexDelete:
-      throw new Error("Not implemented");
+    case interactionActions.PlexDelete:
+      return onPlexDelete(interaction);
+  }
+
+  async function onPlexDelete(interaction) {
+    const content = "This function isn't implemented yet.";
+    await interaction.reply({ content, ephemeral: true });
+    const starterMessage = await interaction.message.channel.fetchStarterMessage();
+    await starterMessage.thread.setArchived(true);
+    return `Could not delete file from Plex for ${interaction.user.tag}`;
   }
 
   /**
@@ -174,8 +182,8 @@ export const OnInteractionCreate = ({ interaction }) => {
     }
 
     const interactionButtons = interaction.message.components[0].components;
-    const mp3Button = interactionButtons.find(x => x.data.custom_id == InteractionActions.GetMP3);
-    const plexButton = getPlexDeleteButtonBuilder({ isDisabled: true });
+    const mp3Button = interactionButtons.find(x => x.data.custom_id == interactionActions.GetMP3);
+    const plexButton = getPlexDeleteButtonBuilder({ isDisabled: false });
     const components = [new ActionRowBuilder().addComponents(mp3Button, plexButton)];
 
     const files = [...interaction.message.attachments.values()];
@@ -193,7 +201,7 @@ export const OnInteractionCreate = ({ interaction }) => {
    * @param {ButtonInteraction} interaction
    * @returns {string} response
    */
-  async function OnGetMP3(interaction) {
+  async function onGetMP3(interaction) {
     // -------------------------------------------------------- //
     // Get dependencies and check for any invalid module states //
     // -------------------------------------------------------- //
@@ -259,7 +267,7 @@ const getMp3FormatButtonBuilder = ({ isDisabled }) =>
   new ButtonBuilder()
     .setDisabled(isDisabled)
     .setEmoji("🎧")
-    .setCustomId(InteractionActions.GetMP3)
+    .setCustomId(interactionActions.GetMP3)
     .setLabel(`Get as MP3`)
     .setStyle(ButtonStyle.Primary);
 
@@ -267,7 +275,7 @@ const getPlexImportButtonBuilder = ({ isDisabled }) =>
   new ButtonBuilder()
     .setDisabled(isDisabled)
     .setEmoji("<:plex:1093751472522543214>")
-    .setCustomId(InteractionActions.PlexImport)
+    .setCustomId(interactionActions.PlexImport)
     .setLabel("Import into Plex")
     .setStyle(ButtonStyle.Secondary);
 
@@ -275,7 +283,7 @@ const getPlexDeleteButtonBuilder = ({ isDisabled }) =>
   new ButtonBuilder()
     .setDisabled(isDisabled)
     .setEmoji("<:plex:1093751472522543214>")
-    .setCustomId(InteractionActions.PlexDelete)
+    .setCustomId(interactionActions.PlexDelete)
     .setLabel("Delete from Plex")
     .setStyle(ButtonStyle.Secondary);
 
@@ -299,7 +307,7 @@ async function tryDownload(id, url, audioFormat) {
   };
 
   // cli command:
-  // yt-dlp https://www.youtube.com/watch?v=[ID] -f "bestaudio/best" --audio-quality 0 --extract-audio --embed-metadata --embed-thumbnail --postprocessor-args "ffmpeg: -metadata album='Downloads' -metadata album_artist='Various Artists' -metadata date=''  -metadata track=''"
+  // yt-dlp https://www.youtube.com/watch?v=[VIDEO_ID] -f "bestaudio/best" --audio-quality 0 --extract-audio --embed-metadata --embed-thumbnail --postprocessor-args "ffmpeg: -metadata album='Downloads' -metadata album_artist='Various Artists' -metadata date=''  -metadata track=''"
 
   await youtubedl(url, options).catch(error => {
     throw new Error(error);

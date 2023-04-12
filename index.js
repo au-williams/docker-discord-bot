@@ -17,11 +17,11 @@ const client = new Client({
 });
 
 client.on(Events.ClientReady, () => {
-  InitializeModules().then(() => RunModuleFunction("OnReady", { client }));
+  initializeModules().then(() => runModuleFunction("OnReady", { client }));
 });
 
 client.on(Events.MessageCreate, message => {
-  RunModuleFunction("OnMessageCreate", { client, message });
+  runModuleFunction("OnMessageCreate", { client, message });
 });
 
 // Store the interactions being processed so their executions can't be spammed.
@@ -36,7 +36,7 @@ client.on(Events.InteractionCreate, async interaction => {
   }
 
   busyInteractions.add(compositeKey);
-  await RunModuleFunction("OnInteractionCreate", { client, interaction });
+  await runModuleFunction("OnInteractionCreate", { client, interaction });
   busyInteractions.delete(compositeKey);
 });
 
@@ -44,9 +44,9 @@ client.on(Events.InteractionCreate, async interaction => {
 // Script logic //
 // ------------ //
 
-async function InitializeModules() {
+async function initializeModules() {
   console.log(
-    `Client "${client.users.cache.get(config.bot_user_id)?.username}" started` +
+    `Client "${client.users.cache.get(client.user.id)?.username}" started` +
       ` with ${client.users.cache.size} user${client.users.cache.size === 1 ? "" : "s"}` +
       ` in ${client.channels.cache.size} channel${client.channels.cache.size === 1 ? "" : "s"}` +
       ` of ${client.guilds.cache.size} guild${client.guilds.cache.size === 1 ? "" : "s"}.`
@@ -70,7 +70,7 @@ async function InitializeModules() {
   fs.emptyDir("./temp_storage/");
 }
 
-async function RunModuleFunction(functionName, params) {
+async function runModuleFunction(functionName, params) {
   for (const module of bot_modules.filter(module => module.script[functionName])) {
     const log = { content: "", emoji: "" };
 
