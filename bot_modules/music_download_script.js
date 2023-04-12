@@ -295,8 +295,11 @@ async function tryDownload(id, url, audioFormat) {
     extractAudio: true,
     embedMetadata: true,
     embedThumbnail: true,
-    postprocessorArgs: `ffmpeg: -metadata album='Downloads' -metadata album_artist='Various Artists'`
+    postprocessorArgs: `ffmpeg: -metadata album='Downloads' -metadata album_artist='Various Artists' -metadata date='' -metadata track=''`
   };
+
+  // cli command:
+  // yt-dlp https://www.youtube.com/watch?v=[ID] -f "bestaudio/best" --audio-quality 0 --extract-audio --embed-metadata --embed-thumbnail --postprocessor-args "ffmpeg: -metadata album='Downloads' -metadata album_artist='Various Artists' -metadata date=''  -metadata track=''"
 
   await youtubedl(url, options).catch(error => {
     throw new Error(error);
