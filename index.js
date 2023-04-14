@@ -30,7 +30,7 @@ const busyInteractions = new Set();
 client.on(Events.InteractionCreate, async interaction => {
   const compositeKey = interaction.message.id + interaction.customId;
 
-  if (!interaction.isButton() || busyInteractions.has(compositeKey)) {
+  if (busyInteractions.has(compositeKey)) {
     interaction.deferUpdate();
     return null;
   }

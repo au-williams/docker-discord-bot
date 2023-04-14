@@ -1,9 +1,20 @@
-import { ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle } from "discord.js";
 import { basename } from "path";
 import { getUrlFromString, getFileSizeFromPath, tryDeleteDiscordMessages } from "../utilities.js";
+import * as oembed from "@extractus/oembed-extractor";
 import config from "./music_download_config.json" assert { type: "json" };
 import fs from "fs-extra";
 import youtubedl from "youtube-dl-exec";
+import {
+  ActionRowBuilder,
+  AttachmentBuilder,
+  ButtonBuilder,
+  ButtonInteraction,
+  ButtonStyle,
+  ChannelType,
+  ModalBuilder,
+  TextInputBuilder,
+  TextInputStyle
+} from "discord.js";
 
 // ------------- //
 // Discord Hooks //
@@ -43,116 +54,222 @@ export const OnMessageCreate = async ({ message }) => {
   // download and get the filepath, or reply with an error //
   // ----------------------------------------------------- //
 
-  const tempFilepath = await tryDownload(message.id, url).catch(async () => {
-    const reply = await message.reply("This link is unsupported and cannot download.");
-    message.thread.setName("👎 Download was aborted").then(x => x.setArchived(true));
-    setTimeout(async () => tryDeleteDiscordMessages(message, reply), 10000);
-    return `Deleted message with unsupported link from ${message.author.tag}`;
-  });
+  const files = [
+    await tryDownload(message.id, url).catch(async () => {
+      const reply = await message.reply("This link is unsupported and cannot download.");
+      await message.thread.setName("⚠ Download was aborted");
+      setTimeout(async () => tryDeleteDiscordMessages(message, reply), 10000);
+      return `Deleted message with unsupported link from ${message.author.tag}`;
+    })
+  ];
 
   // ----------------------------------------------------- //
   // send the file attachment or an error if one is thrown //
   // ----------------------------------------------------- //
 
-  let resultContent = "";
+  // let resultContent = "";
+  let content = "This track is ready to be downloaded using the link below.";
+
+  const mp3Button = new ButtonBuilder()
+    .setCustomId(interactionActions.GetMp3Button)
+    .setDisabled(files[0].endsWith(".mp3"))
+    .setEmoji("🎧")
+    .setLabel(`Get MP3 file`)
+    .setStyle(files[0].endsWith(".mp3") ? ButtonStyle.Secondary : ButtonStyle.Primary);
+
+  const plexButton = new ButtonBuilder()
+    .setCustomId(interactionActions.PlexImportButton)
+    .setDisabled(false)
+    .setEmoji("<:plex:1093751472522543214>")
+    .setLabel("Import into Plex")
+    .setStyle(ButtonStyle.Secondary);
+
+  const components = [new ActionRowBuilder().addComponents(mp3Button, plexButton)];
 
   message.thread
-    .send({
-      components: [
-        new ActionRowBuilder().addComponents(
-          getMp3FormatButtonBuilder({ isDisabled: tempFilepath.endsWith(".mp3") }),
-          getPlexImportButtonBuilder({ isDisabled: false })
-        )
-      ],
-      files: [tempFilepath]
-    })
+    .send({ content, components, files })
     .then(async () => {
-      await message.thread.setName("👍 Download is ready");
-      resultContent = `Sent a reply with download link to ${message.author.tag}`;
+      await message.thread.setName("💿 Download is ready");
+      // resultContent = `Sent a reply with download link to ${message.author.tag}`;
     })
     .catch(async error => {
       switch (error.code) {
         case 40005:
-          const fileSize = getFileSizeFromPath(tempFilepath);
-          await message.thread.setName("👎 Upload exceeds limit");
-          await message.thread.send({
-            content: `File size ${fileSize}MB exceeds the servers upload limit.`,
-            components: [
-              new ActionRowBuilder().addComponents(
-                getMp3FormatButtonBuilder({ isDisabled: true }),
-                getPlexImportButtonBuilder({ isDisabled: false })
-              )
-            ]
-          });
-          resultContent = `Tried to send a reply with download link that exceeded upload limit to ${message.author.tag}`;
+          const fileSize = getFileSizeFromPath(files[0]);
+          content = `File size ${fileSize}MB exceeds the servers upload limit.`;
+          components[0].components[0].setDisabled(true); // disable MP3 button
+          await message.thread.setName("⚠ Upload exceeds limit");
+          await message.thread.send({ content, components });
+          // resultContent = `Tried to send a reply with download link that exceeded upload limit to ${message.author.tag}`;
           break;
         default:
-          await message.thread.setName("👎 Upload was aborted");
-          await message.thread.send({
-            content: "The Discord API timed out and aborted the upload.",
-            components: [
-              new ActionRowBuilder().addComponents(
-                getMp3FormatButtonBuilder({ isDisabled: false }),
-                getPlexImportButtonBuilder({ isDisabled: false })
-              )
-            ]
-          });
-          resultContent = `Tried to send a reply with download link to ${message.author.tag} but the Discord API timed out.`;
+          content = "The Discord API timed out and aborted the upload.";
+          await message.thread.setName("⚠ Upload was aborted");
+          await message.thread.send({ content, components });
+          // resultContent = `Tried to send a reply with download link to ${message.author.tag} but the Discord API timed out.`;
           break;
       }
     })
-    .finally(() => {
-      setTimeout(async () => message.thread.setArchived(true), 10000);
-      fs.unlinkSync(tempFilepath);
-    });
+    .finally(() => fs.unlinkSync(files[0]));
 
-  return resultContent;
+  // return resultContent;
 };
 
 const interactionActions = Object.freeze({
-  GetMP3: "music_download_script_get_mp3",
-  PlexImport: "music_download_script_plex_import",
-  PlexDelete: "music_download_script_plex_delete"
+  GetMp3Button: "music_download_script_get_mp3",
+  PlexImportButton: "music_download_script_plex_import_button",
+  PlexDeleteButton: "music_download_script_plex_delete_button",
+  PlexImportModal: "music_download_script_plex_import_modal",
+  PlexDeleteModal: "music_download_script_plex_delete_modal"
 });
 
-export const OnInteractionCreate = ({ interaction }) => {
+const verifyInteractionChannel = async ({ channel, message }) => {
+  switch (channel.type) {
+    case ChannelType.GuildText:
+      return config.channel_ids.includes(channel.id);
+    case ChannelType.PublicThread:
+      const starterMessage = await message.channel.fetchStarterMessage();
+      return config.channel_ids.includes(starterMessage.channelId);
+    case ChannelType.DM:
+      return true;
+    default:
+      throw new Error(`Unexpected channel type: ${channel.type}`);
+  }
+};
+
+export const OnInteractionCreate = async ({ interaction }) => {
   const isAction = Object.values(interactionActions).includes(interaction.customId);
-  if (!isAction) return null;
+  const isChannel = await verifyInteractionChannel(interaction);
+  if (!isAction || !isChannel) return null;
 
   switch (interaction.customId) {
-    case interactionActions.GetMP3:
-      return onGetMP3(interaction);
-    case interactionActions.PlexImport:
-      return onPlexImport(interaction);
-    case interactionActions.PlexDelete:
-      return onPlexDelete(interaction);
-  }
-
-  async function onPlexDelete(interaction) {
-    const content = "This function isn't implemented yet.";
-    await interaction.reply({ content, ephemeral: true });
-    const starterMessage = await interaction.message.channel.fetchStarterMessage();
-    await starterMessage.thread.setArchived(true);
-    return `Could not delete file from Plex for ${interaction.user.tag}`;
+    case interactionActions.GetMp3Button:
+      return onGetMp3Button(interaction);
+    case interactionActions.PlexImportButton:
+      return onPlexImportButton(interaction);
+    case interactionActions.PlexDeleteButton:
+      return onPlexDeleteButton(interaction);
+    case interactionActions.PlexImportModal:
+      return onPlexImportModal(interaction);
+    case interactionActions.PlexDeleteModal:
+      return onPlexDeleteModal(interaction);
   }
 
   /**
-   * Download the URL in the native format and move to the library folder.
+   * Create and show the "PlexImportModal" when the "PlexImportButton" button is pressed
    * @param {ButtonInteraction} interaction
-   * @returns {string} response
    */
-  async function onPlexImport(interaction) {
+  async function onPlexImportButton(interaction) {
+    // ----------------------------------------------------- //
+    // Fetch music file metadata values from the page source //
+    // ----------------------------------------------------- //
+
+    const starterMessage = await interaction.message.channel.fetchStarterMessage();
+    const url = getUrlFromString(starterMessage.content);
+    let { title, author_name } = await oembed.extract(url);
+
+    if (title.endsWith(` by ${author_name}`)) {
+      // SoundCloud provides redundant information in title
+      title = title.slice(0, -` by ${author_name}`.length);
+    }
+
+    // ------------------------------------------------------ //
+    // Create a modal to update metadata values before import //
+    // ------------------------------------------------------ //
+
+    const titleInput = new TextInputBuilder()
+      .setCustomId("title")
+      .setLabel("Track Title")
+      .setRequired(true)
+      .setStyle(TextInputStyle.Short)
+      .setValue(title);
+
+    const artistInput = new TextInputBuilder()
+      .setCustomId("artist")
+      .setLabel("Track Artist")
+      .setRequired(true)
+      .setStyle(TextInputStyle.Short)
+      .setValue(author_name);
+
+    const genreInput = new TextInputBuilder()
+      .setCustomId("genre")
+      .setLabel("Track Genre")
+      .setRequired(false)
+      .setStyle(TextInputStyle.Short);
+
+    const modal = new ModalBuilder()
+      .setCustomId(interactionActions.PlexImportModal)
+      .setTitle("Import into Plex")
+      .addComponents(
+        new ActionRowBuilder().addComponents(titleInput),
+        new ActionRowBuilder().addComponents(artistInput),
+        new ActionRowBuilder().addComponents(genreInput)
+      );
+
+    await interaction.showModal(modal);
+  }
+
+  /**
+   * Create and show the "PlexDeleteModal" when the "PlexDeleteButton" button is pressed
+   * @param {ButtonInteraction} interaction
+   */
+  async function onPlexDeleteButton(interaction) {
+    const reasonInput = new TextInputBuilder()
+      .setCustomId("reason")
+      .setLabel("Reason for deletion")
+      .setRequired(true)
+      .setStyle(TextInputStyle.Paragraph);
+
+    const modal = new ModalBuilder()
+      .setCustomId(interactionActions.PlexDeleteModal)
+      .setTitle("Delete from Plex")
+      .addComponents(new ActionRowBuilder().addComponents(reasonInput));
+
+    await interaction.showModal(modal);
+  }
+
+  async function onPlexDeleteModal(interaction) {
+    await interaction.deferReply({ ephemeral: true });
+
     // -------------------------------------------------------- //
     // Verify the interaction user has the configured Plex role //
     // -------------------------------------------------------- //
 
-    const starterMessage = await interaction.message.channel.fetchStarterMessage();
+    if (!interaction.member.roles.cache.has(config.plex_user_role_id)) {
+      const content = "You aren't authorized to delete this from Plex.";
+      const files = [{ attachment: "assets\\you_are_arrested.png" }];
+      interaction.editReply({ content, files, ephemeral: true });
+      return `Denied deleting a file from Plex for ${interaction.user.tag}`;
+    }
+
+    // ---------------------------------------------------------- //
+    // Edit the interaction buttons and interaction reply message //
+    // ---------------------------------------------------------- //
+
+    // todo: fs delete
+
+    const row = ActionRowBuilder.from(interaction.message.components[0]);
+    row.components[1]
+      .setCustomId(interactionActions.PlexImportButton)
+      .setDisabled(false)
+      .setLabel("Import into Plex");
+
+    interaction.message.edit({ components: [row] });
+    interaction.followUp({ content: "This isn't implemented yet.", ephemeral: true });
+    return `Deleted a file from Plex for ${interaction.user.tag}`;
+  }
+
+  async function onPlexImportModal(interaction) {
+    await interaction.deferReply({ ephemeral: true });
+
+    // -------------------------------------------------------- //
+    // Verify the interaction user has the configured Plex role //
+    // -------------------------------------------------------- //
 
     if (!interaction.member.roles.cache.has(config.plex_user_role_id)) {
       const content = "You aren't authorized to import this into Plex.";
       const files = [{ attachment: "assets\\you_are_arrested.png" }];
-      await interaction.reply({ content, files, ephemeral: true });
-      await starterMessage.thread.setArchived(true);
+      interaction.editReply({ content, files, ephemeral: true });
       return `Denied importing a file into Plex for ${interaction.user.tag}`;
     }
 
@@ -160,13 +277,20 @@ export const OnInteractionCreate = ({ interaction }) => {
     // Get dependencies and check for any invalid module states //
     // -------------------------------------------------------- //
 
-    await interaction.deferReply({ ephemeral: true });
-    await starterMessage.thread.setArchived(true);
+    const row = ActionRowBuilder.from(interaction.message.components[0]);
+    row.components[1].setDisabled(true); // disable plex button component
+    interaction.message.edit({ components: [row] });
 
+    const starterMessage = await interaction.message.channel.fetchStarterMessage();
     const url = getUrlFromString(starterMessage.content);
-    const tempFilepath = await tryDownload(interaction.message.id, url).catch(async () => {
-      await interaction.editReply("The message URL was changed and cannot be downloaded.");
-      await starterMessage.thread.setArchived(true);
+
+    const tempFilepath = await tryDownload(interaction.message.id, url, {
+      title: interaction.fields.getTextInputValue("title"),
+      artist: interaction.fields.getTextInputValue("artist"),
+      genre: interaction.fields.getTextInputValue("genre")
+    }).catch(async () => {
+      await interaction.deleteReply();
+      interaction.followUp("The message link changed and can't be used.");
       return `Could not import changed URL into Plex for ${interaction.user.tag}`;
     });
 
@@ -174,24 +298,21 @@ export const OnInteractionCreate = ({ interaction }) => {
     // Edit the interaction buttons and interaction reply message //
     // ---------------------------------------------------------- //
 
-    let replyContent = "Your file was already imported. Press the button again to delete it.";
+    const destination = `${config.plex_directory}/${basename(tempFilepath)}`;
+    // const isOverwrite = fs.existsSync(destination); (for verbose logging)
+    fs.moveSync(tempFilepath, destination, { overwrite: true });
+    await interaction.deleteReply();
 
-    if (!fs.existsSync(`${config.plex_directory}/${basename(tempFilepath)}`)) {
-      fs.moveSync(tempFilepath, `${config.plex_directory}/${basename(tempFilepath)}`);
-      replyContent = "Your file imported and will be visible after the next automated scan.";
-    }
+    row.components[1]
+      .setCustomId(interactionActions.PlexDeleteButton)
+      .setDisabled(false)
+      .setLabel("Delete from Plex");
 
-    const interactionButtons = interaction.message.components[0].components;
-    const mp3Button = interactionButtons.find(x => x.data.custom_id == interactionActions.GetMP3);
-    const plexButton = getPlexDeleteButtonBuilder({ isDisabled: false });
-    const components = [new ActionRowBuilder().addComponents(mp3Button, plexButton)];
-
-    const files = [...interaction.message.attachments.values()];
-
-    await starterMessage.thread.setArchived(false);
-    await interaction.message.edit({ content: interaction.message.content, files, components });
-    await interaction.editReply({ content: replyContent, ephemeral: true });
-    await starterMessage.thread.setArchived(true);
+    interaction.message.edit({ components: [row] });
+    interaction.followUp({
+      content: `Success! Your file was imported into Plex and will be visible after the next automated library scan.`,
+      ephemeral: true
+    });
 
     return `Imported a file into Plex for ${interaction.user.tag}`;
   }
@@ -201,17 +322,27 @@ export const OnInteractionCreate = ({ interaction }) => {
    * @param {ButtonInteraction} interaction
    * @returns {string} response
    */
-  async function onGetMP3(interaction) {
+  async function onGetMp3Button(interaction) {
+    await interaction.deferReply({ ephemeral: true });
+
     // -------------------------------------------------------- //
     // Get dependencies and check for any invalid module states //
     // -------------------------------------------------------- //
-    const starterMessage = await interaction.message.channel.fetchStarterMessage();
-    await interaction.deferReply({ ephemeral: true });
-    await starterMessage.thread.setArchived(true);
 
+    const row = ActionRowBuilder.from(interaction.message.components[0]);
+    row.components[0].setStyle(ButtonStyle.Secondary).setDisabled(true);
+    interaction.message.edit({ components: [row] });
+
+    const starterMessage = await interaction.message.channel.fetchStarterMessage();
     const url = getUrlFromString(starterMessage.content);
-    const tempFilepath = await tryDownload(interaction.message.id, url, "mp3").catch(async () => {
-      await interaction.editReply("The message URL was changed and cannot be downloaded.");
+    const tempFilepath = await tryDownload(interaction.message.id, url, {
+      audioFormat: "mp3"
+    }).catch(async () => {
+      await interaction.deleteReply();
+      row.components[0].setStyle(ButtonStyle.Primary).setDisabled(false);
+      interaction.message.edit({ components: [row] });
+      const content = "The message link changed and can't be used.";
+      interaction.followUp({ content, ephemeral: true });
       return `Could not import changed URL into Plex for ${interaction.user.tag}`;
     });
 
@@ -219,24 +350,18 @@ export const OnInteractionCreate = ({ interaction }) => {
     // Edit the interaction buttons and interaction reply message //
     // ---------------------------------------------------------- //
 
-    const content = interaction.message.content;
-    const buttons = interaction.message.components[0].components;
-    const mp3Button = getMp3FormatButtonBuilder({ isDisabled: true });
-    const plexButton = buttons.find(x => x.data.custom_id.includes("plex"));
-    const components = [new ActionRowBuilder().addComponents(mp3Button, plexButton)];
-
-    const files = [
-      ...interaction.message.attachments.values(),
-      new AttachmentBuilder(tempFilepath, { name: basename(tempFilepath) })
-    ];
+    const files = [...interaction.message.attachments.values()];
+    files.push(new AttachmentBuilder(tempFilepath, { name: basename(tempFilepath) }));
 
     let resultContent = `Uploaded a MP3 file for ${interaction.user.tag}`;
     let replyContent = "Your MP3 file was uploaded successfully.";
 
-    await starterMessage.thread.setArchived(false);
     await interaction.message
-      .edit({ content, files, components })
-      .catch(async error => {
+      .edit({ components: [row], files })
+      .catch(error => {
+        row.components[0].setStyle(ButtonStyle.Primary).setDisabled(false);
+        interaction.message.edit({ components: [row] });
+
         switch (error.code) {
           case 40005:
             const fileSize = getFileSizeFromPath(tempFilepath);
@@ -250,8 +375,8 @@ export const OnInteractionCreate = ({ interaction }) => {
         }
       })
       .finally(async () => {
-        await interaction.editReply(replyContent);
-        await starterMessage.thread.setArchived(true);
+        await interaction.deleteReply();
+        interaction.followUp({ content: replyContent, ephemeral: true });
         fs.unlinkSync(tempFilepath);
       });
 
@@ -263,55 +388,34 @@ export const OnInteractionCreate = ({ interaction }) => {
 // Module Logic //
 // ------------ //
 
-const getMp3FormatButtonBuilder = ({ isDisabled }) =>
-  new ButtonBuilder()
-    .setDisabled(isDisabled)
-    .setEmoji("🎧")
-    .setCustomId(interactionActions.GetMP3)
-    .setLabel(`Get as MP3`)
-    .setStyle(ButtonStyle.Primary);
-
-const getPlexImportButtonBuilder = ({ isDisabled }) =>
-  new ButtonBuilder()
-    .setDisabled(isDisabled)
-    .setEmoji("<:plex:1093751472522543214>")
-    .setCustomId(interactionActions.PlexImport)
-    .setLabel("Import into Plex")
-    .setStyle(ButtonStyle.Secondary);
-
-const getPlexDeleteButtonBuilder = ({ isDisabled }) =>
-  new ButtonBuilder()
-    .setDisabled(isDisabled)
-    .setEmoji("<:plex:1093751472522543214>")
-    .setCustomId(interactionActions.PlexDelete)
-    .setLabel("Delete from Plex")
-    .setStyle(ButtonStyle.Secondary);
-
 /**
  * Try downloading the file using yt-dlp and post processing with ffmpeg.
  * @param {string} url
  * @param {number} messageId
- * @param {string?} audioFormat
+ * @param {object} options
  * @returns {bool} Success
  */
-async function tryDownload(id, url, audioFormat) {
-  const options = {
+async function tryDownload(id, url, options) {
+  let postprocessorArgs = `ffmpeg: -metadata album='Downloads' -metadata album_artist='Various Artists' -metadata date='' -metadata track=''`;
+  if (options?.title) postprocessorArgs += ` -metadata title='${options.title}'`;
+  if (options?.artist) postprocessorArgs += ` -metadata artist='${options.artist}'`;
+  if (options?.genre) postprocessorArgs += ` -metadata genre='${options.genre}'`;
+
+  await youtubedl(url, {
     output: `${config.temp_directory}/${id}/%(title)s.%(ext)s`,
     format: "bestaudio/best",
-    audioFormat: audioFormat, // nullable
+    audioFormat: options?.audioFormat, // nullable
     audioQuality: 0,
     extractAudio: true,
     embedMetadata: true,
     embedThumbnail: true,
-    postprocessorArgs: `ffmpeg: -metadata album='Downloads' -metadata album_artist='Various Artists' -metadata date='' -metadata track=''`
-  };
+    postprocessorArgs
+  }).catch(error => {
+    throw new Error(error);
+  });
 
   // cli command:
   // yt-dlp https://www.youtube.com/watch?v=[VIDEO_ID] -f "bestaudio/best" --audio-quality 0 --extract-audio --embed-metadata --embed-thumbnail --postprocessor-args "ffmpeg: -metadata album='Downloads' -metadata album_artist='Various Artists' -metadata date=''  -metadata track=''"
-
-  await youtubedl(url, options).catch(error => {
-    throw new Error(error);
-  });
 
   const filename = fs.readdirSync(`${config.temp_directory}/${id}`)[0];
   const filepath = `${config.temp_directory}/${id}/${filename}`;
