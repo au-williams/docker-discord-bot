@@ -17,23 +17,28 @@ export const OnReady = ({ client }) => {
 
 async function sendCatFacts(client) {
   for (const channel_id of config.channel_ids) {
-    const channel = client.channels.cache.get(channel_id);
-    const channelMessageContent = await getAllMessagesContentFromChannel(channel);
-    let message = null;
+    try {
+      const channel = client.channels.cache.get(channel_id);
+      const channelMessageContent = await getAllMessagesContentFromChannel(channel);
+      let message = null;
 
-    while (!message) {
-      let fact = await fetch("https://catfact.ninja/fact?max_length=256")
-        .then(response => response.json())
-        .then(data => data.fact.trim());
+      while (!message) {
+        let fact = await fetch("https://catfact.ninja/fact?max_length=256")
+          .then(response => response.json())
+          .then(data => data.fact.trim());
 
-      if (!endsInPunctuation(fact)) fact += ".";
-      if (!channelMessageContent.includes(fact)) message = fact;
+        if (!endsInPunctuation(fact)) fact += ".";
+        if (!channelMessageContent.includes(fact)) message = fact;
+      }
+
+      channel
+        .send(message)
+        .then(() => console.log(`A cat fact was sent to ${channel.guild.name} #${channel.name}!`))
+        .catch(console.error);
     }
-
-    channel
-      .send(message)
-      .then(() => console.log(`A cat fact was sent to ${channel.guild.name} #${channel.name}!`))
-      .catch(console.error);
+    catch(error) {
+      // log error
+    }
   }
 }
 

@@ -1,5 +1,7 @@
 import fs from "fs";
 
+export const getBaseTextChannel = channel => channel.thread ? channel.parent : channel;
+
 /**
  * Get the URL from a string regardless of its position therein.
  * @param {string} input
@@ -18,6 +20,20 @@ export function getUrlFromString(input) {
  */
 export function getFileSizeFromPath(filepath) {
   return Math.round((fs.statSync(filepath).size / (1024 * 1024) + Number.EPSILON) * 100) / 100;
+}
+
+export function sanitizeOembedTitle(title, author_name) {
+  let result = title;
+
+  if (title.endsWith(` by ${author_name}`)) {
+    result = result.slice(0, -` by ${author_name}`.length);
+  }
+
+  if (title.startsWith(`${author_name} - `)) {
+    result = result.slice(`${author_name} - `.length);
+  }
+
+  return result;
 }
 
 /**

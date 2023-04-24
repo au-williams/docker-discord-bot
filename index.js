@@ -1,4 +1,5 @@
 import { Client, Events, GatewayIntentBits } from "discord.js";
+import { Logger } from "./logger.js";
 import config from "./config.json" assert { type: "json" };
 import fs from "fs-extra";
 const bot_modules = [];
@@ -13,7 +14,10 @@ const client = new Client({
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
     GatewayIntentBits.GuildMembers
-  ]
+  ],
+  rest: {
+    timeout: 60000
+  }
 });
 
 client.on(Events.ClientReady, () => {
@@ -21,7 +25,11 @@ client.on(Events.ClientReady, () => {
 });
 
 client.on(Events.MessageCreate, message => {
-  runModuleFunction("OnMessageCreate", { client, message });
+  !message.author.bot && runModuleFunction("OnMessageCreate", { client, message });
+});
+
+client.on(Events.MessageUpdate, (oldMessage, newMessage) => {
+  !newMessage.author.bot && runModuleFunction("OnMessageUpdate", { client, oldMessage, newMessage });
 });
 
 // Store the interactions being processed so their executions can't be spammed.
@@ -72,25 +80,10 @@ async function initializeModules() {
 
 async function runModuleFunction(functionName, params) {
   for (const module of bot_modules.filter(module => module.script[functionName])) {
-    const log = { content: "", emoji: "" };
-
     try {
-      log.content = await module.script[functionName](params);
-      log.emoji = "✅";
+      await module.script[functionName](params);
     } catch (error) {
-      log.content = `${error.toString().replace("Error: ", "")}`;
-      log.emoji = "❌";
-    }
-
-    if (log.content) {
-      const builder = [
-        log.emoji && `${log.emoji}`,
-        module.name && `"${module.name}"`,
-        functionName && `[${functionName}]`,
-        log.content && `-> ${log.content}`
-      ].filter(x => x);
-
-      console.log(builder.join(" "));
+      Logger.Error(`${module.name} ${functionName} threw an unhandled error\n❌ ${module.name} -> ${error}`);
     }
   }
 }
