@@ -243,9 +243,6 @@ export const OnInteractionCreate = async ({ interaction }) => {
               interaction.editReply(`Your file was removed from the Plex media library and will be reflected after the next automated library scan.`);
               Logger.Warn(`${interaction.member.nickname} couldn't start a Plex media library scan`)
             });
-          fetch(fetchAddress, fetchOptions)
-            .then(() => Logger.Info(`${interaction.member.nickname} started a Plex media library scan`))
-            .catch(() => Logger.Warn(`${interaction.member.nickname} couldn't start a Plex media library scan`));
         } else {
           interaction.editReply(`Your file wasn't found and couldn't be removed from the Plex media library.`);
           Logger.Warn(`${interaction.member.nickname} couldn't remove "${basename(tempFilepath)}" from the Plex media library because it wasn't found.`);
