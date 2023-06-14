@@ -22,20 +22,6 @@ export function getFileSizeFromPath(filepath) {
   return Math.round((fs.statSync(filepath).size / (1024 * 1024) + Number.EPSILON) * 100) / 100;
 }
 
-export function sanitizeOembedTitle(title, author_name) {
-  let result = title;
-
-  if (title.endsWith(` by ${author_name}`)) {
-    result = result.slice(0, -` by ${author_name}`.length);
-  }
-
-  if (title.startsWith(`${author_name} - `)) {
-    result = result.slice(`${author_name} - `.length);
-  }
-
-  return result;
-}
-
 /**
  * Fetch the message by id to check for existence and delete it.
  */
