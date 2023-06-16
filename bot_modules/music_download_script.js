@@ -53,7 +53,7 @@ export const OnMessageCreate = async ({ message }) => {
 
   const threadMessage = await message.thread.send({
     components: [row],
-    content: "You can download this music to your device with the button below."
+    content: "You can download this music with the button below."
   });
 
   // check if the file exists in plex and update the plex button to reflect the result
