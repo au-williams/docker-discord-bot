@@ -69,7 +69,7 @@ async function initializeModules() {
   for (const name of filenames)
     await import(`./bot_modules/${name}`).then(script => bot_modules.push({ name, script }));
 
-  console.log(`🔄 Loaded modules ["${filenames.join(`", "`)}"] (${filenames.length})`);
+  Logger.Info(`Loaded modules ["${filenames.join(`", "`)}"] (${filenames.length})`);
 
   // --------------------------------------------------- //
   // Delete last sessions temp data from ./temp_storage/ //

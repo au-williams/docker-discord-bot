@@ -65,7 +65,7 @@ export const OnMessageCreate = async ({ message }) => {
     row.components[1].setDisabled(false);
     row.components[1].setEmoji("<:plex:1093751472522543214>");
     row.components[1].setLabel(isPlexFile ? "Remove from Plex" : "Import into Plex")
-    threadMessage.edit({ components: [row] });
+    threadMessage.edit({ components: [row] }).catch(Logger.Error);
   }
 
   download({ id, url })
@@ -75,7 +75,7 @@ export const OnMessageCreate = async ({ message }) => {
       fs.remove(directory);
     })
     .catch(error => {
-      Logger.Warn(`A yt-dlp error ocurred when checking existence of Plex file: ${error}`);
+      Logger.Error(`A yt-dlp error ocurred when checking Plex file existence`, error);
       updatePlexButton(false);
     })
 }
@@ -93,8 +93,7 @@ export const OnMessageUpdate = async ({ oldMessage, newMessage }) => {
   OnMessageCreate({ message: newMessage });
 }
 
-// composite key schema: interaction.customId + interaction.user.id
-const pendingInteractions = new Set();
+const pendingInteractions = new Set(); // interaction.customId + interaction.user.id
 
 export const OnInteractionCreate = async ({ interaction }) => {
   const { customId, member: { nickname, roles }, message: { channel }, user } = interaction;
@@ -107,7 +106,7 @@ export const OnInteractionCreate = async ({ interaction }) => {
   const isAction = Object.values(INTERACTION_ACTIONS).includes(customId);
   if (!isAction) return;
 
-  const channelId = (await channel.fetchStarterMessage()).channelId;
+  const { channelId } = await channel.fetchStarterMessage();
   const isChannel = config.channel_ids.includes(channelId);
   if (!isChannel) return;
 
@@ -119,16 +118,10 @@ export const OnInteractionCreate = async ({ interaction }) => {
   }
 
   switch (customId) {
-    // ---------------------------------------------- //
-    // download url with yt-dlp and upload to discord //
-    // ---------------------------------------------- //
     case INTERACTION_ACTIONS.DOWNLOAD_BUTTON:
       return showMetadataModal({ customId: INTERACTION_ACTIONS.DOWNLOAD_MODAL, interaction, modalTitle: "Download MP3" });
     case INTERACTION_ACTIONS.DOWNLOAD_MODAL:
       return uploadUrlToThread({ interaction });
-    // --------------------------------------------- //
-    // download url with yt-dlp and import into plex //
-    // --------------------------------------------- //
     case INTERACTION_ACTIONS.PLEX_IMPORT_BUTTON:
       return roles.cache.has(config.plex_user_role_id)
         ? showMetadataModal({ interaction, customId: INTERACTION_ACTIONS.PLEX_IMPORT_MODAL, modalTitle: "Import into Plex" })
@@ -137,9 +130,6 @@ export const OnInteractionCreate = async ({ interaction }) => {
       return roles.cache.has(config.plex_user_role_id)
         ? importUrlIntoPlex({ interaction })
         : replyUnauthorized({ interaction, appendedErrorText: "import into Plex" });
-    // --------------------------------------------- //
-    // remove yt-dlp filename from plex if it exists //
-    // --------------------------------------------- //
     case INTERACTION_ACTIONS.PLEX_REMOVE_BUTTON:
       return roles.cache.has(config.plex_user_role_id)
         ? showRemovalModal({ interaction, customId: INTERACTION_ACTIONS.PLEX_REMOVE_MODAL, modalTitle: "Remove from Plex" })
@@ -150,21 +140,21 @@ export const OnInteractionCreate = async ({ interaction }) => {
         : replyUnauthorized({ interaction, appendedErrorText: "remove from Plex" })
   }
 
-  async function showRemovalModal({ customId, interaction, modalTitle }) {
-    interaction.showModal(
-      new ModalBuilder()
-        .setCustomId(customId)
-        .setTitle(modalTitle)
-        .addComponents(
-          new ActionRowBuilder().addComponents(
-            new TextInputBuilder()
-              .setCustomId("reason")
-              .setLabel("Reason for removal")
-              .setRequired(true)
-              .setStyle(TextInputStyle.Paragraph)
-          )
-        )
-    )
+  function showRemovalModal({ customId, interaction, modalTitle }) {
+    const components = new ActionRowBuilder().addComponents(
+      new TextInputBuilder()
+        .setCustomId("reason")
+        .setLabel("Reason for removal")
+        .setRequired(true)
+        .setStyle(TextInputStyle.Paragraph)
+    );
+
+    const modal = new ModalBuilder()
+      .addComponents(components)
+      .setCustomId(customId)
+      .setTitle(modalTitle);
+
+    interaction.showModal(modal);
   }
 
   async function showMetadataModal({ customId, interaction, modalTitle }) {
@@ -175,42 +165,44 @@ export const OnInteractionCreate = async ({ interaction }) => {
     if (!url) return;
 
     const { author_name, title } = await oembed.extract(url).catch(error => {
-      Logger.Warn(`An oembed extractor error ocurred when showing metadata modal: ${error}`);
-      // if we pass undefined to Discord their API may explode so lets fallback empty strings
+      Logger.Error(`An oembed extractor error ocurred when showing metadata modal`, error);
+      // if we pass undefined to Discord the API may explode, so fallback as empty strings
       return { author_name: "", title: "" };
     });
 
-    interaction.showModal(
-      new ModalBuilder()
-        .setCustomId(customId)
-        .setTitle(modalTitle)
-        .addComponents(
-          new ActionRowBuilder().addComponents(
-            new TextInputBuilder()
-              .setCustomId("title")
-              .setLabel("Track Title")
-              .setRequired(true)
-              .setStyle(TextInputStyle.Short)
-              .setValue(getCleanTitle(author_name, title))
-          ),
-          new ActionRowBuilder().addComponents(
-            new TextInputBuilder()
-              .setCustomId("artist")
-              .setLabel("Track Artist")
-              .setRequired(true)
-              .setStyle(TextInputStyle.Short)
-              .setValue(getCleanArtist(author_name, title))
-          ),
-          new ActionRowBuilder().addComponents(
-            new TextInputBuilder()
-              .setCustomId("genre")
-              .setLabel("Track Genre")
-              .setPlaceholder("Genre (Optional)")
-              .setRequired(false)
-              .setStyle(TextInputStyle.Short)
-          )
-        )
-    )
+    const components = [
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("title")
+          .setLabel("Track Title")
+          .setRequired(true)
+          .setStyle(TextInputStyle.Short)
+          .setValue(getCleanTitle(author_name, title))
+      ),
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("artist")
+          .setLabel("Track Artist")
+          .setRequired(true)
+          .setStyle(TextInputStyle.Short)
+          .setValue(getCleanArtist(author_name, title))
+      ),
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("genre")
+          .setLabel("Track Genre")
+          .setPlaceholder("Genre (Optional)")
+          .setRequired(false)
+          .setStyle(TextInputStyle.Short)
+      )
+    ]
+
+    const modal = new ModalBuilder()
+      .addComponents(...components)
+      .setCustomId(customId)
+      .setTitle(modalTitle);
+
+    interaction.showModal(modal);
   }
 
   async function importUrlIntoPlex({ interaction }) {
@@ -241,17 +233,18 @@ export const OnInteractionCreate = async ({ interaction }) => {
           interaction.editReply(`Your file couldn't be imported because it already exists in the Plex media library.`);
           Logger.Warn(`${nickname} couldn't import "${filename}" because it already exists in the Plex media library`);
         } else {
-          fs.move(filepath, plexFilepath).then(() => { fs.remove(directory); startPlexLibraryScan({ username: nickname }) });
+          fs.move(filepath, plexFilepath).then(() => { fs.remove(directory); startPlexLibraryScan(nickname); });
           interaction.editReply(`Success! Your file was imported into the Plex media library.`);
           Logger.Info(`${nickname} imported "${filename}" into the Plex media library`);
         }
 
-        row.components[1].setCustomId(INTERACTION_ACTIONS.PLEX_REMOVE_BUTTON)
-        row.components[1].setLabel("Remove from Plex");
+        row.components[1]
+          .setCustomId(INTERACTION_ACTIONS.PLEX_REMOVE_BUTTON)
+          .setLabel("Remove from Plex");
       })
       .catch(error => {
         interaction.editReply(getErrorReply(error));
-        Logger.Warn(`Couldn't import file into the Plex media library: ${error}`);
+        Logger.Error(`Couldn't import file into the Plex media library`, error);
       })
       .finally(() => {
         row.components[1].setDisabled(false);
@@ -262,7 +255,7 @@ export const OnInteractionCreate = async ({ interaction }) => {
   async function removeUrlFromPlex({ interaction }) {
     await interaction.deferReply({ ephemeral: true });
 
-    const { member: { nickname }, message, message: { channel, components } } = interaction;
+    const { fields, member: { nickname }, message, message: { channel, components } } = interaction;
 
     const row = ActionRowBuilder.from(components[0]);
     row.components[1].setDisabled(true);
@@ -281,59 +274,69 @@ export const OnInteractionCreate = async ({ interaction }) => {
         fs.remove(directory);
 
         if (isPlexFile) {
-          fs.remove(plexFilepath).then(() => startPlexLibraryScan({ username: nickname }));
+          const reason = fields.getTextInputValue("reason");
+          fs.remove(plexFilepath).then(() => startPlexLibraryScan(nickname));
           interaction.editReply("Your file was successfully removed from the Plex media library.");
-          Logger.Info(`${nickname} removed "${filename}" from the Plex media library`);
+          Logger.Info(`${nickname} removed "${filename}" from the Plex media library`, `Reason: ${reason}`);
         } else {
           interaction.editReply(`Your file couldn't be removed because it wasn't found in the Plex media library.`);
           Logger.Warn(`${nickname} couldn't remove "${filename}" because it wasn't found in the Plex media library`);
         }
 
-        row.components[1].setCustomId(INTERACTION_ACTIONS.PLEX_IMPORT_BUTTON)
-        row.components[1].setLabel("Import into Plex");
+        row.components[1]
+          .setCustomId(INTERACTION_ACTIONS.PLEX_IMPORT_BUTTON)
+          .setLabel("Import into Plex");
       })
       .catch(error => {
         interaction.editReply(getErrorReply(error));
-        Logger.Warn(`Couldn't remove file from the Plex media library: ${error}`);
+        Logger.Error(`Couldn't remove file from the Plex media library`, error);
       })
       .finally(() => {
         row.components[1].setDisabled(false);
-        interaction.message.edit({ components: [row] });
+        message.edit({ components: [row] });
       })
   }
 
-  async function startPlexLibraryScan({ username }) {
+  function startPlexLibraryScan(username) {
     const { plex_section_id, plex_server_ip, plex_x_token } = config;
     const fetchAddress = `http://${plex_server_ip}:32400/library/sections/${plex_section_id}/refresh`;
     const fetchOptions = { method: "GET", headers: { "X-Plex-Token": plex_x_token } };
     fetch(fetchAddress, fetchOptions)
       .then(() => Logger.Info(`${username} started a Plex media library scan`))
-      .catch((error) => Logger.Warn(`${username} couldn't start a Plex media library scan: ${error}`));
+      .catch((error) => Logger.Error(`${username} couldn't start a Plex media library scan`, error));
   }
 
   async function uploadUrlToThread({ interaction }) {
     await interaction.deferReply({ ephemeral: true });
 
-    const { message: { channel }, user } = interaction;
+    const { fields, member: { nickname }, message: { channel }, user } = interaction;
 
     const compositeKey = INTERACTION_ACTIONS.DOWNLOAD_BUTTON + user.id;
     pendingInteractions.add(compositeKey);
 
     const { id, content } = await channel.fetchStarterMessage();
     const url = getUrlFromString(content);
-    if (!url) return;
+
+    const metadata = {
+      audioFormat: "mp3",
+      artist: fields.getTextInputValue("artist"),
+      genre: fields.getTextInputValue("genre"),
+      title: fields.getTextInputValue("title")
+    }
 
     const onReject = error => {
-      interaction.editReply(getErrorReply(error));
-      Logger.Warn(`Couldn't upload MP3 file to Discord: ${error}`);
+      const content = getErrorReply(error);
+      interaction.editReply(content).catch(Logger.Error);
+      Logger.Error(`${nickname} couldn't upload MP3 file to Discord`, error);
     };
 
-    const metadata = { audioFormat: "mp3" };
-
     download({ id, metadata, url })
-      .then(async ({ directory, filename, filepath }) => {
+      .then(({ directory, filename, filepath }) => {
         const files = [new AttachmentBuilder(filepath, { name: filename })];
-        interaction.editReply({ files }).catch(onReject).finally(() => fs.remove(directory));
+        interaction.editReply({ files })
+          .then(() => Logger.Info(`${nickname} uploaded "${filename}" to Discord`))
+          .catch(onReject)
+          .finally(() => fs.remove(directory));
       })
       .catch(onReject)
       .finally(() => pendingInteractions.delete(compositeKey));
@@ -343,7 +346,7 @@ export const OnInteractionCreate = async ({ interaction }) => {
 async function download({ id, metadata, url }) {
   const format = str => str.trim().replaceAll("'", "'\\''"); // escape single quote for ffmpeg
 
-  let postprocessorArgs =
+  const postprocessorArgs =
     "ffmpeg:"
       + " -metadata album='Downloads'"
       + " -metadata album_artist='Various Artists'"
