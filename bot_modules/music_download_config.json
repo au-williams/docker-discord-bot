@@ -1,9 +1,9 @@
 {
-  "channel_ids": ["YOUR CHANNEL IDS HERE"],
-  "plex_directory": "YOUR LIBRARY'S DOWNLOADS FOLDER HERE",
-  "plex_section_id": "YOUR PLEX SECTION ID",
-  "plex_server_ip": "YOUR PLEX SERVER IP",
-  "plex_user_role_id": "YOUR DISCORD ROLE ID FOR PLEX",
-  "plex_x_token": "YOUR X-PLEX-TOKEN",
+  "channel_ids": [""],
+  "plex_directory": "",
+  "plex_section_id": "",
+  "plex_server_ip": "",
+  "plex_user_role_id": "",
+  "plex_x_token": "",
   "temp_directory": ".\\temp_storage\\"
 }
