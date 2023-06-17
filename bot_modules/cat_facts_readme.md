@@ -1,15 +1,15 @@
-# Cat Facts Module
+# Cat Facts Readme
 
 Thanks for signing up for Cat Facts! You will now receive fun daily facts about CATS! 🐱 You cannot unsubscribe.
 
-## Script
+## Script — `cat_facts_script.js`
 
-This script runs every morning at 0900 and fetches the [catfact.ninja](https://catfact.ninja/) API to send a new cat fact to each channel. Because each channel will have different facts based on age, the uniqueness check runs against every channels message history.
+This script runs every morning at 0900 and fetches the [catfact.ninja](https://catfact.ninja/) API to send a new cat fact to each Discord channel.
 
-The [catfact.ninja](https://catfact.ninja/) API could use better data sanitization — eventually it would be nice to dump the facts from their API into this modules config file so they can be pre-processed at their source.
+Note: The [catfact.ninja](https://catfact.ninja/) API could use much better data sanitization. It would be nice to dump the API data into this modules config file and pre-process them using a local LLM to fix grammatical errors and remove duplicate facts with different phrasing.
 
-## Config
+## Config — `cat_facts_config.json`
 
-| Key           | Value                                        |
-| ------------- | -------------------------------------------- |
-| "channel_ids" | The channel IDs that this module will run in |
+| Key             | Value                                                |
+| --------------- | ---------------------------------------------------- |
+| `"channel_ids"` | The Discord channel IDs that this module will run in |
