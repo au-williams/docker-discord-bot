@@ -1,6 +1,6 @@
 import fs from "fs";
 
-export const getBaseTextChannel = channel => channel.thread ? channel.parent : channel;
+export const getBaseTextChannel = channel => (channel.thread ? channel.parent : channel);
 
 /**
  * Get the URL from a string regardless of its position therein.
@@ -8,9 +8,8 @@ export const getBaseTextChannel = channel => channel.thread ? channel.parent : c
  * @returns {string|null}
  */
 export function getUrlFromString(input) {
-  const urlRegex = /(https?:\/\/[^\s]+)/;
-  const match = input.match(urlRegex);
-  return (match && match[1]) || null;
+  const match = input.match(/(https?:\/\/[^&\s]+)/);
+  return match ? match[1] : null;
 }
 
 /**
