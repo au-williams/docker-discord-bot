@@ -160,15 +160,15 @@ export const OnInteractionCreate = async ({ interaction }) => {
   }
 
   async function showMetadataModal({ customId, interaction, modalTitle }) {
-    const { message: { channel} } = interaction;
+    const { member: { nickname }, message: { channel} } = interaction;
 
     const { content } = await channel.fetchStarterMessage();
     const url = getUrlFromString(content);
     if (!url) return;
 
     const { author_name, title } = await oembed.extract(url).catch(error => {
-      Logger.Error(`An oembed extractor error ocurred when showing metadata modal`, error);
-      // if we pass undefined to Discord the API may explode, so fallback as empty strings
+      Logger.Error(`${nickname} couldn't fetch metadata modal oEmbed data because an error ocurred`, error);
+      // if we pass undefined to Discord their API may explode so we will pass the API empty strings instead
       return { author_name: "", title: "" };
     });
 
@@ -235,7 +235,7 @@ export const OnInteractionCreate = async ({ interaction }) => {
           interaction.editReply(`Your file couldn't be imported into Plex because it already exists.`);
           Logger.Warn(`${nickname} couldn't import "${filename}" into Plex because it already exists`);
         } else {
-          fs.move(filepath, plexFilepath).then(() => { fs.remove(directory) && startPlexLibraryScan(nickname); });
+          fs.move(filepath, plexFilepath).then(() => fs.remove(directory) && startPlexLibraryScan(nickname));
           interaction.editReply("Success! Your file was imported into Plex.");
           Logger.Info(`${nickname} imported "${filename}" into Plex`);
         }
@@ -266,7 +266,7 @@ export const OnInteractionCreate = async ({ interaction }) => {
     // --get-filename returns the pre-processed filename, which is NOT the resulting filename
     // download the file again for an exact value and silently weep over our performance loss
 
-    const { id, content } = await channel.fetchStarterMessage();
+    const { content, id } = await channel.fetchStarterMessage();
     const url = getUrlFromString(content);
 
     download({ id, url })
@@ -312,9 +312,7 @@ export const OnInteractionCreate = async ({ interaction }) => {
     await interaction.deferReply({ ephemeral: true });
 
     const { fields, member: { nickname }, message: { channel }, user } = interaction;
-
-    const compositeKey = INTERACTION_ACTIONS.DOWNLOAD_BUTTON + user.id;
-    pendingInteractions.add(compositeKey);
+    pendingInteractions.add(INTERACTION_ACTIONS.DOWNLOAD_BUTTON + user.id);
 
     const { id, content } = await channel.fetchStarterMessage();
     const url = getUrlFromString(content);
@@ -341,7 +339,7 @@ export const OnInteractionCreate = async ({ interaction }) => {
           .finally(() => fs.remove(directory));
       })
       .catch(onReject)
-      .finally(() => pendingInteractions.delete(compositeKey));
+      .finally(() => pendingInteractions.delete(INTERACTION_ACTIONS.DOWNLOAD_BUTTON + user.id));
   }
 };
 
