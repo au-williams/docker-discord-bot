@@ -25,13 +25,13 @@ export const OnMessageCreate = async ({ message }) => {
   const url = getUrlFromString(content);
   if (!url) return;
 
-  const oembedData = await oembed.extract(url).catch(() => null);
-  if (!oembedData) return;
+  const oEmbedData = await oembed.extract(url).catch(() => null);
+  if (!oEmbedData) return;
 
   // create a new thread under the message containing an oembedded media url
   // send a message to the thread with buttons to download or import to plex
 
-  const { author_name, title } = oembedData;
+  const { author_name, title } = oEmbedData;
 
   await message
     .startThread({ name: getCleanTitle(author_name, title) })
@@ -109,6 +109,8 @@ export const OnInteractionCreate = async ({ interaction }) => {
   const { channelId } = await channel.fetchStarterMessage();
   const isChannel = config.channel_ids.includes(channelId);
   if (!isChannel) return;
+
+  Logger.Info(`${nickname} interacted with "${customId}"`);
 
   const replyUnauthorized = ({ interaction, appendedErrorText }) => {
     Logger.Info(`${nickname} was unauthorized to ${appendedErrorText}`);
@@ -230,12 +232,12 @@ export const OnInteractionCreate = async ({ interaction }) => {
 
         if (isPlexFile) {
           fs.remove(directory);
-          interaction.editReply(`Your file couldn't be imported because it already exists in the Plex media library.`);
-          Logger.Warn(`${nickname} couldn't import "${filename}" because it already exists in the Plex media library`);
+          interaction.editReply(`Your file couldn't be imported into Plex because it already exists.`);
+          Logger.Warn(`${nickname} couldn't import "${filename}" into Plex because it already exists`);
         } else {
-          fs.move(filepath, plexFilepath).then(() => { fs.remove(directory); startPlexLibraryScan(nickname); });
-          interaction.editReply(`Success! Your file was imported into the Plex media library.`);
-          Logger.Info(`${nickname} imported "${filename}" into the Plex media library`);
+          fs.move(filepath, plexFilepath).then(() => { fs.remove(directory) && startPlexLibraryScan(nickname); });
+          interaction.editReply("Success! Your file was imported into Plex.");
+          Logger.Info(`${nickname} imported "${filename}" into Plex`);
         }
 
         row.components[1]
@@ -244,7 +246,7 @@ export const OnInteractionCreate = async ({ interaction }) => {
       })
       .catch(error => {
         interaction.editReply(getErrorReply(error));
-        Logger.Error(`Couldn't import file into the Plex media library`, error);
+        Logger.Error(`${nickname} couldn't import their music into Plex`, error);
       })
       .finally(() => {
         row.components[1].setDisabled(false);
@@ -276,11 +278,11 @@ export const OnInteractionCreate = async ({ interaction }) => {
         if (isPlexFile) {
           const reason = fields.getTextInputValue("reason");
           fs.remove(plexFilepath).then(() => startPlexLibraryScan(nickname));
-          interaction.editReply("Your file was successfully removed from the Plex media library.");
-          Logger.Info(`${nickname} removed "${filename}" from the Plex media library`, `Reason: ${reason}`);
+          interaction.editReply("Your file was successfully removed from Plex.");
+          Logger.Info(`${nickname} removed "${filename}" from Plex`, `Reason for removal: ${reason}`);
         } else {
-          interaction.editReply(`Your file couldn't be removed because it wasn't found in the Plex media library.`);
-          Logger.Warn(`${nickname} couldn't remove "${filename}" because it wasn't found in the Plex media library`);
+          interaction.editReply(`Your file couldn't be removed from Plex because it wasn't found.`);
+          Logger.Warn(`${nickname} couldn't remove "${filename}" from Plex because it wasn't found`);
         }
 
         row.components[1]
@@ -289,7 +291,7 @@ export const OnInteractionCreate = async ({ interaction }) => {
       })
       .catch(error => {
         interaction.editReply(getErrorReply(error));
-        Logger.Error(`Couldn't remove file from the Plex media library`, error);
+        Logger.Error(`${nickname} couldn't remove their music from Plex`, error);
       })
       .finally(() => {
         row.components[1].setDisabled(false);
@@ -327,7 +329,7 @@ export const OnInteractionCreate = async ({ interaction }) => {
     const onReject = error => {
       const content = getErrorReply(error);
       interaction.editReply(content).catch(Logger.Error);
-      Logger.Error(`${nickname} couldn't upload MP3 file to Discord`, error);
+      Logger.Error(`${nickname} couldn't upload their music to Discord`, error);
     };
 
     download({ id, metadata, url })
