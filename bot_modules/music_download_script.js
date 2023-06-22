@@ -68,7 +68,9 @@ export const OnMessageCreate = async ({ message }) => {
     threadMessage.edit({ components: [row] }).catch(Logger.Error);
   }
 
-  download({ id, url })
+  const uniqueId = id + author.id;
+
+  download({ id: uniqueId, url })
     .then(({ directory, filename }) => {
       const isPlexFile = fs.existsSync(`${config.plex_directory}/${filename}`);
       updatePlexButton(isPlexFile);
@@ -96,7 +98,7 @@ export const OnMessageUpdate = async ({ oldMessage, newMessage }) => {
 const pendingInteractions = new Set(); // interaction.customId + interaction.user.id
 
 export const OnInteractionCreate = async ({ interaction }) => {
-  const { customId, member: { nickname, roles }, message: { channel }, user } = interaction;
+  const { customId, member: { roles }, message: { channel }, user, user: { username } } = interaction;
 
   if (pendingInteractions.has(customId + user.id)) {
     interaction.deferUpdate();
@@ -110,10 +112,10 @@ export const OnInteractionCreate = async ({ interaction }) => {
   const isChannel = config.channel_ids.includes(channelId);
   if (!isChannel) return;
 
-  Logger.Info(`${nickname} interacted with "${customId}"`);
+  Logger.Info(`${username} interacted with "${customId}"`);
 
   const replyUnauthorized = ({ interaction, appendedErrorText }) => {
-    Logger.Info(`${nickname} was unauthorized to ${appendedErrorText}`);
+    Logger.Info(`${username} was unauthorized to ${appendedErrorText}`);
     const content = `You aren't authorized to ${appendedErrorText}!`;
     const files = [{ attachment: "assets\\you_are_arrested.png" }];
     interaction.reply({ content, ephemeral: true, files });
@@ -160,14 +162,14 @@ export const OnInteractionCreate = async ({ interaction }) => {
   }
 
   async function showMetadataModal({ customId, interaction, modalTitle }) {
-    const { member: { nickname }, message: { channel} } = interaction;
+    const { message: { channel}, user: { username } } = interaction;
 
     const { content } = await channel.fetchStarterMessage();
     const url = getUrlFromString(content);
     if (!url) return;
 
     const { author_name, title } = await oembed.extract(url).catch(error => {
-      Logger.Error(`${nickname} couldn't fetch metadata modal oEmbed data because an error ocurred`, error);
+      Logger.Error(`${username} couldn't fetch metadata modal oEmbed data because an error ocurred`, error);
       // if we pass undefined to Discord their API may explode so we will pass the API empty strings instead
       return { author_name: "", title: "" };
     });
@@ -210,7 +212,7 @@ export const OnInteractionCreate = async ({ interaction }) => {
   async function importUrlIntoPlex({ interaction }) {
     await interaction.deferReply({ ephemeral: true });
 
-    const { fields, message, member: { nickname }, message: { channel, components } } = interaction;
+    const { fields, message, message: { channel, components }, user, user: { username } } = interaction;
 
     const row = ActionRowBuilder.from(components[0]);
     row.components[1].setDisabled(true);
@@ -225,7 +227,9 @@ export const OnInteractionCreate = async ({ interaction }) => {
       title: fields.getTextInputValue("title")
     }
 
-    download({ id, metadata, url })
+    const uniqueId = id + user.id;
+
+    download({ id: uniqueId, metadata, url })
       .then(({ directory, filename, filepath }) => {
         const plexFilepath = `${config.plex_directory}/${filename}`;
         const isPlexFile = fs.existsSync(plexFilepath);
@@ -233,11 +237,11 @@ export const OnInteractionCreate = async ({ interaction }) => {
         if (isPlexFile) {
           fs.remove(directory);
           interaction.editReply(`Your file couldn't be imported into Plex because it already exists.`);
-          Logger.Warn(`${nickname} couldn't import "${filename}" into Plex because it already exists`);
+          Logger.Warn(`${username} couldn't import "${filename}" into Plex because it already exists`);
         } else {
-          fs.move(filepath, plexFilepath).then(() => fs.remove(directory) && startPlexLibraryScan(nickname));
+          fs.move(filepath, plexFilepath).then(() => fs.remove(directory) && startPlexLibraryScan(username));
           interaction.editReply("Success! Your file was imported into Plex.");
-          Logger.Info(`${nickname} imported "${filename}" into Plex`);
+          Logger.Info(`${username} imported "${filename}" into Plex`);
         }
 
         row.components[1]
@@ -246,7 +250,7 @@ export const OnInteractionCreate = async ({ interaction }) => {
       })
       .catch(error => {
         interaction.editReply(getErrorReply(error));
-        Logger.Error(`${nickname} couldn't import their music into Plex`, error);
+        Logger.Error(`${username} couldn't import their music into Plex`, error);
       })
       .finally(() => {
         row.components[1].setDisabled(false);
@@ -257,7 +261,7 @@ export const OnInteractionCreate = async ({ interaction }) => {
   async function removeUrlFromPlex({ interaction }) {
     await interaction.deferReply({ ephemeral: true });
 
-    const { fields, member: { nickname }, message, message: { channel, components } } = interaction;
+    const { fields, message, message: { channel, components }, user, user: { username } } = interaction;
 
     const row = ActionRowBuilder.from(components[0]);
     row.components[1].setDisabled(true);
@@ -269,7 +273,9 @@ export const OnInteractionCreate = async ({ interaction }) => {
     const { content, id } = await channel.fetchStarterMessage();
     const url = getUrlFromString(content);
 
-    download({ id, url })
+    const uniqueId = id + user.id;
+
+    download({ id: uniqueId, url })
       .then(({ directory, filename }) => {
         const plexFilepath = `${config.plex_directory}/${filename}`;
         const isPlexFile = fs.existsSync(plexFilepath);
@@ -277,12 +283,12 @@ export const OnInteractionCreate = async ({ interaction }) => {
 
         if (isPlexFile) {
           const reason = fields.getTextInputValue("reason");
-          fs.remove(plexFilepath).then(() => startPlexLibraryScan(nickname));
+          fs.remove(plexFilepath).then(() => startPlexLibraryScan(username));
           interaction.editReply("Your file was successfully removed from Plex.");
-          Logger.Info(`${nickname} removed "${filename}" from Plex`, `Reason for removal: ${reason}`);
+          Logger.Info(`${username} removed "${filename}" from Plex`, `${username} removal reason: "${reason}"`);
         } else {
           interaction.editReply(`Your file couldn't be removed from Plex because it wasn't found.`);
-          Logger.Warn(`${nickname} couldn't remove "${filename}" from Plex because it wasn't found`);
+          Logger.Warn(`${username} couldn't remove "${filename}" from Plex because it wasn't found`);
         }
 
         row.components[1]
@@ -291,7 +297,7 @@ export const OnInteractionCreate = async ({ interaction }) => {
       })
       .catch(error => {
         interaction.editReply(getErrorReply(error));
-        Logger.Error(`${nickname} couldn't remove their music from Plex`, error);
+        Logger.Error(`${username} couldn't remove their music from Plex`, error);
       })
       .finally(() => {
         row.components[1].setDisabled(false);
@@ -311,10 +317,10 @@ export const OnInteractionCreate = async ({ interaction }) => {
   async function uploadUrlToThread({ interaction }) {
     await interaction.deferReply({ ephemeral: true });
 
-    const { fields, member: { nickname }, message: { channel }, user } = interaction;
+    const { fields, message: { channel }, user, user: { username } } = interaction;
     pendingInteractions.add(INTERACTION_ACTIONS.DOWNLOAD_BUTTON + user.id);
 
-    const { id, content } = await channel.fetchStarterMessage();
+    const { content, id } = await channel.fetchStarterMessage();
     const url = getUrlFromString(content);
 
     const metadata = {
@@ -327,14 +333,16 @@ export const OnInteractionCreate = async ({ interaction }) => {
     const onReject = error => {
       const content = getErrorReply(error);
       interaction.editReply(content).catch(Logger.Error);
-      Logger.Error(`${nickname} couldn't upload their music to Discord`, error);
+      Logger.Error(`${username} couldn't upload their music to Discord`, error);
     };
 
-    download({ id, metadata, url })
+    const uniqueId = id + user.id;
+
+    download({ id: uniqueId, metadata, url })
       .then(({ directory, filename, filepath }) => {
         const files = [new AttachmentBuilder(filepath, { name: filename })];
         interaction.editReply({ files })
-          .then(() => Logger.Info(`${nickname} uploaded "${filename}" to Discord`))
+          .then(() => Logger.Info(`${username} uploaded "${filename}" to Discord`))
           .catch(onReject)
           .finally(() => fs.remove(directory));
       })
