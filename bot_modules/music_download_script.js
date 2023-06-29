@@ -17,7 +17,7 @@ const INTERACTION_ACTIONS = Object.freeze({
 });
 
 export const OnMessageCreate = async ({ message }) => {
-  const { author, channel, content, id } = message;
+  const { author, channel, content } = message;
 
   const isConfigChannel = config.channel_ids.includes(channel.id);
   if (!isConfigChannel) return;
@@ -68,9 +68,7 @@ export const OnMessageCreate = async ({ message }) => {
     threadMessage.edit({ components: [row] }).catch(Logger.Error);
   }
 
-  const uniqueId = id + author.id;
-
-  download({ id: uniqueId, url })
+  download({ id: message.id + author.id, url })
     .then(({ directory, filename }) => {
       const isPlexFile = fs.existsSync(`${config.plex_directory}/${filename}`);
       updatePlexButton(isPlexFile);
@@ -85,13 +83,15 @@ export const OnMessageCreate = async ({ message }) => {
 // when a message is updated, delete the existing thread and create a new thread for valid links
 // this prevents the message being updated as an invalid link and the user trying to download it
 export const OnMessageUpdate = async ({ oldMessage, newMessage }) => {
-  const isConfigChannel = config.channel_ids.includes(newMessage.channel.id);
+  const { channel, hasThread, thread } = newMessage;
+
+  const isConfigChannel = config.channel_ids.includes(channel.id);
   if (!isConfigChannel) return;
 
   const isContentUpdate = oldMessage?.content != newMessage.content;
   if (!isContentUpdate) return;
 
-  if (newMessage.hasThread) await newMessage.thread.delete();
+  if (hasThread) await thread.delete();
   OnMessageCreate({ message: newMessage });
 }
 
@@ -162,7 +162,7 @@ export const OnInteractionCreate = async ({ interaction }) => {
   }
 
   async function showMetadataModal({ customId, interaction, modalTitle }) {
-    const { message: { channel}, user: { username } } = interaction;
+    const { message: { channel }, user: { username } } = interaction;
 
     const { content } = await channel.fetchStarterMessage();
     const url = getUrlFromString(content);
@@ -218,8 +218,8 @@ export const OnInteractionCreate = async ({ interaction }) => {
     row.components[1].setDisabled(true);
     message.edit({ components: [row] });
 
-    const { content, id } = await channel.fetchStarterMessage();
-    const url = getUrlFromString(content);
+    const starterMessage = await channel.fetchStarterMessage();
+    const url = getUrlFromString(starterMessage.content);
 
     const metadata = {
       artist: fields.getTextInputValue("artist"),
@@ -227,9 +227,7 @@ export const OnInteractionCreate = async ({ interaction }) => {
       title: fields.getTextInputValue("title")
     }
 
-    const uniqueId = id + user.id;
-
-    download({ id: uniqueId, metadata, url })
+    download({ id: starterMessage.id + user.id, metadata, url })
       .then(({ directory, filename, filepath }) => {
         const plexFilepath = `${config.plex_directory}/${filename}`;
         const isPlexFile = fs.existsSync(plexFilepath);
@@ -270,12 +268,10 @@ export const OnInteractionCreate = async ({ interaction }) => {
     // --get-filename returns the pre-processed filename, which is NOT the resulting filename
     // download the file again for an exact value and silently weep over our performance loss
 
-    const { content, id } = await channel.fetchStarterMessage();
-    const url = getUrlFromString(content);
+    const starterMessage = await channel.fetchStarterMessage();
+    const url = getUrlFromString(starterMessage.content);
 
-    const uniqueId = id + user.id;
-
-    download({ id: uniqueId, url })
+    download({ id: starterMessage.id + user.id, url })
       .then(({ directory, filename }) => {
         const plexFilepath = `${config.plex_directory}/${filename}`;
         const isPlexFile = fs.existsSync(plexFilepath);
@@ -320,14 +316,15 @@ export const OnInteractionCreate = async ({ interaction }) => {
     const { fields, message: { channel }, user, user: { username } } = interaction;
     pendingInteractions.add(INTERACTION_ACTIONS.DOWNLOAD_BUTTON + user.id);
 
-    const { content, id } = await channel.fetchStarterMessage();
-    const url = getUrlFromString(content);
+    const starterMessage = await channel.fetchStarterMessage();
+    const url = getUrlFromString(starterMessage.content);
 
     const metadata = {
       audioFormat: "mp3",
       artist: fields.getTextInputValue("artist"),
       genre: fields.getTextInputValue("genre"),
-      title: fields.getTextInputValue("title")
+      title: fields.getTextInputValue("title"),
+      updateFilename: true
     }
 
     const onReject = error => {
@@ -336,9 +333,7 @@ export const OnInteractionCreate = async ({ interaction }) => {
       Logger.Error(`${username} couldn't upload their music to Discord`, error);
     };
 
-    const uniqueId = id + user.id;
-
-    download({ id: uniqueId, metadata, url })
+    download({ id: starterMessage.id + user.id, metadata, url })
       .then(({ directory, filename, filepath }) => {
         const files = [new AttachmentBuilder(filepath, { name: filename })];
         interaction.editReply({ files })
@@ -364,12 +359,16 @@ async function download({ id, metadata, url }) {
       + (metadata?.genre && ` -metadata genre='${format(metadata.genre)}'`)
       + (metadata?.title && ` -metadata title='${format(metadata.title)}'`)
 
+  const outputFilename = metadata?.updateFilename
+    ? `${config.temp_directory}/${id}/${metadata.artist} - ${metadata.title}.%(ext)s`
+    : `${config.temp_directory}/${id}/%(uploader)s - %(title)s.%(ext)s`;
+
   const options = {
-    output: `${config.temp_directory}/${id}/%(uploader)s - %(title)s.%(ext)s`,
-    format: "bestaudio/best",
     audioQuality: 0,
-    extractAudio: true,
     embedMetadata: true,
+    extractAudio: true,
+    format: "bestaudio/best",
+    output: outputFilename,
     postprocessorArgs
   }
 
