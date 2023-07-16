@@ -1,7 +1,7 @@
 import { ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle, Client, EmbedBuilder } from "discord.js";
 import { Logger } from "../logger.js";
 import config from "./drg_api_watcher_config.json" assert { type: "json" };
-import cron, { CronTime } from "cron";
+import cron from "cron";
 import date from 'date-and-time';
 import ordinal from 'date-and-time/plugin/ordinal';
 import randomItem from 'random-item';
@@ -13,17 +13,17 @@ const INTERACTION_ACTIONS = Object.freeze({
   DEEP_ROCK_TRIVIA_BUTTON: "drg_api_watcher_script_deep_rock_trivia_button",
 });
 
+const DISCORD_CHANNELS = new Set();
+
 export const OnClientReady = async ({ client }) => {
-  for(const channel_id of config.channel_ids) {
-    // verify channel is valid (if we throw in cron index.js won't catch)
+  for await (const channel_id of config.channel_ids) {
     const channel = channel_id && await client.channels.fetch(channel_id);
-    if (!channel) throw new Error(`invalid "channel_id" value in configuration file`);
+    if (!channel) Logger.Warn(`Invalid "channel_id" value in config file`);
+    else DISCORD_CHANNELS.add(channel);
   }
 
   new cron.CronJob("0 9-22 * * *", async () => {
-    for(const channel_id of config.channel_ids) {
-      const channel = await client.channels.fetch(channel_id);
-
+    for(const channel of DISCORD_CHANNELS) {
       // check if missions have been updated
       const { currentDeepDive, currentEliteDeepDive, currentEndTime } = await getCurrentDeepRockMissions();
       const { previousDeepDive, previousEliteDeepDive } = await getPreviousDeepRockMissions({ channel, client });
@@ -39,7 +39,7 @@ export const OnClientReady = async ({ client }) => {
       const components = getDiscordComponents();
       const embeds = getDiscordMessageEmbeds({ currentDeepDive, currentEliteDeepDive, formattedEndTime, randomSalute });
       const files = [new AttachmentBuilder('assets\\drg_deep_dive.png'), new AttachmentBuilder('assets\\drg_supporter.png')];
-      channel.send({ embeds, components, files });
+      channel.send({ components, embeds, files });
     }
   }, null, true, "America/Los_Angeles", null, true);
 
@@ -209,5 +209,5 @@ const getPreviousDeepRockMissions = async ({ channel, client }) => {
     name: previousMissionMessage?.embeds[0].data.fields[0]?.value.replaceAll("**", "").match(/"(.*?)"/)[1],
   }
 
-  return { previousDeepDive, previousEliteDeepDive };
+  return { previousDeepDive, previousEliteDeepDive, previousMissionMessage };
 }

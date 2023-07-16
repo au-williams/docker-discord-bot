@@ -65,7 +65,7 @@ async function runModuleFunction(functionName, params) {
     try {
       await instance[functionName](params);
     } catch (error) {
-      Logger.Error(`${filename} ${functionName} threw an unhandled error`, error);
+      Logger.Error(`${filename} ${functionName} threw an internal error`, error);
     }
   }
 }

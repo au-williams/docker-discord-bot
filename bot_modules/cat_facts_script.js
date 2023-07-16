@@ -7,13 +7,18 @@ export const OnClientReady = async ({ client }) => {
   const today9am = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 9, 0, 0);
 
   for(const channel_id of config.channel_ids) {
-    if (!channel_id) throw new Error(`invalid "channel_id" value in configuration file`);
+    const channel = channel_id && await client.channels.fetch(channel_id);
 
-    const channel = await client.channels.fetch(channel_id);
-    const messages = await channel.messages.fetch({ limit: 1 });
+    if (!channel) {
+      Logger.Warn(`Invalid "channel_id" value in config file`);
+      continue;
+    }
 
     // schedule the channel message to send at 9am
     new cron.CronJob("0 9 * * *", () => sendCatFact({ channel })).start();
+
+    // fetch last message to check inactivity time
+    const messages = await channel.messages.fetch({ limit: 1 });
 
     // send if we missed the schedule when offline
     const isMissedSchedule = now > today9am && (!messages.size || messages.first().createdAt < today9am);
