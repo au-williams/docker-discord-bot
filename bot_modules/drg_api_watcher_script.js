@@ -9,8 +9,7 @@ date.plugin(ordinal);
 
 const INTERACTION_ACTIONS = Object.freeze({
   DEEP_DIVE_BUTTON: "drg_api_watcher_script_deep_dive_button",
-  ELITE_DEEP_DIVE_BUTTON: "drg_api_watcher_script_elite_deep_dive_button",
-  DEEP_ROCK_TRIVIA_BUTTON: "drg_api_watcher_script_deep_rock_trivia_button",
+  ELITE_DEEP_DIVE_BUTTON: "drg_api_watcher_script_elite_deep_dive_button"
 });
 
 const DISCORD_CHANNELS = new Set();
@@ -24,27 +23,31 @@ export const OnClientReady = async ({ client }) => {
 
   new cron.CronJob("0 9-22 * * *", async () => {
     for(const channel of DISCORD_CHANNELS) {
-      // check if missions have been updated
-      const { currentDeepDive, currentEliteDeepDive, currentEndTime } = await getCurrentDeepRockMissions();
-      const { previousDeepDive, previousEliteDeepDive } = await getPreviousDeepRockMissions({ channel, client });
-      const isSameDeepDive = currentDeepDive.name === previousDeepDive.name;
-      const isSameEliteDeepDive = currentEliteDeepDive.name === previousEliteDeepDive.name;
-      if (isSameDeepDive && isSameEliteDeepDive) continue;
+      // check if assignments have been updated
+      const { currentDive, currentEliteDive, currentEndTime } = await getCurrentAssignments();
+      const { previousDive, previousEliteDive, previousAssignmentMessage } = await getPreviousAssignments({ channel, client });
+      if (currentDive.name === previousDive.name && currentEliteDive.name === previousEliteDive.name) continue;
 
       // build message embed and send to channel
-      const randomSalute = await getRandomSalute();
       const parsedEndTime = date.parse(currentEndTime.split('T')[0], 'YYYY-MM-DD');
       const formattedEndTime = date.format(parsedEndTime, "MMMM DDD");
+      const randomSalute = await getRandomSalute();
 
-      const components = getDiscordComponents();
-      const embeds = getDiscordMessageEmbeds({ currentDeepDive, currentEliteDeepDive, formattedEndTime, randomSalute });
+      const components = getDiscordComponents({ previousAssignmentMessage });
+      const embeds = getDiscordMessageEmbeds({ currentDive, currentEliteDive, formattedEndTime, randomSalute });
       const files = [new AttachmentBuilder('assets\\drg_deep_dive.png'), new AttachmentBuilder('assets\\drg_supporter.png')];
-      channel.send({ components, embeds, files });
+      channel.send({ components, embeds, files }).then(() => {
+        if (!previousAssignmentMessage) return;
+        const row = ActionRowBuilder.from(previousAssignmentMessage.components[0]);
+        row.components[0].setDisabled(true);
+        row.components[1].setDisabled(true);
+        previousAssignmentMessage.edit({ components: [row] });
+      });
     }
   }, null, true, "America/Los_Angeles", null, true);
 
   // Get the components that will be sent with the Discord message
-  const getDiscordComponents = () => [
+  const getDiscordComponents = ({ previousAssignmentMessage }) => [
     new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId(INTERACTION_ACTIONS.DEEP_DIVE_BUTTON)
@@ -57,27 +60,27 @@ export const OnClientReady = async ({ client }) => {
         .setLabel("Elite Deep Dive")
         .setStyle(ButtonStyle.Danger),
       new ButtonBuilder()
-        .setCustomId(INTERACTION_ACTIONS.DEEP_ROCK_TRIVIA_BUTTON)
-        .setEmoji("<:drg_beer:1129691577976098816>")
-        .setLabel("Deep Rock Trivia")
-        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(!previousAssignmentMessage)
+        .setLabel("View Previous Week")
+        .setURL(previousAssignmentMessage?.url || "https://www.google.com") // use any URL for validation check
+        .setStyle(ButtonStyle.Link)
     )
   ]
 
   // Get the embeds that will be sent with the Discord message
-  const getDiscordMessageEmbeds = ({ currentDeepDive, currentEliteDeepDive, formattedEndTime, randomSalute }) => [
+  const getDiscordMessageEmbeds = ({ currentDive, currentEliteDive, formattedEndTime, randomSalute }) => [
     new EmbedBuilder()
       .setAuthor({
         iconURL: "attachment://drg_supporter.png",
-        name: "New missions in Deep Rock Galactic"
+        name: "New weekly assignments in Deep Rock Galactic"
       })
       .setColor(0xFF4400)
       .addFields({
-        name: `🟩 \`${currentDeepDive.type}\` _"${currentDeepDive.name}"_ in ${currentDeepDive.biome}`,
-        value: `🟥 **\`${currentEliteDeepDive.type}\` _"${currentEliteDeepDive.name}"_ in ${currentEliteDeepDive.biome}**`
+        name: `🟩 \`${currentDive.type}\` "${currentDive.name}" in ${currentDive.biome}`,
+        value: `🟥 **\`${currentEliteDive.type}\` "${currentEliteDive.name}" in ${currentEliteDive.biome}**`
       })
       .setFooter({
-        text: `Heads up miners — these expire on ${formattedEndTime}. Press a button for mission details.`,
+        text: `Heads up miners — these expire on ${formattedEndTime}. Press a button for assignment details.`,
       })
       .setThumbnail("attachment://drg_deep_dive.png")
       .setTitle(`_**"${randomSalute}"**_`)
@@ -102,21 +105,18 @@ export const OnInteractionCreate = async ({ interaction }) => {
   Logger.Info(`${username} interacted with "${customId}"`);
 
   switch (customId) {
-    case INTERACTION_ACTIONS.DEEP_ROCK_TRIVIA_BUTTON: {
-      return ReplyDeepRockTrivia();
-    }
     case INTERACTION_ACTIONS.DEEP_DIVE_BUTTON: {
-      const { currentDeepDive, currentStartTime, currentEndTime } = await getCurrentDeepRockMissions();
-      return ReplyDeepDiveDetails({ mission: currentDeepDive, currentStartTime, currentEndTime});
+      const { currentDive, currentStartTime, currentEndTime } = await getCurrentAssignments();
+      return ReplyDeepDiveDetails({ assignment: currentDive, currentStartTime, currentEndTime});
     }
     case INTERACTION_ACTIONS.ELITE_DEEP_DIVE_BUTTON: {
-      const { currentEliteDeepDive, currentStartTime, currentEndTime } = await getCurrentDeepRockMissions();
-      return ReplyDeepDiveDetails({ mission: currentEliteDeepDive, currentStartTime, currentEndTime});
+      const { currentEliteDive, currentStartTime, currentEndTime } = await getCurrentAssignments();
+      return ReplyDeepDiveDetails({ assignment: currentEliteDive, currentStartTime, currentEndTime});
     }
   }
 
-  function GetDiscordReplyEmbeds({ mission, currentStartTime, currentEndTime }) {
-    const { biome, name, seed, stages, type } = mission;
+  function getDiscordReplyEmbeds({ assignment, color, currentStartTime, currentEndTime }) {
+    const { biome, name, seed, stages, type } = assignment;
 
     const formattedStages = stages.map(stage => {
       const emoji = "<:drg_deep_dive:1129691555733717053>";
@@ -124,8 +124,8 @@ export const OnInteractionCreate = async ({ interaction }) => {
       const value = [
         stage.primary && `\`Primary Objective\` ${stage.primary}`,
         stage.secondary && `\`Secondary Objective\` ${stage.secondary}`,
-        stage.anomaly && `\`Mission Anomaly\` ${stage.anomaly}`,
-        stage.warning && `\`Mission Warning\` ${stage.warning}`
+        stage.anomaly && `\`Assignment Anomaly\` ${stage.anomaly}`,
+        stage.warning && `\`Assignment Warning\` ${stage.warning}`
       ].filter(stage => stage).join("\n");
       return { name, value }
     });
@@ -137,77 +137,65 @@ export const OnInteractionCreate = async ({ interaction }) => {
     const formattedStartTime = date.format(parsedStartTime, "MMMM DDD");
 
     return [new EmbedBuilder()
-      .setAuthor({ iconURL: "attachment://drg_supporter.png", name: `Weekly ${type} mission details` })
-      .setColor(0xFF4400)
-      .setDescription(`Available from ${formattedStartTime} to ${formattedEndTime}`)
+      .setAuthor({ iconURL: "attachment://drg_supporter.png", name: `${type} assignment details` })
+      .setColor(color)
+      .setDescription(`Available from **${formattedStartTime}** to **${formattedEndTime}**`)
       .addFields(formattedStages)
-      .setFooter({ text: `This ${type} was generated with seed ${seed}` })
+      .setFooter({ text: `${type} generated with seed ${seed}` })
       .setThumbnail("attachment://drg_deep_dive.png")
-      .setTitle(`_"${name}"_ in ${biome}`)
+      .setTitle(`"${name}" in ${biome}`)
     ]
   }
 
-  async function ReplyDeepDiveDetails({ mission, currentStartTime, currentEndTime }) {
+  async function ReplyDeepDiveDetails({ assignment, currentStartTime, currentEndTime }) {
     await interaction.deferReply({ ephemeral: true });
+    const color = assignment.type.toLowerCase() === "deep dive" ? 0x248046 : 0xDA373C;
     const files = [new AttachmentBuilder('assets\\drg_deep_dive.png'), new AttachmentBuilder('assets\\drg_supporter.png')];
-    const embeds = GetDiscordReplyEmbeds({ mission, currentStartTime, currentEndTime });
+    const embeds = getDiscordReplyEmbeds({ assignment, color, currentStartTime, currentEndTime });
     interaction.editReply({ embeds, files })
-  }
-
-  async function ReplyDeepRockTrivia() {
-    await interaction.deferReply({ ephemeral: true });
-    fetch("https://drgapi.com/v1/trivia")
-      .then(response => response.json())
-      .then(async ({ trivia }) => {
-        let item = randomItem(trivia);
-        const index = trivia.indexOf(item);
-        // perform string cleanup on the API response
-        item = item.replaceAll("\"", "'").replaceAll("dont", "don't").replaceAll("you are", "you're");
-        interaction.editReply(`Deep Rock Trivia #${index + 1}: _"${item}"_`);
-      });
   }
 }
 
-// Get the current Deep Rock Galactic missions from the DRG API
-const getCurrentDeepRockMissions = async () =>
+// Get the current Deep Rock Galactic assignments from the DRG API
+const getCurrentAssignments = async () =>
   fetch("https://drgapi.com/v1/deepdives")
     .then(response => response.json())
     .then(json => ({
-      currentDeepDive: json.variants.find(({ type }) => type === "Deep Dive"),
-      currentEliteDeepDive: json.variants.find(({ type }) => type === "Elite Deep Dive"),
+      currentDive: json.variants.find(({ type }) => type === "Deep Dive"),
+      currentEliteDive: json.variants.find(({ type }) => type === "Elite Deep Dive"),
       currentEndTime: json.endTime,
       currentStartTime: json.startTime
     }));
 
-// Get the previous Deep Rock Galactic missions from the Discord channel
-const getPreviousDeepRockMissions = async ({ channel, client }) => {
+// Get the previous Deep Rock Galactic assignments from the Discord channel
+const getPreviousAssignments = async ({ channel, client }) => {
   const checkMessage = ({ author, embeds }) =>
     author.id === client.user.id
     && embeds.length
     && embeds[0].data.author?.name.includes('Deep Rock Galactic');
 
-  // search all channel messages for the previous mission message
+  // search all channel messages for the previous assignment message
 
   let fetchedMessages = await channel.messages.fetch({ limit: 100 });
-  let previousMissionMessage = Array.from(fetchedMessages.values()).find(checkMessage);
+  let previousAssignmentMessage = Array.from(fetchedMessages.values()).find(checkMessage);
 
-  while (!previousMissionMessage && fetchedMessages) {
+  while (!previousAssignmentMessage && fetchedMessages) {
     fetchedMessages = await channel.messages.fetch({ limit: 100, before: fetchedMessages.last().id });
-    previousMissionMessage = Array.from(fetchedMessages.values()).find(checkMessage);
+    previousAssignmentMessage = Array.from(fetchedMessages.values()).find(checkMessage);
     if (fetchedMessages.size < 100) fetchedMessages = null;
   }
 
-  // parse resulting channel message to rebuild the mission data
+  // parse resulting channel message to rebuild the assignment data
 
-  const previousDeepDive = {
-    biome: previousMissionMessage?.embeds[0].data.fields[0]?.name.split(" in ").pop(),
-    name: previousMissionMessage?.embeds[0].data.fields[0]?.name.match(/"(.*?)"/)[1],
+  const previousDive = {
+    biome: previousAssignmentMessage?.embeds[0].data.fields[0]?.name.split(" in ").pop(),
+    name: previousAssignmentMessage?.embeds[0].data.fields[0]?.name.match(/"(.*?)"/)[1],
   }
 
-  const previousEliteDeepDive = {
-    biome: previousMissionMessage?.embeds[0].data.fields[0]?.value.replaceAll("**", "").split(" in ").pop(),
-    name: previousMissionMessage?.embeds[0].data.fields[0]?.value.replaceAll("**", "").match(/"(.*?)"/)[1],
+  const previousEliteDive = {
+    biome: previousAssignmentMessage?.embeds[0].data.fields[0]?.value.replaceAll("**", "").split(" in ").pop(),
+    name: previousAssignmentMessage?.embeds[0].data.fields[0]?.value.replaceAll("**", "").match(/"(.*?)"/)[1],
   }
 
-  return { previousDeepDive, previousEliteDeepDive, previousMissionMessage };
+  return { previousDive, previousEliteDive, previousAssignmentMessage };
 }
