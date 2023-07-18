@@ -37,11 +37,11 @@ export const OnClientReady = async ({ client }) => {
       const embeds = getDiscordMessageEmbeds({ currentDive, currentEliteDive, formattedEndTime, randomSalute });
       const files = [new AttachmentBuilder('assets\\drg_deep_dive.png'), new AttachmentBuilder('assets\\drg_supporter.png')];
       channel.send({ components, embeds, files }).then(() => {
-        if (!previousAssignmentMessage) return;
-        const row = ActionRowBuilder.from(previousAssignmentMessage.components[0]);
-        row.components[0].setDisabled(true);
-        row.components[1].setDisabled(true);
-        previousAssignmentMessage.edit({ components: [row] });
+        if (previousAssignmentMessage) {
+          const row = ActionRowBuilder.from(previousAssignmentMessage.components[0]);
+          row.components[0].setDisabled(true) && row.components[1].setDisabled(true);
+          previousAssignmentMessage.edit({ components: [row] });
+        }
       });
     }
   }, null, true, "America/Los_Angeles", null, true);
@@ -116,18 +116,19 @@ export const OnInteractionCreate = async ({ interaction }) => {
   }
 
   function getDiscordReplyEmbeds({ assignment, color, currentStartTime, currentEndTime }) {
-    const { biome, name, seed, stages, type } = assignment;
+    const { biome, name, stages, type } = assignment;
 
     const formattedStages = stages.map(stage => {
-      const emoji = "<:drg_deep_dive:1129691555733717053>";
-      const name = `${emoji} STAGE ${stage.id} ${emoji}`;
-      const value = [
-        stage.primary && `\`Primary Objective\` ${stage.primary}`,
-        stage.secondary && `\`Secondary Objective\` ${stage.secondary}`,
-        stage.anomaly && `\`Assignment Anomaly\` ${stage.anomaly}`,
-        stage.warning && `\`Assignment Warning\` ${stage.warning}`
+      const objectiveLabel = `Objective${stage.primary && stage.secondary ? "s" : "" }`;
+      const objectiveValue = [stage.primary, stage.secondary].filter(x => x).join(", ");
+      const embedEmoji = "<:drg_deep_dive:1129691555733717053>";
+      const embedName = `${embedEmoji} STAGE ${stage.id} ${embedEmoji}`;
+      const embedValue = [
+        `• \`${objectiveLabel}\` ${objectiveValue}`,
+        stage.anomaly && `• \`Anomaly\` _${stage.anomaly}_`,
+        stage.warning && `• \`Warning\` _${stage.warning}_`
       ].filter(stage => stage).join("\n");
-      return { name, value }
+      return { name: embedName, value: embedValue }
     });
 
     const parsedEndTime = date.parse(currentEndTime.split('T')[0], 'YYYY-MM-DD');
@@ -141,7 +142,6 @@ export const OnInteractionCreate = async ({ interaction }) => {
       .setColor(color)
       .setDescription(`Available from **${formattedStartTime}** to **${formattedEndTime}**`)
       .addFields(formattedStages)
-      .setFooter({ text: `${type} generated with seed ${seed}` })
       .setThumbnail("attachment://drg_deep_dive.png")
       .setTitle(`"${name}" in ${biome}`)
     ]
