@@ -1,6 +1,7 @@
-import { ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle, Client, EmbedBuilder } from "discord.js";
+import { ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } from "discord.js";
+import { findChannelMessage } from "../index.js";
 import { Logger } from "../logger.js";
-import config from "./drg_api_watcher_config.json" assert { type: "json" };
+import config from "./deep_rock_galactic_watcher_config.json" assert { type: "json" };
 import cron from "cron";
 import date from 'date-and-time';
 import ordinal from 'date-and-time/plugin/ordinal';
@@ -12,37 +13,36 @@ const INTERACTION_ACTIONS = Object.freeze({
   ELITE_DEEP_DIVE_BUTTON: "drg_api_watcher_script_elite_deep_dive_button"
 });
 
-const DISCORD_CHANNELS = new Set();
-
 export const OnClientReady = async ({ client }) => {
-  for await (const channel_id of config.channel_ids) {
-    const channel = channel_id && await client.channels.fetch(channel_id);
-    if (!channel) Logger.Warn(`Invalid "channel_id" value in config file`);
-    else DISCORD_CHANNELS.add(channel);
-  }
-
   new cron.CronJob("0 9-22 * * *", async () => {
-    for(const channel of DISCORD_CHANNELS) {
-      // check if assignments have been updated
-      const { currentDive, currentEliteDive, currentEndTime } = await getCurrentAssignments();
-      const { previousDive, previousEliteDive, previousAssignmentMessage } = await getPreviousAssignments({ channel, client });
-      if (currentDive.name === previousDive.name && currentEliteDive.name === previousEliteDive.name) continue;
+    try {
+      for(const channel_id of config.channel_ids) {
+        const channel = await client.channels.fetch(channel_id);
 
-      // build message embed and send to channel
-      const parsedEndTime = date.parse(currentEndTime.split('T')[0], 'YYYY-MM-DD');
-      const formattedEndTime = date.format(parsedEndTime, "MMMM DDD");
-      const randomSalute = await getRandomSalute();
+        // check if assignments have been updated
+        const { currentDive, currentEliteDive, currentEndTime } = await getCurrentAssignments();
+        const { previousDive, previousEliteDive, previousAssignmentMessage } = await getPreviousAssignments({ channel, client });
+        if (currentDive.name === previousDive.name && currentEliteDive.name === previousEliteDive.name) continue;
 
-      const components = getDiscordComponents({ previousAssignmentMessage });
-      const embeds = getDiscordMessageEmbeds({ currentDive, currentEliteDive, formattedEndTime, randomSalute });
-      const files = [new AttachmentBuilder('assets\\drg_deep_dive.png'), new AttachmentBuilder('assets\\drg_supporter.png')];
-      channel.send({ components, embeds, files }).then(() => {
-        if (previousAssignmentMessage) {
-          const row = ActionRowBuilder.from(previousAssignmentMessage.components[0]);
-          row.components[0].setDisabled(true) && row.components[1].setDisabled(true);
-          previousAssignmentMessage.edit({ components: [row] });
-        }
-      });
+        // build message embed and send to channel
+        const parsedEndTime = date.parse(currentEndTime.split('T')[0], 'YYYY-MM-DD');
+        const formattedEndTime = date.format(parsedEndTime, "MMMM DDD");
+        const randomSalute = await getRandomSalute();
+
+        const components = getDiscordComponents({ previousAssignmentMessage });
+        const embeds = getDiscordMessageEmbeds({ currentDive, currentEliteDive, formattedEndTime, randomSalute });
+        const files = [new AttachmentBuilder('assets\\drg_deep_dive.png'), new AttachmentBuilder('assets\\drg_supporter.png')];
+
+        channel.send({ components, embeds, files }).then(() => {
+          if (previousAssignmentMessage) {
+            const row = ActionRowBuilder.from(previousAssignmentMessage.components[0]);
+            row.components[0].setDisabled(true) && row.components[1].setDisabled(true);
+            previousAssignmentMessage.edit({ components: [row] });
+          }
+        });
+      }
+    } catch(error) {
+      Logger.Error(error);
     }
   }, null, true, "America/Los_Angeles", null, true);
 
@@ -169,23 +169,9 @@ const getCurrentAssignments = async () =>
 
 // Get the previous Deep Rock Galactic assignments from the Discord channel
 const getPreviousAssignments = async ({ channel, client }) => {
-  const checkMessage = ({ author, embeds }) =>
-    author.id === client.user.id
-    && embeds.length
-    && embeds[0].data.author?.name.includes('Deep Rock Galactic');
-
-  // search all channel messages for the previous assignment message
-
-  let fetchedMessages = await channel.messages.fetch({ limit: 100 });
-  let previousAssignmentMessage = Array.from(fetchedMessages.values()).find(checkMessage);
-
-  while (!previousAssignmentMessage && fetchedMessages) {
-    fetchedMessages = await channel.messages.fetch({ limit: 100, before: fetchedMessages.last().id });
-    previousAssignmentMessage = Array.from(fetchedMessages.values()).find(checkMessage);
-    if (fetchedMessages.size < 100) fetchedMessages = null;
-  }
-
-  // parse resulting channel message to rebuild the assignment data
+  let previousAssignmentMessage = findChannelMessage(channel.id, ({ author, embeds }) =>
+    author.id === client.user.id && embeds.length && embeds[0].data.author?.name.includes('Deep Rock Galactic')
+  );
 
   const previousDive = {
     biome: previousAssignmentMessage?.embeds[0].data.fields[0]?.name.split(" in ").pop(),

@@ -2,7 +2,12 @@ import { Client, Events, GatewayIntentBits } from "discord.js";
 import { Logger } from "./logger.js";
 import config from "./config.json" assert { type: "json" };
 import fs from "fs-extra";
-const bot_modules = [];
+
+const BOT_MODULES = [];
+const CHANNEL_MESSAGES = {};
+
+export const getChannelMessages = (channelId) => CHANNEL_MESSAGES[channelId];
+export const findChannelMessage = (channelId, predicate) => getChannelMessages(channelId).find(predicate);
 
 // --------------------------------------------------- //
 // Create the Discord.js client and its event handlers //
@@ -20,11 +25,12 @@ const client = new Client({
   }
 });
 
-client.on(Events.ClientReady, () => {
+client.on(Events.ClientReady, async () => {
   initializeModules().then(() => runModuleFunction("OnClientReady", { client }));
 });
 
 client.on(Events.MessageCreate, message => {
+  CHANNEL_MESSAGES[message.channel.id]?.unshift(message);
   !message.author.bot && runModuleFunction("OnMessageCreate", { client, message });
 });
 
@@ -41,27 +47,54 @@ client.on(Events.InteractionCreate, interaction => {
 // ------------ //
 
 async function initializeModules() {
-  // --------------------------------------------------- //
-  // Populate bot_modules with scripts in ./bot_modules/ //
-  // --------------------------------------------------- //
+  const filenames = fs.readdirSync(`./BOT_MODULES/`);
 
-  const filenames = fs.readdirSync(`./bot_modules/`).filter(x => x.endsWith(".js") || x.endsWith(".ts"));
+  // populate BOT_MODULES with scripts in ./bot_modules/
 
-  for (const filename of filenames) {
-    await import(`./bot_modules/${filename}`).then(instance => bot_modules.push({ filename, instance }));
+  const scriptFilenames =
+    filenames.filter(x => x.endsWith("_script.js") || x.endsWith("_script.ts"));
+
+  for await (const filename of scriptFilenames) {
+    await import(`./BOT_MODULES/${filename}`).then(instance => BOT_MODULES.push({ filename, instance }));
   }
 
-  Logger.Info(`Started bot modules ["${filenames.join(`", "`)}"] (${filenames.length})`);
+  // populate CHANNEL_MESSAGES with all existing messages for channel ids in ./bot_modules/ configs
 
-  // --------------------------------------------------- //
-  // Delete last sessions temp data from ./temp_storage/ //
-  // --------------------------------------------------- //
+  const configFilenames = filenames.filter(x => x.endsWith("_config.json"));
+  const loadJSON = (path) => JSON.parse(fs.readFileSync(new URL(path, import.meta.url)));
+
+  for await (const filename of configFilenames) {
+    const json = loadJSON(`./bot_modules/${filename}`);
+
+    for await (const channel_id of json.channel_ids) {
+      const isContinue = !channel_id || Array.isArray(CHANNEL_MESSAGES[channel_id]);
+      if (isContinue) continue;
+
+      const channel = await client.channels.fetch(channel_id);
+      let fetchedMessages = await channel.messages.fetch({ limit: 1 });
+      CHANNEL_MESSAGES[channel_id] = Array.from(fetchedMessages.values());
+
+      do {
+        const before = fetchedMessages.last().id;
+        fetchedMessages = await channel.messages.fetch({ before, limit: 100 });
+        CHANNEL_MESSAGES[channel_id].push(...Array.from(fetchedMessages.values()));
+        if (fetchedMessages.size < 100) fetchedMessages = null;
+      } while (fetchedMessages);
+    }
+  }
+
+  const channelMessageCount = Object.keys(CHANNEL_MESSAGES)
+    .reduce((total, current) => total += CHANNEL_MESSAGES[current].length, 0);
+
+  Logger.Info(`Started modules ["${scriptFilenames.join(`", "`)}"] (${scriptFilenames.length}) with ${channelMessageCount} fetched messages`);
+
+  // delete last sessions temp data from ./temp_storage/
 
   fs.emptyDir("./temp_storage/");
 }
 
 async function runModuleFunction(functionName, params) {
-  for (const { filename, instance } of bot_modules.filter(({ instance }) => instance[functionName])) {
+  for (const { filename, instance } of BOT_MODULES.filter(({ instance }) => instance[functionName])) {
     try {
       await instance[functionName](params);
     } catch (error) {

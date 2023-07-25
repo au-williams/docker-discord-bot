@@ -1,9 +1,0 @@
-{
-  "channel_ids": [""],
-  "plex_directory": "",
-  "plex_section_id": "",
-  "plex_server_ip": "",
-  "plex_user_role_id": "",
-  "plex_x_token": "",
-  "temp_directory": ".\\temp_storage\\"
-}

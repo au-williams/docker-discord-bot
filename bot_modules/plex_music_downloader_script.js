@@ -1,9 +1,8 @@
 import { ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle } from "discord.js";
 import { basename, parse, resolve } from "path";
-import { getUrlFromString } from "../utilities.js";
 import { Logger } from "../logger.js";
 import * as oembed from "@extractus/oembed-extractor";
-import config from "./music_download_config.json" assert { type: "json" };
+import config from "./plex_music_downloader_config.json" assert { type: "json" };
 import fs from "fs-extra";
 import youtubedl from "youtube-dl-exec";
 
@@ -403,3 +402,8 @@ const getCleanTitle = (author_name, title) => {
 
 const getErrorReply = error =>
   `I encountered an error and couldn't continue.\n\`\`\`${error}\n\`\`\``;
+
+const getUrlFromString = input => {
+  const match = input.match(/(https?:\/\/[^&\s]+)/);
+  return match ? match[1] : null;
+}

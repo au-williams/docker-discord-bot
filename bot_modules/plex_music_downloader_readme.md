@@ -1,6 +1,6 @@
-# Music Download Readme
+# Plex Music Downloader
 
-## Script — `music_download_script.js`
+## Script — [plex_music_downloader_script.js](plex_music_downloader_script.js)
 
 This script downloads music using [yt-dlp](https://github.com/yt-dlp/yt-dlp) and post-processes it with [ffmpeg](https://github.com/FFmpeg/FFmpeg). Any user can download the transcoded MP3 file and authorized users can save the file in source quality to the Plex media library.
 
@@ -21,7 +21,7 @@ These metadata tags are overwrote for better library integration:
 | `Date`         |                 |
 | `Track #`      |                 |
 
-## Config — `music_download_config.json`
+## Config — [plex_music_downloader_config.json](plex_music_downloader_config.json)
 
 The following values should be provided before use:
 
