@@ -9,8 +9,8 @@ export const OnClientReady = async ({ client }) => {
   const today9am = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 9, 0, 0);
 
   for(const channel_id of config.channel_ids) {
-    const channel = await client.channels.fetch(channel_id);
-    const isMissedSchedule = now > today9am && getChannelMessages(channel.id)[0]?.createdAt < today9am;
+    const channel = await client.channels.fetch(channel_id).catch(Logger.Error);
+    const isMissedSchedule = now > today9am && channel && getChannelMessages(channel.id)[0]?.createdAt < today9am;
     new cron.CronJob("0 9 * * *", () => sendCatFact(channel), null, true, "America/Los_Angeles", null, isMissedSchedule);
   }
 };
@@ -39,7 +39,6 @@ async function sendCatFact(channel) {
     channel
       .send(randomItem(newCatFacts))
       .then(() => Logger.Info(info))
-      .catch(Logger.Error);
   }
   catch(error) {
     Logger.Error(error);
