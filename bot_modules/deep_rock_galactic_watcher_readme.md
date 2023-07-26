@@ -6,7 +6,7 @@ Get weekly assignment updates for [Deep Rock Galactic](https://store.steampowere
 
 ## Script — [deep_rock_galactic_watcher_script.js](deep_rock_galactic_watcher_script.js)
 
-This script runs every waking hour and fetches the [DRG API](https://drgapi.com/) to send any assignment changes to each Discord channel.
+This script runs every waking hour and fetches the [DRG API](https://drgapi.com/) to send new weekly assignment to each Discord channel.
 
 ## Config — [deep_rock_galactic_watcher_config.json](deep_rock_galactic_watcher_config.json)
 

@@ -19,7 +19,7 @@ bot_modules
 ↳ example_script.js
 ```
 
-Additionally, `index.js` collects and maintains a complete message history of channels defined as `channel_ids` in `./bot_module/` config files to reduce the overall number of API requests modules send to Discord. You can import the `getChannelMessages` function or its related signatures from a modules JavaScript file to access it.
+Additionally, the `index.js` file collects and maintains the complete message history of Discord channels defined as `channel_ids` in `./bot_modules/` config files to reduce the overall number of API requests modules send to Discord. You can import the `getChannelMessages` function or its related signatures from a modules JavaScript file to access it.
 
 ```js
 import { getChannelMessages } from "../index.js";
