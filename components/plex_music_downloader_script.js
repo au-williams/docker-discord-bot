@@ -6,7 +6,7 @@ import fs from "fs-extra";
 import youtubedl from "youtube-dl-exec";
 
 const {
-  plex_channel_ids, plex_directory, plex_role_ids,
+  plex_channel_ids, plex_directory, plex_user_role_id,
   plex_section_id, plex_server_ip, plex_x_token, temp_directory
 } = fs.readJsonSync("components/plex_music_downloader_config.json");
 
@@ -27,22 +27,22 @@ export const COMPONENT_INTERACTIONS = [
   {
     customId: "IMPORT_INTO_PLEX_BUTTON",
     onInteractionCreate: ({ interaction }) => showMetadataModal({ interaction, modalCustomId: "IMPORT_INTO_PLEX_MODAL", modalTitle: "Import into Plex" }),
-    requiredRoleIds: plex_role_ids
+    requiredRoleIds: [plex_user_role_id]
   },
   {
     customId: "IMPORT_INTO_PLEX_MODAL",
     onInteractionCreate: ({ interaction }) => importUrlIntoPlex({ interaction }),
-    requiredRoleIds: plex_role_ids
+    requiredRoleIds: [plex_user_role_id]
   },
   {
     customId: "REMOVE_FROM_PLEX_BUTTON",
     onInteractionCreate: ({ interaction }) => showRemovalModal({ interaction, customId: "REMOVE_FROM_PLEX_MODAL", modalTitle: "Remove from Plex" }),
-    requiredRoleIds: plex_role_ids
+    requiredRoleIds: [plex_user_role_id]
   },
   {
     customId: "REMOVE_FROM_PLEX_MODAL",
     onInteractionCreate: ({ interaction }) => removeUrlFromPlex({ interaction }),
-    requiredRoleIds: plex_role_ids
+    requiredRoleIds: [plex_user_role_id]
   }
 ]
 
