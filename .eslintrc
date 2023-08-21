@@ -8,5 +8,8 @@
     "browser": true,
     "es6": true,
     "node": true
+  },
+  "rules": {
+    "no-inner-declarations": "off"
   }
 }

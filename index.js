@@ -1,104 +1,170 @@
 import { Client, Events, GatewayIntentBits } from "discord.js";
 import { Logger } from "./logger.js";
-import config from "./config.json" assert { type: "json" };
+import { State } from "./state.js";
 import fs from "fs-extra";
 
-const BOT_MODULES = [];
-const CHANNEL_MESSAGES = {};
+const config = fs.readJsonSync("./config.json");
 
-export const getChannelMessages = (channelId) => CHANNEL_MESSAGES[channelId];
-export const findChannelMessage = (channelId, predicate) => getChannelMessages(channelId).find(predicate);
+// ---------------------------- //
+// Create the discord.js client //
+// ---------------------------- //
 
-// --------------------------------------------------- //
-// Create the Discord.js client and its event handlers //
-// --------------------------------------------------- //
+const { Guilds, GuildMembers, GuildMessages, MessageContent } = GatewayIntentBits;
+const intents = [ Guilds, GuildMembers, GuildMessages, MessageContent ];
+const client = new Client({ intents, rest: { timeout: 60000 } });
 
-const client = new Client({
-  intents: [
-    GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent,
-    GatewayIntentBits.GuildMembers
-  ],
-  rest: {
-    timeout: 60000
-  }
-});
+// --------------------------- //
+// Announce the event handlers //
+// --------------------------- //
 
 client.on(Events.ClientReady, async () => {
-  initializeModules().then(() => runModuleFunction("OnClientReady", { client }));
+  await initializeMessages();
+  await initializeComponents();
+  await State.initialize(client);
+  invokeComponentsFunction("onClientReady", { client });
 });
 
 client.on(Events.MessageCreate, message => {
   CHANNEL_MESSAGES[message.channel.id]?.unshift(message);
-  !message.author.bot && runModuleFunction("OnMessageCreate", { client, message });
+  invokeComponentsFunction("onMessageCreate", { client, message });
+});
+
+client.on(Events.MessageDelete, message => {
+  const index = CHANNEL_MESSAGES[message.channel.id]?.map(({ id }) => id).indexOf(message.id);
+  if (index != null && index > -1) CHANNEL_MESSAGES[message.channel.id].splice(index, 1);
+  invokeComponentsFunction("onMessageDelete", { client, message });
 });
 
 client.on(Events.MessageUpdate, (oldMessage, newMessage) => {
-  !newMessage.author.bot && runModuleFunction("OnMessageUpdate", { client, oldMessage, newMessage });
+  invokeComponentsFunction("onMessageUpdate", { client, newMessage, oldMessage });
 });
 
-client.on(Events.InteractionCreate, interaction => {
-  runModuleFunction("OnInteractionCreate", { client, interaction });
-});
+client.on(Events.InteractionCreate, async interaction => {
+  try {
+    if (interaction.isChatInputCommand()) {
+      invokeOnInteractionCreate({
+        filter: ({ instance }) => instance.COMMAND_INTERACTIONS?.some(({ name } = {}) => name === interaction.commandName),
+        map: ({ filename, instance }) => ({ filename, ...instance.COMMAND_INTERACTIONS.find(({ name } = {}) => name === interaction.commandName) }),
+        interactionName: `/${interaction.commandName}`,
+        interactionType: "command"
+      });
+    }
 
-// ------------ //
-// Script logic //
-// ------------ //
+    if (interaction.isButton() || interaction.isModalSubmit()) {
+      invokeOnInteractionCreate({
+        filter: ({ instance }) => instance.COMPONENT_INTERACTIONS?.some(({ customId } = {}) => customId === interaction.customId),
+        map: ({ filename, instance }) => ({ filename, ...instance.COMPONENT_INTERACTIONS.find(({ customId } = {}) => customId === interaction.customId) }),
+        interactionName: interaction.customId,
+        interactionType: interaction.isButton() ? "button" : "modal"
+      });
+    }
 
-async function initializeModules() {
-  const filenames = fs.readdirSync(`./BOT_MODULES/`);
+    function invokeOnInteractionCreate({ filter, interactionName, interactionType, map }) {
+      LOADED_COMPONENTS.filter(filter).map(map).forEach(({ filename, onInteractionCreate, requiredChannelIds, requiredRoleIds }) => {
+        const { channel, member: { roles }, user: { username } } = interaction;
+        const isRequiredChannelId = !Array.isArray(requiredChannelIds) || requiredChannelIds.includes(channel.id);
+        const isRequiredRoleId = !Array.isArray(requiredRoleIds) || requiredRoleIds.some(requiredId => roles.cache.some(({ id }) => id === requiredId));
 
-  // populate BOT_MODULES with scripts in ./bot_modules/
+        const formatContent = (message, valueStart, values, valueEnd) => {
+          const predicate = (p, c, i) => `${p}${i && i === values.length - 1 ? " and " : " "}${valueStart}${c}${valueEnd}`;
+          return values.reduce(predicate, message);
+        }
 
-  const scriptFilenames =
-    filenames.filter(x => x.endsWith("_script.js") || x.endsWith("_script.ts"));
+        if (isRequiredChannelId && isRequiredRoleId) {
+          onInteractionCreate({ client, interaction });
+          Logger.Info(`${username} used ${interactionType} interaction "${interactionName}"`, filename);
+        }
 
-  for await (const filename of scriptFilenames) {
-    await import(`./BOT_MODULES/${filename}`).then(instance => BOT_MODULES.push({ filename, instance }));
-  }
+        else if (!isRequiredRoleId) {
+          const uniqueRequiredRoleIds = [...new Set(requiredRoleIds)];
+          const content = formatContent(`Sorry! This ${interactionType} can only be used by the`, "<@&", uniqueRequiredRoleIds, ">") + ` role${uniqueRequiredRoleIds.length === 1 ? "" : "s"}.`;
+          interaction.reply({ content, ephemeral: true }).then(() => Logger.Info(`${username} tried ${interactionType} interaction "${interactionName}"`, filename));
+        }
 
-  // populate CHANNEL_MESSAGES with all existing messages for channel ids in ./bot_modules/ configs
-
-  const configFilenames = filenames.filter(x => x.endsWith("_config.json"));
-  const loadJSON = (path) => JSON.parse(fs.readFileSync(new URL(path, import.meta.url)));
-
-  for await (const filename of configFilenames) {
-    const json = loadJSON(`./bot_modules/${filename}`);
-
-    for await (const channel_id of json.channel_ids) {
-      const isContinue = !channel_id || Array.isArray(CHANNEL_MESSAGES[channel_id]);
-      if (isContinue) continue;
-
-      const channel = await client.channels.fetch(channel_id);
-      let fetchedMessages = await channel.messages.fetch({ limit: 1 });
-      CHANNEL_MESSAGES[channel_id] = Array.from(fetchedMessages.values());
-
-      do {
-        const before = fetchedMessages.last().id;
-        fetchedMessages = await channel.messages.fetch({ before, limit: 100 });
-        CHANNEL_MESSAGES[channel_id].push(...Array.from(fetchedMessages.values()));
-        if (fetchedMessages.size < 100) fetchedMessages = null;
-      } while (fetchedMessages);
+        else if (!isRequiredChannelId) {
+          const uniqueRequiredChannelIds = [...new Set(requiredChannelIds)];
+          const content = formatContent(`Sorry! This ${interactionType} can only be used in the`, "<#", uniqueRequiredChannelIds, ">") + ` channel${uniqueRequiredChannelIds.length === 1 ? "" : "s"}.`;
+          interaction.reply({ content, ephemeral: true }).then(() => Logger.Info(`${username} tried ${interactionType} interaction "${interactionName}"`, filename));
+        }
+      });
     }
   }
+  catch({ stack }) {
+    Logger.Error(stack);
+  }
+});
 
-  const channelMessageCount = Object.keys(CHANNEL_MESSAGES)
-    .reduce((total, current) => total += CHANNEL_MESSAGES[current].length, 0);
+// --------------------------------- //
+// Exported channel message handlers //
+// --------------------------------- //
 
-  Logger.Info(`Started modules ["${scriptFilenames.join(`", "`)}"] (${scriptFilenames.length}) with ${channelMessageCount} fetched messages`);
+const CHANNEL_MESSAGES = {};
+const LOADED_COMPONENTS = [];
 
-  // delete last sessions temp data from ./temp_storage/
+export const getChannelMessages = async channelId => {
+  if (!CHANNEL_MESSAGES[channelId]) {
+    const channel = await client.channels.fetch(channelId);
+    let fetchedMessages = await channel.messages.fetch({ limit: 1 }).catch(() => []);
+    CHANNEL_MESSAGES[channelId] = Array.from(fetchedMessages.values());
+    if (!fetchedMessages.size) return CHANNEL_MESSAGES[channelId];
 
-  fs.emptyDir("./temp_storage/");
+    do {
+      const before = fetchedMessages.last().id;
+      fetchedMessages = await channel.messages.fetch({ before, limit: 100 });
+      CHANNEL_MESSAGES[channelId].push(...Array.from(fetchedMessages.values()));
+      if (fetchedMessages.size < 100) fetchedMessages = null;
+    } while (fetchedMessages);
+  }
+
+  return CHANNEL_MESSAGES[channelId];
 }
 
-async function runModuleFunction(functionName, params) {
-  for (const { filename, instance } of BOT_MODULES.filter(({ instance }) => instance[functionName])) {
+export const filterChannelMessages = async (channelId, filter) => {
+  const channelMessages = CHANNEL_MESSAGES[channelId] ?? await getChannelMessages(channelId);
+  return channelMessages.filter(filter);
+}
+
+export const findChannelMessage = async (channelId, find) => {
+  const channelMessages = CHANNEL_MESSAGES[channelId] ?? await getChannelMessages(channelId);
+  return channelMessages.find(find);
+}
+
+// ------------------------ //
+// Component function logic //
+// ------------------------ //
+
+async function initializeComponents() {
+  const scriptFilenames = fs
+    .readdirSync(`./components/`)
+    .filter(filename => filename.endsWith("_script.js"));
+
+  for await (const filename of scriptFilenames)
+    await import(`./components/${filename}`).then(instance => LOADED_COMPONENTS.push({ filename, instance }));
+
+  fs.emptyDir("./temp_storage/"); // delete last sessions temp data from ./temp_storage/
+  const channelMessageCount = Object.keys(CHANNEL_MESSAGES).reduce((total, current) => total += CHANNEL_MESSAGES[current].length, 0);
+  Logger.Info(`${client.user.username} started with ${LOADED_COMPONENTS.length} of ${scriptFilenames.length} components and ${channelMessageCount} prefetched messages`);
+}
+
+async function initializeMessages() {
+  try {
+    for await (const channel_id of config.prefetched_channel_ids.filter(channel_id => channel_id)) {
+      await getChannelMessages(channel_id);
+    }
+  }
+  catch({ stack }) {
+    Logger.Error(stack);
+  }
+}
+
+async function invokeComponentsFunction(functionName, params) {
+  for (const { filename, instance } of LOADED_COMPONENTS.filter(({ instance }) => instance[functionName])) {
     try {
       await instance[functionName](params);
-    } catch (error) {
-      Logger.Error(`${filename} ${functionName} threw an internal error`, error);
+    }
+    catch ({ stack }) {
+      Logger.Error(`${filename} ${functionName} threw an uncaught error`);
+      Logger.Error(filename, stack);
     }
   }
 }
