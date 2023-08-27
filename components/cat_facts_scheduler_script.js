@@ -1,4 +1,4 @@
-import { getChannelMessages } from "../index.js";
+import { findChannelMessage, getChannelMessages } from "../index.js";
 import { Logger } from "../logger.js";
 import cron from "cron";
 import fs from "fs-extra";
@@ -13,8 +13,8 @@ const { announcement_channel_ids } = fs.readJsonSync("components/cat_facts_sched
 export const COMMAND_INTERACTIONS = [{
   name: "catfact",
   description: "Publicly sends a message with a random cat fact 🐱",
-  onInteractionCreate: ({ interaction }) => sendMessageReply({ interaction })
-}]
+  onInteractionCreate
+}];
 
 // ---------------------- //
 // Discord event handlers //
@@ -24,44 +24,15 @@ export const onClientReady = async ({ client }) => {
   const now = new Date();
   const today9am = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 9, 0, 0);
   for(const channel_id of announcement_channel_ids) {
-    const channel = await client.channels.fetch(channel_id);
-    const channelMessages = await getChannelMessages(channel.id);
-    const isMissedSchedule = now > today9am && (channelMessages.length ? channelMessages[0].createdAt < today9am : true);
-    new cron.CronJob("0 9 * * *", () => sendScheduledMessage(channel), null, true, "America/Los_Angeles", null, isMissedSchedule);
+    const lastChannelMessage = await findChannelMessage(channel_id, () => true);
+    const runOnInit = now > today9am && (lastChannelMessage?.createdAt < today9am ?? true);
+    new cron.CronJob("0 9 * * *", () => onCronJob({ channel_id, client }), null, true, "America/Los_Angeles", null, runOnInit);
   }
 };
 
 // ------------------- //
 // Component functions //
 // ------------------- //
-
-async function sendScheduledMessage(channel) {
-  try {
-    const channelMessages = await getChannelMessages(channel.id);
-    const apiCatFacts = await getApiCatFacts();
-    const oldCatFacts = channelMessages.map(({ content }) => content);
-    const newCatFacts = apiCatFacts.filter(catFact => !oldCatFacts.includes(catFact));
-    // todo: this should reduce to find the least posted item once we exhaust the API of new data
-
-    await channel.send(randomItem(newCatFacts));
-    Logger.Info(`Sent cat fact message to ${channel.guild.name} #${channel.name}`);
-  }
-  catch({ stack }) {
-    Logger.Error(stack);
-  }
-}
-
-async function sendMessageReply({ interaction }) {
-  try {
-    await interaction.deferReply();
-    const apiCatFacts = await getApiCatFacts();
-    await interaction.editReply({ content: randomItem(apiCatFacts) });
-    Logger.Info(`Sent cat fact reply to ${interaction.channel.guild.name} #${interaction.channel.name}`);
-  }
-  catch({ stack }) {
-    Logger.Error(stack);
-  }
-}
 
 async function getApiCatFacts() {
   return await fetch("https://catfact.ninja/facts?max_length=256&limit=500")
@@ -76,4 +47,28 @@ async function getApiCatFacts() {
       if (!punctuations.some(punctuation => cleanedFact.endsWith(punctuation))) cleanedFact += ".";
       return cleanedFact;
     }));
+}
+
+async function onCronJob({ channel_id, client }) {
+  try {
+    const channel = await client.channels.fetch(channel_id);
+    const oldCatFacts = (await getChannelMessages(channel.id)).map(({ content }) => content);
+    const newCatFacts = (await getApiCatFacts()).filter(catFact => !oldCatFacts.includes(catFact));
+    await channel.send(randomItem(newCatFacts)); // this should reduce the least posted items when the API runs out of new data
+    Logger.Info(`Sent cat fact message to ${channel.guild.name} #${channel.name}`);
+  }
+  catch({ stack }) {
+    Logger.Error(stack);
+  }
+}
+
+async function onInteractionCreate({ interaction }) {
+  try {
+    await interaction.deferReply();
+    await interaction.editReply({ content: randomItem(await getApiCatFacts()) });
+    Logger.Info(`Sent cat fact reply to ${interaction.channel.guild.name} #${interaction.channel.name}`);
+  }
+  catch({ stack }) {
+    Logger.Error(stack);
+  }
 }
