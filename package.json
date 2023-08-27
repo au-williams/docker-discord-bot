@@ -12,6 +12,7 @@
   "dependencies": {
     "@extractus/oembed-extractor": "^3.1.9",
     "cron": "^2.2.0",
+    "croner": "^7.0.1",
     "date-and-time": "^3.0.2",
     "discord.js": "^14.7.1",
     "fs-extra": "^11.1.1",
