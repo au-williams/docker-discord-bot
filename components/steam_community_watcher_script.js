@@ -1,101 +1,105 @@
 import { AttachmentBuilder, EmbedBuilder } from "discord.js";
 import { findChannelMessage } from "../index.js";
 import { Logger } from "../logger.js";
-import cron from "cron";
+import { Cron } from "croner";
 import date from 'date-and-time';
 import fs from "fs-extra";
 import ordinal from 'date-and-time/plugin/ordinal';
 import probe from "probe-image-size";
 
+const {
+  announcement_channel_ids,
+  announcement_steam_apps
+} = fs.readJsonSync("components/steam_community_watcher_config.json");
+
 date.plugin(ordinal);
 
-const { announcement_channel_ids, announcement_steam_apps } = fs.readJsonSync("components/steam_community_watcher_config.json");
+// ---------------------- //
+// Discord event handlers //
+// ---------------------- //
 
 export const onClientReady = async ({ client }) => {
-  new cron.CronJob("0 9-22 * * *", trySendAllAnnouncements({ client }), null, true, "America/Los_Angeles", null, true);
+  Cron("1 0 9-22 * * *", { timezone: "America/Los_Angeles" }, () => onCronJob({ client }));
+  onCronJob({ client });
 };
 
-async function trySendAllAnnouncements({ client }) {
+// ------------------- //
+// Component functions //
+// ------------------- //
+
+function getPreviousEmbedTitle({ embeds }) {
+  const regex = /\*\*(.*?)\*\*/;
+  const matches = embeds[0].data.description.match(regex);
+  return matches && matches.length >= 2 && matches[1];
+}
+
+async function getSteamAnnouncement({ steam_app }) {
+  return await fetch(`https://api.steampowered.com/ISteamNews/GetNewsForApp/v2/?appid=${steam_app.app_id}`)
+    .then(response => response.json())
+    .then(({ appnews }) =>
+      appnews?.newsitems.find(({ feed_type: jsonFeedType, title: jsonTitle }) => {
+        const { feed_type: configFeedType, title_keywords: configKeywords } = steam_app;
+        const isConfigFeedTypeExist = Number.isSafeInteger(configFeedType);
+        const isConfigKeywordsExist = Array.isArray(configKeywords) && configKeywords.length > 0;
+        const isConfigFeedTypeMatch = isConfigFeedTypeExist ? configFeedType === jsonFeedType : true;
+        const isConfigKeywordsMatch = isConfigKeywordsExist ? configKeywords.some(x => jsonTitle.toLowerCase().includes(x)) : true;
+        return isConfigFeedTypeMatch && isConfigKeywordsMatch;
+      }));
+}
+
+async function getSteamAppDetails({ steam_app }) {
+  return await fetch(`https://store.steampowered.com/api/appdetails?appids=${steam_app.app_id}`)
+    .then(response => response.json())
+    .then(json => json[steam_app.app_id].success ? json[steam_app.app_id].data : null);
+}
+
+async function onCronJob({ client }) {
   try {
     for (const channel_id of announcement_channel_ids) {
       const channel = await client.channels.fetch(channel_id);
-      for (const steam_app of announcement_steam_apps) {
-        trySendAnnouncement({ channel, client, steam_app });
+      for await (const steam_app of announcement_steam_apps) {
+        // validate steam app id or skip code execution
+        if (!steam_app.app_id) Logger.Error("Invalid app_id value in config file");
+        if (!steam_app.app_id) continue;
+
+        // get steam announcement or skip code execution
+        const steamAnnouncement = await getSteamAnnouncement({ steam_app });
+        if (!steamAnnouncement) Logger.Warn(`Couldn't fetch announcement for app_id "${steam_app.app_id}"`);
+        if (!steamAnnouncement) continue;
+
+        // get steam app details or skip code execution
+        const steamAppDetails = await getSteamAppDetails({ steam_app });
+        if (!steamAppDetails) Logger.Warn(`Couldn't fetch Steam details for app_id "${steam_app.app_id}"`);
+        if (!steamAppDetails) continue;
+
+        // find previous message for steam app id and skip if it matches the latest announcement
+        const find = ({ author, embeds }) => author.id === client.user.id && embeds?.[0]?.data?.title === steamAppDetails.name;
+        const previousEmbedTitle = await findChannelMessage(channel.id, find).then(message => message && getPreviousEmbedTitle(message));
+        if (previousEmbedTitle === steamAnnouncement.title) continue;
+
+        // format the steam announcement date into a user-readable string
+        // (multiply by 1000 to convert Unix timestamps to milliseconds)
+        const parsedDate = new Date(steamAnnouncement.date * 1000);
+        const formattedDate = date.format(parsedDate, "MMMM DDD");
+
+        // get the first image in the steam announcement and check if it's in landscape orientation
+        // (portrait orientated images are historically unfitting and will be replaced by the game image)
+        const steamAnnouncementImageUrl = steamAnnouncement.contents.match(/\[img\](.*?)\[\/img\]/)?.[1]?.replace("{STEAM_CLAN_IMAGE}", "https://clan.akamai.steamstatic.com/images/")
+        const isLandscapeImage = steamAnnouncementImageUrl && await probe(steamAnnouncementImageUrl).then(({ height, width }) => width >= height * 1.25).catch(() => null);
+
+        const embeds = [new EmbedBuilder()
+          .setAuthor({ name: "New Steam Community announcement", iconURL: "attachment://steam_logo.png" })
+          .setColor(0x1A9FFF)
+          .setDescription(`- [**${steamAnnouncement.title}**](${steamAnnouncement.url})`)
+          .setFooter({ text: `Posted on ${formattedDate}. Click the link to read the full announcement.` })
+          .setImage(( isLandscapeImage ? steamAnnouncementImageUrl : steamAppDetails.header_image))
+          .setThumbnail(steamAppDetails.capsule_image)
+          .setTitle(steamAppDetails.name)]
+
+        await channel.send({ embeds, files: [new AttachmentBuilder('assets\\steam_logo.png')] });
       }
     }
-  } catch(error) {
-    Logger.Error(error);
-  }
-}
-
-async function trySendAnnouncement({ channel, client, steam_app }) {
-  try {
-    if (!steam_app.app_id) {
-      Logger.Error("Invalid app_id value in config file");
-      return;
-    }
-
-    const steamAnnouncement = await fetch(`https://api.steampowered.com/ISteamNews/GetNewsForApp/v2/?appid=${steam_app.app_id}`)
-      .then(response => response.json())
-      .then(({ appnews }) =>
-        appnews?.newsitems.find(({ feed_type: jsonFeedType, title: jsonTitle }) => {
-          const { feed_type: configFeedType, title_keywords: configKeywords } = steam_app;
-          const isConfigFeedTypeExist = Number.isSafeInteger(configFeedType);
-          const isConfigKeywordsExist = Array.isArray(configKeywords) && configKeywords.length > 0;
-          const isConfigFeedTypeMatch = isConfigFeedTypeExist ? configFeedType === jsonFeedType : true;
-          const isConfigKeywordsMatch = isConfigKeywordsExist ? configKeywords.some(x => jsonTitle.toLowerCase().includes(x)) : true;
-          return isConfigFeedTypeMatch && isConfigKeywordsMatch;
-        }));
-
-    if (!steamAnnouncement) {
-      Logger.Warn(`Couldn't fetch announcement for app_id "${steam_app.app_id}"`);
-      return;
-    }
-
-    const steamAppDetails =
-      await fetch(`https://store.steampowered.com/api/appdetails?appids=${steam_app.app_id}`)
-        .then(response => response.json())
-        .then(json => json[steam_app.app_id].success ? json[steam_app.app_id].data : null);
-
-    if (!steamAppDetails) {
-      Logger.Warn(`Couldn't fetch Steam details for app_id "${steam_app.app_id}"`);
-      return;
-    }
-
-    const previousMessage = await findChannelMessage(channel.id, ({ author, embeds }) =>
-      author.id === client.user.id
-      && embeds.length
-      && embeds[0].data.title === steamAppDetails.name
-    );
-
-    const getPreviousTitle = ({ embeds }) => {
-      const regex = /\*\*(.*?)\*\*/;
-      const matches = embeds[0].data.description.match(regex);
-      return matches && matches.length >= 2 && matches[1];
-    }
-
-    if (previousMessage && getPreviousTitle(previousMessage) === steamAnnouncement.title) return;
-
-    // multiply by 1000 to convert Unix timestamps to milliseconds
-    const parsedDate = new Date(steamAnnouncement.date * 1000);
-    const formattedDate = date.format(parsedDate, "MMMM DDD");
-
-    const embeds = [
-      new EmbedBuilder()
-      .setAuthor({ name: "New Steam Community announcement", iconURL: "attachment://steam_logo.png" })
-      .setColor(0x1A9FFF)
-      .setDescription(`- [**${steamAnnouncement.title}**](${steamAnnouncement.url})`)
-      .setFooter({ text: `Posted on ${formattedDate}. Click the link to read the full announcement.` })
-      .setThumbnail(steamAppDetails.capsule_image)
-      .setTitle(steamAppDetails.name)
-    ]
-
-    const imageUrl = steamAnnouncement.contents.match(/\[img\](.*?)\[\/img\]/)?.[1]?.replace("{STEAM_CLAN_IMAGE}", "https://clan.akamai.steamstatic.com/images/")
-    const isLandscapeImage = imageUrl && await probe(imageUrl).then(({ height, width }) => width >= height * 1.25).catch(() => null);
-    embeds[0].setImage(( isLandscapeImage ? imageUrl : steamAppDetails.header_image));
-
-    await channel.send({ embeds, files: [new AttachmentBuilder('assets\\steam_logo.png')] });
-  } catch(error) {
-    Logger.Error(error);
+  } catch({ stack }) {
+    Logger.Error(stack);
   }
 }
