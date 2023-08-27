@@ -1,7 +1,7 @@
 import { ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } from "discord.js";
+import { Cron } from "croner";
 import { getChannelMessages, findChannelMessage } from "../index.js";
 import { Logger } from "../logger.js";
-import cron from "cron";
 import date from "date-and-time";
 import fs from "fs-extra";
 import ordinal from "date-and-time/plugin/ordinal";
@@ -17,17 +17,17 @@ const { announcement_channel_ids } = fs.readJsonSync("components/deep_rock_galac
 export const COMMAND_INTERACTIONS = [{
   name: "drg",
   description: "Privately shows the weekly deep dive assignments in Deep Rock Galactic 🎮",
-  onInteractionCreate: ({ client, interaction }) => sendCurrentAssignmentsReply({ client, interaction })
+  onInteractionCreate: ({ client, interaction }) => onCommandInteraction({ client, interaction })
 }];
 
 export const COMPONENT_INTERACTIONS = [
   {
     customId: "DEEP_DIVE_DETAILS_BUTTON",
-    onInteractionCreate: ({ client, interaction }) => sendDeepDiveDetailsReply({ client, interaction })
+    onInteractionCreate: ({ client, interaction }) => onDeepDiveButtonInteraction({ client, interaction })
   },
   {
     customId: "ELITE_DEEP_DIVE_DETAILS_BUTTON",
-    onInteractionCreate: ({ client, interaction }) => sendEliteDeepDiveDetailsReply({ client, interaction })
+    onInteractionCreate: ({ client, interaction }) => onEliteDeepDiveButtonInteraction({ client, interaction })
   }
 ]
 
@@ -36,7 +36,8 @@ export const COMPONENT_INTERACTIONS = [
 // ---------------------- //
 
 export const onClientReady = ({ client }) => {
-  new cron.CronJob("0 9-22 * * *", sendNewAssignmentsMessages({ client }), null, true, "America/Los_Angeles", null, true);
+  Cron("1 0 9-22 * * *", { timezone: "America/Los_Angeles" }, () => onCronJob({ client }));
+  onCronJob({ client });
 };
 
 // ------------------- //
@@ -47,7 +48,7 @@ export const onClientReady = ({ client }) => {
  * Loop through each configured channel and send an updated message if the last sent message is outdated.
  * (Outdated channel messages have their buttons disabled because the DRG API can't fetch their old data)
  */
-async function sendNewAssignmentsMessages({ client }) {
+async function onCronJob({ client }) {
   try {
     for(const channel_id of announcement_channel_ids) {
       const channel = await client.channels.fetch(channel_id);
@@ -86,7 +87,7 @@ async function sendNewAssignmentsMessage({ assignmentValues, channel }) {
   }
 }
 
-async function sendDeepDiveDetailsReply({ client, interaction }) {
+async function onDeepDiveButtonInteraction({ client, interaction }) {
   try {
     const { channel } = interaction;
     const { currentDive, currentEndTime, currentStartTime } = await getAssignmentValues({ channel, client });
@@ -97,7 +98,7 @@ async function sendDeepDiveDetailsReply({ client, interaction }) {
   }
 }
 
-async function sendEliteDeepDiveDetailsReply({ client, interaction }) {
+async function onEliteDeepDiveButtonInteraction({ client, interaction }) {
   try {
     const { channel } = interaction;
     const { currentEliteDive, currentEndTime, currentStartTime } = await getAssignmentValues({ channel, client });
@@ -122,7 +123,7 @@ async function sendAssignmentDetailsReply({ assignment, currentEndTime, currentS
   }
 }
 
-async function sendCurrentAssignmentsReply({ client, interaction }) {
+async function onCommandInteraction({ client, interaction }) {
   try {
     await interaction.deferReply({ ephemeral: true });
 

@@ -1,6 +1,6 @@
+import { Cron } from "croner";
 import { findChannelMessage, getChannelMessages } from "../index.js";
 import { Logger } from "../logger.js";
-import cron from "cron";
 import fs from "fs-extra";
 import randomItem from 'random-item';
 
@@ -25,8 +25,9 @@ export const onClientReady = async ({ client }) => {
   const today9am = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 9, 0, 0);
   for(const channel_id of announcement_channel_ids) {
     const lastChannelMessage = await findChannelMessage(channel_id, () => true);
-    const runOnInit = now > today9am && (lastChannelMessage?.createdAt < today9am ?? true);
-    new cron.CronJob("0 9 * * *", () => onCronJob({ channel_id, client }), null, true, "America/Los_Angeles", null, runOnInit);
+    const isMissedJob = now > today9am && (lastChannelMessage?.createdAt < today9am ?? true);
+    Cron("1 0 9 * * *", { timezone: "America/Los_Angeles" }, () => onCronJob({ channel_id, client }));
+    if (isMissedJob) onCronJob({ channel_id, client });
   }
 };
 

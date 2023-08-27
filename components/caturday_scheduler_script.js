@@ -1,23 +1,25 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } from "discord.js";
+import { Cron } from "croner";
 import { filterChannelMessages, findChannelMessage } from "../index.js";
 import { Logger } from "../logger.js";
 import { State } from "../state.js";
-import cron from "cron";
 import fs from "fs-extra";
 import randomItem from "random-item";
 
-const { announcement_channel_id, remove_button_role_id } = fs.readJsonSync("./components/caturday_scheduler_config.json");
+const {
+  announcement_channel_id,
+  remove_button_role_id
+} = fs.readJsonSync("./components/caturday_scheduler_config.json");
 
 // ----------------------- //
 // Interaction definitions //
 // ----------------------- //
 
-export const COMMAND_INTERACTIONS =
-  [{
-    name: "caturday",
-    description: "Privately shows a file selector to submit uploaded pictures for #caturday 🐱",
-    onInteractionCreate: ({ interaction }) => onCaturdayCommandInteraction({ interaction })
-  }]
+export const COMMAND_INTERACTIONS = [{
+  name: "caturday",
+  description: "Privately shows a file selector to submit uploaded pictures for #caturday 🐱",
+  onInteractionCreate: ({ interaction }) => onCommandInteraction({ interaction })
+}]
 
 export const COMPONENT_INTERACTIONS =
   [{
@@ -40,21 +42,23 @@ export const COMPONENT_INTERACTIONS =
 
 export const onClientReady = async ({ client }) => {
   const now = new Date();
-  const channel = await client.channels.fetch(announcement_channel_id);
-  const isMissedSchedule = now.getDay() === 0 && now.getHours() >= 9 && (async () => {
+  const isMissedJob = now.getDay() === 0 && now.getHours() >= 9 && (async () => {
     const today9am = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 9, 0, 0);
-    return await findChannelMessage(channel.id, () => true)?.createdAt < today9am ?? true;
+    return await findChannelMessage(announcement_channel_id, () => true)?.createdAt < today9am ?? true;
   });
 
-  new cron.CronJob("0 9 * * SAT", () => onCaturdayCronJob({ channel }), null, true, "America/Los_Angeles", null, isMissedSchedule);
+  Cron("1 0 9 * * SAT", { timezone: "America/Los_Angeles" }, () => onCronJob({ client }));
+  if (isMissedJob) onCronJob({ client });
 };
 
 // ------------------- //
 // Component functions //
 // ------------------- //
 
-async function onCaturdayCronJob({ channel }) {
+async function onCronJob({ client }) {
   try {
+    const channel = await client.channels.fetch(announcement_channel_id);
+
     const channelMessages = await filterChannelMessages(announcement_channel_id, message => getPictureUrlsFromMessage(message).length);
     const channelMessagesPictureUrls = channelMessages.map(message => getPictureUrlsFromMessage(message)[0]);
 
@@ -100,7 +104,7 @@ async function onCaturdayCronJob({ channel }) {
   }
 }
 
-async function onCaturdayCommandInteraction({ interaction }) {
+async function onCommandInteraction({ interaction }) {
   try {
     await interaction.deferReply({ ephemeral: true });
     const messageWithNestedUrl = await findChannelMessage(interaction.channel.id, message => !message.author.bot && getPictureUrlsFromMessage(message).length);
