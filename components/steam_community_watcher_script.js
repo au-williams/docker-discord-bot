@@ -1,60 +1,26 @@
 import { AttachmentBuilder, EmbedBuilder } from "discord.js";
+import { Cron } from "croner";
 import { findChannelMessage } from "../index.js";
 import { Logger } from "../logger.js";
-import { Cron } from "croner";
 import date from 'date-and-time';
 import fs from "fs-extra";
 import ordinal from 'date-and-time/plugin/ordinal';
 import probe from "probe-image-size";
+date.plugin(ordinal);
 
 const {
   announcement_channel_ids,
   announcement_steam_apps
 } = fs.readJsonSync("components/steam_community_watcher_config.json");
 
-date.plugin(ordinal);
-
 // ---------------------- //
 // Discord event handlers //
 // ---------------------- //
 
 export const onClientReady = async ({ client }) => {
-  Cron("1 0 9-22 * * *", { timezone: "America/Los_Angeles" }, () => onCronJob({ client }));
-  onCronJob({ client });
-};
-
-// ------------------- //
-// Component functions //
-// ------------------- //
-
-function getPreviousEmbedTitle({ embeds }) {
-  const regex = /\*\*(.*?)\*\*/;
-  const matches = embeds[0].data.description.match(regex);
-  return matches && matches.length >= 2 && matches[1];
-}
-
-async function getSteamAnnouncement({ steam_app }) {
-  return await fetch(`https://api.steampowered.com/ISteamNews/GetNewsForApp/v2/?appid=${steam_app.app_id}`)
-    .then(response => response.json())
-    .then(({ appnews }) =>
-      appnews?.newsitems.find(({ feed_type: jsonFeedType, title: jsonTitle }) => {
-        const { feed_type: configFeedType, title_keywords: configKeywords } = steam_app;
-        const isConfigFeedTypeExist = Number.isSafeInteger(configFeedType);
-        const isConfigKeywordsExist = Array.isArray(configKeywords) && configKeywords.length > 0;
-        const isConfigFeedTypeMatch = isConfigFeedTypeExist ? configFeedType === jsonFeedType : true;
-        const isConfigKeywordsMatch = isConfigKeywordsExist ? configKeywords.some(x => jsonTitle.toLowerCase().includes(x)) : true;
-        return isConfigFeedTypeMatch && isConfigKeywordsMatch;
-      }));
-}
-
-async function getSteamAppDetails({ steam_app }) {
-  return await fetch(`https://store.steampowered.com/api/appdetails?appids=${steam_app.app_id}`)
-    .then(response => response.json())
-    .then(json => json[steam_app.app_id].success ? json[steam_app.app_id].data : null);
-}
-
-async function onCronJob({ client }) {
-  try {
+  const onError = ({ stack }) => Logger.Error(stack, "steam_community_watcher_script.js");
+  Cron("0 * * * *", { catch: onError }, async job => {
+    Logger.Info(`Triggered job pattern "${job.getPattern()}"`);
     for (const channel_id of announcement_channel_ids) {
       const channel = await client.channels.fetch(channel_id);
       for await (const steam_app of announcement_steam_apps) {
@@ -99,7 +65,36 @@ async function onCronJob({ client }) {
         await channel.send({ embeds, files: [new AttachmentBuilder('assets\\steam_logo.png')] });
       }
     }
-  } catch({ stack }) {
-    Logger.Error(stack);
-  }
+    Logger.Info(`Scheduled next job on "${date.format(job.nextRun(), "YYYY-MM-DDTHH:mm")}"`);
+  }).trigger();
+};
+
+// ------------------- //
+// Component functions //
+// ------------------- //
+
+function getPreviousEmbedTitle({ embeds }) {
+  const regex = /\*\*(.*?)\*\*/;
+  const matches = embeds[0].data.description.match(regex);
+  return matches && matches.length >= 2 && matches[1];
+}
+
+async function getSteamAnnouncement({ steam_app }) {
+  return await fetch(`https://api.steampowered.com/ISteamNews/GetNewsForApp/v2/?appid=${steam_app.app_id}`)
+    .then(response => response.json())
+    .then(({ appnews }) =>
+      appnews?.newsitems.find(({ feed_type: jsonFeedType, title: jsonTitle }) => {
+        const { feed_type: configFeedType, title_keywords: configKeywords } = steam_app;
+        const isConfigFeedTypeExist = Number.isSafeInteger(configFeedType);
+        const isConfigKeywordsExist = Array.isArray(configKeywords) && configKeywords.length > 0;
+        const isConfigFeedTypeMatch = isConfigFeedTypeExist ? configFeedType === jsonFeedType : true;
+        const isConfigKeywordsMatch = isConfigKeywordsExist ? configKeywords.some(x => jsonTitle.toLowerCase().includes(x)) : true;
+        return isConfigFeedTypeMatch && isConfigKeywordsMatch;
+      }));
+}
+
+async function getSteamAppDetails({ steam_app }) {
+  return await fetch(`https://store.steampowered.com/api/appdetails?appids=${steam_app.app_id}`)
+    .then(response => response.json())
+    .then(json => json[steam_app.app_id].success ? json[steam_app.app_id].data : null);
 }

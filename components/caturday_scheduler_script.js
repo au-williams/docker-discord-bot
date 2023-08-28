@@ -3,6 +3,7 @@ import { Cron } from "croner";
 import { filterChannelMessages, findChannelMessage } from "../index.js";
 import { Logger } from "../logger.js";
 import { State } from "../state.js";
+import date from 'date-and-time';
 import fs from "fs-extra";
 import randomItem from "random-item";
 
@@ -21,58 +22,29 @@ export const COMMAND_INTERACTIONS = [{
   onInteractionCreate: ({ interaction }) => onCommandInteraction({ interaction })
 }]
 
-export const COMPONENT_INTERACTIONS =
-  [{
-    customId: "CATURDAY_OLDER_BUTTON",
-    onInteractionCreate: ({ interaction }) => onOlderButtonInteraction({ interaction })
-  },
-  {
-    customId: "CATURDAY_NEWER_BUTTON",
-    onInteractionCreate: ({ interaction }) => onNewerButtonInteraction({ interaction })
-  },
-  {
-    customId: "CATURDAY_SELECT_BUTTON",
-    onInteractionCreate: ({ interaction }) => onSelectButtonInteraction({ interaction })
-  },
-  {
-    customId: "CATURDAY_REMOVE_BUTTON",
-    onInteractionCreate: ({ interaction }) => onRemoveButtonInteraction({ interaction }),
-    requiredRoleIds: [remove_button_role_id]
-  }]
+export const COMPONENT_INTERACTIONS = [
+  { customId: "CATURDAY_OLDER_BUTTON", onInteractionCreate: ({ interaction }) => onOlderButtonInteraction({ interaction }) },
+  { customId: "CATURDAY_NEWER_BUTTON", onInteractionCreate: ({ interaction }) => onNewerButtonInteraction({ interaction }) },
+  { customId: "CATURDAY_SELECT_BUTTON", onInteractionCreate: ({ interaction }) => onSelectButtonInteraction({ interaction }) },
+  { customId: "CATURDAY_REMOVE_BUTTON", onInteractionCreate: ({ interaction }) => onRemoveButtonInteraction({ interaction }), requiredRoleIds: [remove_button_role_id] }
+]
 
 export const onClientReady = async ({ client }) => {
-  const now = new Date();
-  const isMissedJob = now.getDay() === 0 && now.getHours() >= 9 && (async () => {
-    const today9am = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 9, 0, 0);
-    return await findChannelMessage(announcement_channel_id, () => true)?.createdAt < today9am ?? true;
-  });
-
-  Cron("1 0 9 * * SAT", { timezone: "America/Los_Angeles" }, () => onCronJob({ client }));
-  if (isMissedJob) onCronJob({ client });
-};
-
-// ------------------- //
-// Component functions //
-// ------------------- //
-
-async function onCronJob({ client }) {
-  try {
+  const onError = ({ stack }) => Logger.Error(stack, "caturday_scheduler_script.js");
+  const cron = Cron("0 9 * * SAT", { catch: onError }, async job => {
+    Logger.Info(`Triggered job pattern "${job.getPattern()}"`);
     const channel = await client.channels.fetch(announcement_channel_id);
-
     const channelMessages = await filterChannelMessages(announcement_channel_id, message => getPictureUrlsFromMessage(message).length);
     const channelMessagesPictureUrls = channelMessages.map(message => getPictureUrlsFromMessage(message)[0]);
-
     const stateMessages = await State.filter("caturday", message => getPictureUrlsFromMessage(message).length);
     const stateMessagesPictureUrls = stateMessages.map(message => getPictureUrlsFromMessage(message)[0]);
 
     const getLeastFrequentUrls = () => {
       const frequency = {};
-      for (const url of channelMessagesPictureUrls)
-        frequency[url] = (frequency[url] || 0) + 1;
+      for (const url of channelMessagesPictureUrls) frequency[url] = (frequency[url] || 0) + 1;
       const min = Math.min(...Object.values(frequency));
       const result = [];
-      for (const [url, freq] of Object.entries(frequency))
-        if (freq === min) result.push(url);
+      for (const [url, freq] of Object.entries(frequency)) if (freq === min) result.push(url);
       return result;
     }
 
@@ -91,18 +63,26 @@ async function onCronJob({ client }) {
     const sourceChannelMessageId = randomEmbed.data.author.url.split("/").slice(-1)[0];
     const sourceChannelMessageAuthor = await findChannelMessage(sourceChannelId, ({ id }) => id === sourceChannelMessageId).then(({ author }) => author);
     const sourceChannelMessageMember = await channel.guild.members.fetch(sourceChannelMessageAuthor.id); // this is sometimes null - thanks, Discord API!
-
     const iconURL = (sourceChannelMessageMember ?? sourceChannelMessageAuthor).displayAvatarURL();
     const name = sourceChannelMessageMember?.displayName ?? sourceChannelMessageAuthor.username;
     const text = "Happy Caturday! 🐱";
-
     const embedBuilder = EmbedBuilder.from(randomEmbed).setAuthor({ iconURL, name }).setFooter({ text });
     await channel.send({ embeds: [embedBuilder] });
-  }
-  catch({ stack }) {
-    Logger.Error(stack);
-  }
-}
+    Logger.Info(`Sent caturday message to ${channel.guild.name} #${channel.name}`);
+    Logger.Info(`Scheduled next job on "${date.format(job.nextRun(), "YYYY-MM-DDTHH:mm")}"`);
+  });
+
+  const now = new Date();
+  const isMissedJob = now.getDay() === 6 && now.getHours() >= 9 && (async () => {
+    const today9am = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 9, 0, 0);
+    return (await findChannelMessage(announcement_channel_id, () => true))?.createdAt < today9am ?? true;
+  });
+  if (isMissedJob) cron.trigger();
+};
+
+// ------------------- //
+// Component functions //
+// ------------------- //
 
 async function onCommandInteraction({ interaction }) {
   try {

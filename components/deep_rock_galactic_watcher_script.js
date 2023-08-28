@@ -1,6 +1,6 @@
 import { ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } from "discord.js";
 import { Cron } from "croner";
-import { getChannelMessages, findChannelMessage } from "../index.js";
+import { getChannelMessages, findChannelMessage, filterChannelMessages } from "../index.js";
 import { Logger } from "../logger.js";
 import date from "date-and-time";
 import fs from "fs-extra";
@@ -21,14 +21,8 @@ export const COMMAND_INTERACTIONS = [{
 }];
 
 export const COMPONENT_INTERACTIONS = [
-  {
-    customId: "DEEP_DIVE_DETAILS_BUTTON",
-    onInteractionCreate: ({ client, interaction }) => onDeepDiveButtonInteraction({ client, interaction })
-  },
-  {
-    customId: "ELITE_DEEP_DIVE_DETAILS_BUTTON",
-    onInteractionCreate: ({ client, interaction }) => onEliteDeepDiveButtonInteraction({ client, interaction })
-  }
+  { customId: "DEEP_DIVE_BUTTON", onInteractionCreate: ({ client, interaction }) => onDeepDiveButtonInteraction({ client, interaction }) },
+  { customId: "ELITE_DEEP_DIVE_BUTTON", onInteractionCreate: ({ client, interaction }) => onEliteDeepDiveButtonInteraction({ client, interaction }) }
 ]
 
 // ---------------------- //
@@ -36,20 +30,9 @@ export const COMPONENT_INTERACTIONS = [
 // ---------------------- //
 
 export const onClientReady = ({ client }) => {
-  Cron("1 0 9-22 * * *", { timezone: "America/Los_Angeles" }, () => onCronJob({ client }));
-  onCronJob({ client });
-};
-
-// ------------------- //
-// Component functions //
-// ------------------- //
-
-/**
- * Loop through each configured channel and send an updated message if the last sent message is outdated.
- * (Outdated channel messages have their buttons disabled because the DRG API can't fetch their old data)
- */
-async function onCronJob({ client }) {
-  try {
+  const onError = ({ stack }) => Logger.Error(stack, "deep_rock_galactic_watcher_script.js");
+  Cron("0 * * * *", { catch: onError }, async job => {
+    Logger.Info(`Triggered job pattern "${job.getPattern()}"`);
     for(const channel_id of announcement_channel_ids) {
       const channel = await client.channels.fetch(channel_id);
       const assignmentValues = await getAssignmentValues({ channel, client });
@@ -57,35 +40,39 @@ async function onCronJob({ client }) {
       const { currentDive, currentEliteDive } = assignmentValues;
       const { dive: lastDive, eliteDive: lastEliteDive } = getAssignmentValuesFromMessage(lastChannelMessage);
       const isNewAssignment = lastChannelMessage ? currentDive.name !== lastDive.name || currentEliteDive.name !== lastEliteDive.name : true;
-      if (isNewAssignment) {
-        const { previousDive, previousEliteDive } = assignmentValues;
-        sendNewAssignmentsMessage({ assignmentValues, channel, client });
-        disableRowButtons({ channel, client, previousDive, previousEliteDive });
+      if (!isNewAssignment) continue;
+
+      // disable previous row buttons
+      const previousAssignmentsMessages = await filterChannelMessages(channel.id, channelMessage => {
+        const isClientAuthor = channelMessage.author.id === client.user.id;
+        const isEmbedAuthorName = channelMessage?.embeds?.[0]?.data?.author?.name.includes("Deep Rock Galactic");
+        const isEmbedComponentEnabled = channelMessage.components?.[0]?.components?.[0]?.disabled === false;
+        return isClientAuthor && isEmbedAuthorName && isEmbedComponentEnabled;
+      });
+
+      for await(const previousAssignmentsMessage of previousAssignmentsMessages) {
+        const row = ActionRowBuilder.from(previousAssignmentsMessage.components[0]);
+        row.components[0].setDisabled(true) && row.components[1].setDisabled(true);
+        await previousAssignmentsMessage.edit({ components: [row] });
       }
+
+      // send message to channel
+      const { currentEndTime, previousAssignmentsMessageUrl } = assignmentValues;
+      const parsedEndTime = date.parse(currentEndTime.split("T")[0], "YYYY-MM-DD");
+      const formattedEndTime = date.format(parsedEndTime, "MMMM DDD");
+      const components = [getAssignmentsMessageRow({ previousAssignmentsMessageUrl })];
+      const embeds = [await getAssignmentsMessageEmbed({ currentDive, currentEliteDive, embedName: "New weekly", formattedEndTime })];
+      const files = [new AttachmentBuilder("assets\\drg_deep_dive.png"), new AttachmentBuilder("assets\\drg_supporter.png")];
+      await channel.send({ components, embeds, files });
+      Logger.Info(`Sent embed message to ${channel.guild.name} #${channel.name}`);
     }
-  }
-  catch({ stack }) {
-    Logger.Error(stack);
-  }
-}
+    Logger.Info(`Scheduled next job on "${date.format(job.nextRun(), "YYYY-MM-DDTHH:mm")}"`);
+  }).trigger();
+};
 
-async function sendNewAssignmentsMessage({ assignmentValues, channel }) {
-  try {
-    const { currentDive, currentEliteDive, currentEndTime, previousAssignmentsMessageUrl } = assignmentValues;
-    const parsedEndTime = date.parse(currentEndTime.split("T")[0], "YYYY-MM-DD");
-    const formattedEndTime = date.format(parsedEndTime, "MMMM DDD");
-
-    const components = [getAssignmentsMessageRow({ previousAssignmentsMessageUrl })];
-    const embeds = [await getAssignmentsMessageEmbed({ currentDive, currentEliteDive, embedName: "New weekly", formattedEndTime })];
-    const files = [new AttachmentBuilder("assets\\drg_deep_dive.png"), new AttachmentBuilder("assets\\drg_supporter.png")];
-    await channel.send({ components, embeds, files });
-
-    Logger.Info(`Sent new weekly assignments message to ${channel.guild.name} #${channel.name}`);
-  }
-  catch({ stack }) {
-    Logger.Error(stack);
-  }
-}
+// ------------------- //
+// Component functions //
+// ------------------- //
 
 async function onDeepDiveButtonInteraction({ client, interaction }) {
   try {
@@ -137,29 +124,7 @@ async function onCommandInteraction({ client, interaction }) {
     const files = [new AttachmentBuilder("assets\\drg_deep_dive.png"), new AttachmentBuilder("assets\\drg_supporter.png")];
     await interaction.editReply({ components, embeds, files });
 
-    Logger.Info(`Sent this weeks assignments reply to ${channel.guild.name} #${channel.name}`);
-  }
-  catch({ stack }) {
-    Logger.Error(stack);
-  }
-}
-
-async function disableRowButtons({ channel, client, previousDive, previousEliteDive }) {
-  try {
-    const previousAssignmentsMessages = (await getChannelMessages(channel.id)).filter(channelMessage => {
-      const { dive, eliteDive } = getAssignmentValuesFromMessage(channelMessage);
-      const isAuthorName = channelMessage?.embeds?.[0]?.data?.author?.name.includes("Deep Rock Galactic");
-      const isPreviousAssignments = dive.name === previousDive.name && eliteDive.name === previousEliteDive.name;
-      return isAuthorName && isPreviousAssignments && channelMessage.author.id === client.user.id;
-    });
-
-    for await(const previousAssignmentsMessage of previousAssignmentsMessages) {
-      const row = ActionRowBuilder.from(previousAssignmentsMessage.components[0]);
-      row.components[0].setDisabled(true) && row.components[1].setDisabled(true);
-      await previousAssignmentsMessage.edit({ components: [row] });
-    }
-
-    Logger.Info(`Disabled buttons for ${previousAssignmentsMessages.length} outdated message${previousAssignmentsMessages.length === 1 ? "" : "s"} in ${channel.guild.name} #${channel.name}`)
+    Logger.Info(`Sent embed reply to ${channel.guild.name} #${channel.name}`);
   }
   catch({ stack }) {
     Logger.Error(stack);
@@ -227,12 +192,12 @@ async function getAssignmentsMessageEmbed({ currentDive, currentEliteDive, embed
 function getAssignmentsMessageRow({ previousAssignmentsMessageUrl }) {
   return new ActionRowBuilder().addComponents(
     new ButtonBuilder()
-      .setCustomId("DEEP_DIVE_DETAILS_BUTTON")
+      .setCustomId("DEEP_DIVE_BUTTON")
       .setEmoji("<:drg_deep_dive:1129691555733717053>")
       .setLabel("Deep Dive")
       .setStyle(ButtonStyle.Success),
     new ButtonBuilder()
-      .setCustomId("ELITE_DEEP_DIVE_DETAILS_BUTTON")
+      .setCustomId("ELITE_DEEP_DIVE_BUTTON")
       .setEmoji("<:drg_deep_dive:1129691555733717053>")
       .setLabel("Elite Deep Dive")
       .setStyle(ButtonStyle.Danger),
