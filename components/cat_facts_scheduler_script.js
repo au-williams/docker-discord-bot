@@ -29,7 +29,7 @@ export const onClientReady = async ({ client }) => {
     const onError = ({ stack }) => Logger.Error(stack, "cat_facts_scheduler_script.js");
     const cron = Cron("0 9 * * *", { catch: onError }, async job => {
       Logger.Info(`Triggered job pattern "${job.getPattern()}"`);
-      const oldCatFacts = (await getChannelMessages(channel.id)).map(({ content }) => content);
+      const oldCatFacts = (await getChannelMessages(channel_id)).map(({ content }) => content);
       const newCatFacts = (await getApiCatFacts()).filter(catFact => !oldCatFacts.includes(catFact));
       const channel = await client.channels.fetch(channel_id);
       await channel.send(randomItem(newCatFacts)); // this should reduce the least posted items when the API runs out of new data
