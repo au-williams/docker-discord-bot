@@ -8,6 +8,9 @@ import ordinal from 'date-and-time/plugin/ordinal';
 import probe from "probe-image-size";
 date.plugin(ordinal);
 
+// todo: implement steam api retry policies!
+// https://www.npmjs.com/package/fetch-retry
+
 const {
   announcement_channel_ids,
   announcement_steam_apps
@@ -38,10 +41,10 @@ export const onClientReady = async ({ client }) => {
         if (!steamAppDetails) Logger.Warn(`Couldn't fetch Steam details for app_id "${steam_app.app_id}"`);
         if (!steamAppDetails) continue;
 
-        // find previous message for steam app id and skip if it matches the latest announcement
+        // skip code execution if the last discord message for steam app includes the last announcement url from the steam api
         const find = ({ author, embeds }) => author.id === client.user.id && embeds?.[0]?.data?.title === steamAppDetails.name;
-        const previousEmbedTitle = await findChannelMessage(channel.id, find).then(message => message && getPreviousEmbedTitle(message));
-        if (previousEmbedTitle === steamAnnouncement.title) continue;
+        const includesUrl = ({ embeds }) => embeds[0].data.description?.includes(steamAnnouncement.url);
+        if (await findChannelMessage(channel.id, find).then(x => x && includesUrl(x))) continue;
 
         // format the steam announcement date into a user-readable string
         // (multiply by 1000 to convert Unix timestamps to milliseconds)
@@ -51,12 +54,12 @@ export const onClientReady = async ({ client }) => {
         // get the first image in the steam announcement and check if it's in landscape orientation
         // (portrait orientated images are historically unfitting and will be replaced by the game image)
         const steamAnnouncementImageUrl = steamAnnouncement.contents.match(/\[img\](.*?)\[\/img\]/)?.[1]?.replace("{STEAM_CLAN_IMAGE}", "https://clan.akamai.steamstatic.com/images/")
-        const isLandscapeImage = steamAnnouncementImageUrl && await probe(steamAnnouncementImageUrl).then(({ height, width }) => width >= height * 1.25).catch(() => null);
+        const isLandscapeImage = steamAnnouncementImageUrl && await probe(steamAnnouncementImageUrl).then(({ height, width }) => width >= height * 1.25).catch(() => false);
 
         const embeds = [new EmbedBuilder()
           .setAuthor({ name: "New Steam Community announcement", iconURL: "attachment://steam_logo.png" })
           .setColor(0x1A9FFF)
-          .setDescription(`- [**${steamAnnouncement.title}**](${steamAnnouncement.url})`)
+          .setDescription(`- [**${steamAnnouncement.title}**](${steamAnnouncement.url})\n${formatAnnouncementDescription({ steamAnnouncement })}`)
           .setFooter({ text: `Posted on ${formattedDate}. Click the link to read the full announcement.` })
           .setImage(( isLandscapeImage ? steamAnnouncementImageUrl : steamAppDetails.header_image))
           .setThumbnail(steamAppDetails.capsule_image)
@@ -73,10 +76,33 @@ export const onClientReady = async ({ client }) => {
 // Component functions //
 // ------------------- //
 
-function getPreviousEmbedTitle({ embeds }) {
-  const regex = /\*\*(.*?)\*\*/;
-  const matches = embeds[0].data.description.match(regex);
-  return matches && matches.length >= 2 && matches[1];
+// convert incoming BBCode from Steam to markdown for Discord and reduce the number of result characters
+function formatAnnouncementDescription({ steamAnnouncement }) {
+  const endsWithPunctuation = input => {
+    const punctuations = [".", ".\"", ",", ";", ":", "!", "?", "-", "(", ")", "[", "]", "{", "}"];
+    return punctuations.some(punctuation => input.endsWith(punctuation));
+  }
+
+  const formattedContents = steamAnnouncement.contents.split('\n').map((textLine, index) => {
+    let result = textLine.trim();
+    if (result === steamAnnouncement.title && index === 0) return "";
+    if (result.startsWith("[*]") && !endsWithPunctuation(result)) result = `${result};`;
+    if (result.startsWith("-")) result = `${result.replace("-", "").trim()};`;
+    result = result.replaceAll('“', '"').replaceAll('”', '"'); // swap non-standard quote characters
+    result = result.replace(/\[img\][^\[]+\[\/img\]/g, ''); // remove urls nested between [img] tags
+    result = result.replace(/\[\/?[^\]]+\]/g, '') // remove any bracket tags - [b], [i], [list], etc
+    if (result && !endsWithPunctuation(result)) result += ".";
+    return result.trim();
+  }).filter(x => x).join(" ");
+
+  let formattedDescription = "";
+
+  for(const formattedContent of formattedContents.split(" ")) {
+    if ((`${formattedDescription} ${formattedContent}`).length > 133) break;
+    else formattedDescription += ` ${formattedContent}`;
+  }
+
+  return `_${formattedDescription} [...]_`;
 }
 
 async function getSteamAnnouncement({ steam_app }) {
