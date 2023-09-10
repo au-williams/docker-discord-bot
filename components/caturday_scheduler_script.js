@@ -1,4 +1,4 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } from "discord.js";
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, SlashCommandBuilder } from "discord.js";
 import { Cron } from "croner";
 import { filterChannelMessages, findChannelMessage } from "../index.js";
 import { Logger } from "../logger.js";
@@ -73,10 +73,9 @@ export const onClientReady = async ({ client }) => {
   });
 
   const now = new Date();
-  const isMissedJob = now.getDay() === 6 && now.getHours() >= 9 && (async () => {
-    const today9am = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 9, 0, 0);
-    return (await findChannelMessage(announcement_channel_id, () => true))?.createdAt < today9am ?? true;
-  });
+  const today9am = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 9, 0, 0);
+  const lastChannelMessage = await findChannelMessage(announcement_channel_id, ({ author }) => author.id === client.user.id);
+  const isMissedJob = now.getDay() === 6 && now.getHours() >= 9 && (lastChannelMessage ? lastChannelMessage.createdAt < today9am : true);
   if (isMissedJob) cron.trigger();
 };
 
@@ -262,11 +261,24 @@ function getPictureUrlsFromMessage({ attachments, embeds }) {
 
 async function getPictureSelectReplyComponents({ interaction, nestedUrlIndex, nextSourceChannelMessage }) {
   try {
-    const components = [new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId("_").setLabel("_").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId("CATURDAY_OLDER_BUTTON").setLabel("← Older Picture").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId("CATURDAY_NEWER_BUTTON").setLabel("Newer Picture →").setStyle(ButtonStyle.Secondary),
-    )];
+    const components = [
+      new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId("_").setLabel("_").setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder()
+          .setCustomId("CATURDAY_OLDER_BUTTON")
+          .setLabel("← Older Picture")
+          .setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder()
+          .setCustomId("CATURDAY_NEWER_BUTTON")
+          .setLabel("Newer Picture →")
+          .setStyle(ButtonStyle.Secondary)
+      ),
+      new ActionRowBuilder().addComponents(
+         new StringSelectMenuBuilder()
+           .setCustomId("starter")
+           .setPlaceholder("Make a selection!")
+      )
+    ];
 
     const nextSourceChannelMessageImageUrl = getPictureUrlsFromMessage(nextSourceChannelMessage)[nestedUrlIndex];
     const nextSourceChannelMessageImageUrlExists = await State.find("caturday", message => getPictureUrlsFromMessage(message).includes(nextSourceChannelMessageImageUrl));
@@ -287,6 +299,16 @@ async function getPictureSelectReplyComponents({ interaction, nestedUrlIndex, ne
     const newerChannelMessageWithUrlExists = channelMessages.some((item, index) => index < nextSourceChannelMessageIndex && getPictureUrlsFromMessage(item).length);
     const newerChannelMessageAttachmentExists = nestedUrlIndex < getPictureUrlsFromMessage(channelMessages[nextSourceChannelMessageIndex]).length - 1;
     components[0].components[2].setDisabled(!newerChannelMessageWithUrlExists && !newerChannelMessageAttachmentExists);
+
+    const members = await interaction.guild.members.fetch();
+
+    const options = members.map(member => new StringSelectMenuOptionBuilder()
+      .setDescription(member.user.username)
+      .setDefault(member.user.id === nextSourceChannelMessage.author.id)
+      .setLabel(member.nickname || member.user.username)
+      .setValue(member.user.username));
+
+    components[1].components[0].setOptions(options);
 
     return components;
   }
