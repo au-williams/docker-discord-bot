@@ -70,7 +70,7 @@ export const onClientReady = async ({ client }) => {
         const message = await channel.send({ embeds, files: [new AttachmentBuilder('assets\\steam_logo.png')] });
         if (!create_announcement_thread) continue;
 
-        let name = `${steamAppDetails.name} - ${steamAnnouncement.title}`;
+        let name = `💬 ${steamAppDetails.name} - ${steamAnnouncement.title}`;
         if (name.length > 100) name = name.slice(0, 97) + "...";
         await message.startThread({ name });
       }
