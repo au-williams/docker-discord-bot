@@ -1,4 +1,5 @@
 {
   "announcement_channel_ids": [""],
-  "announcement_steam_apps": [{ "app_id": "", "feed_type": 1 }]
+  "announcement_steam_apps": [{ "app_id": "", "feed_type": 1 }],
+  "create_announcement_thread": true
 }

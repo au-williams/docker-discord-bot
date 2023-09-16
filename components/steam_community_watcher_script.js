@@ -13,7 +13,8 @@ date.plugin(ordinal);
 
 const {
   announcement_channel_ids,
-  announcement_steam_apps
+  announcement_steam_app_ids,
+  create_announcement_thread
 } = fs.readJsonSync("components/steam_community_watcher_config.json");
 
 // ---------------------- //
@@ -26,7 +27,7 @@ export const onClientReady = async ({ client }) => {
     Logger.Info(`Triggered job pattern "${job.getPattern()}"`);
     for (const channel_id of announcement_channel_ids) {
       const channel = await client.channels.fetch(channel_id);
-      for await (const steam_app of announcement_steam_apps) {
+      for await (const steam_app of announcement_steam_app_ids) {
         // validate steam app id or skip code execution
         if (!steam_app.app_id) Logger.Error("Invalid app_id value in config file");
         if (!steam_app.app_id) continue;
@@ -42,9 +43,10 @@ export const onClientReady = async ({ client }) => {
         if (!steamAppDetails) continue;
 
         // skip code execution if the last discord message for steam app includes the last announcement url from the steam api
-        const find = ({ author, embeds }) => author.id === client.user.id && embeds?.[0]?.data?.title === steamAppDetails.name;
         const includesUrl = ({ embeds }) => embeds[0].data.description?.includes(steamAnnouncement.url);
-        if (await findChannelMessage(channel.id, find).then(x => x && includesUrl(x))) continue;
+        const includesTitle = ({ embeds }) => embeds[0].data.description?.includes(`- [**${steamAnnouncement.title}**]`);
+        const find = ({ author, embeds }) => author.id === client.user.id && embeds?.[0]?.data?.title === steamAppDetails.name;
+        if (await findChannelMessage(channel.id, find).then(message => message && (includesUrl(message) || includesTitle(message)))) continue;
 
         // format the steam announcement date into a user-readable string
         // (multiply by 1000 to convert Unix timestamps to milliseconds)
@@ -65,7 +67,12 @@ export const onClientReady = async ({ client }) => {
           .setThumbnail(steamAppDetails.capsule_image)
           .setTitle(steamAppDetails.name)]
 
-        await channel.send({ embeds, files: [new AttachmentBuilder('assets\\steam_logo.png')] });
+        const message = await channel.send({ embeds, files: [new AttachmentBuilder('assets\\steam_logo.png')] });
+        if (!create_announcement_thread) continue;
+
+        let name = `${steamAppDetails.name} - ${steamAnnouncement.title}`;
+        if (name.length > 100) name = name.slice(0, 97) + "...";
+        await message.startThread({ name });
       }
     }
     Logger.Info(`Scheduled next job on "${date.format(job.nextRun(), "YYYY-MM-DDTHH:mm")}"`);
