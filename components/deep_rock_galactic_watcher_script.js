@@ -8,7 +8,10 @@ import ordinal from "date-and-time/plugin/ordinal";
 import randomItem from "random-item";
 date.plugin(ordinal);
 
-const { announcement_channel_ids } = fs.readJsonSync("components/deep_rock_galactic_watcher_config.json");
+const {
+  announcement_channel_ids,
+  create_announcement_thread
+} = fs.readJsonSync("components/deep_rock_galactic_watcher_config.json");
 
 // ----------------------- //
 // Interaction definitions //
@@ -63,8 +66,12 @@ export const onClientReady = ({ client }) => {
       const components = [getAssignmentsMessageRow({ previousAssignmentsMessageUrl })];
       const embeds = [await getAssignmentsMessageEmbed({ currentDive, currentEliteDive, embedName: "New weekly", formattedEndTime })];
       const files = [new AttachmentBuilder("assets\\drg_deep_dive.png"), new AttachmentBuilder("assets\\drg_supporter.png")];
-      await channel.send({ components, embeds, files });
+      const message = await channel.send({ components, embeds, files });
       Logger.Info(`Sent embed message to ${channel.guild.name} #${channel.name}`);
+
+      if (!create_announcement_thread) continue;
+      let name = `💬 Deep Rock Galactic - Deep Dives for ${date.format(parsedEndTime, "MMMM DDD YYYY")}`;
+      await message.startThread({ name });
     }
     Logger.Info(`Scheduled next job on "${date.format(job.nextRun(), "YYYY-MM-DDTHH:mm")}"`);
   }).trigger();
