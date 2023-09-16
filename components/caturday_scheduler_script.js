@@ -261,24 +261,11 @@ function getPictureUrlsFromMessage({ attachments, embeds }) {
 
 async function getPictureSelectReplyComponents({ interaction, nestedUrlIndex, nextSourceChannelMessage }) {
   try {
-    const components = [
-      new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId("_").setLabel("_").setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder()
-          .setCustomId("CATURDAY_OLDER_BUTTON")
-          .setLabel("← Older Picture")
-          .setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder()
-          .setCustomId("CATURDAY_NEWER_BUTTON")
-          .setLabel("Newer Picture →")
-          .setStyle(ButtonStyle.Secondary)
-      ),
-      new ActionRowBuilder().addComponents(
-         new StringSelectMenuBuilder()
-           .setCustomId("starter")
-           .setPlaceholder("Make a selection!")
-      )
-    ];
+    const components = [new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId("_").setLabel("_").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId("CATURDAY_OLDER_BUTTON").setLabel("← Older Picture").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId("CATURDAY_NEWER_BUTTON").setLabel("Newer Picture →").setStyle(ButtonStyle.Secondary),
+    )];
 
     const nextSourceChannelMessageImageUrl = getPictureUrlsFromMessage(nextSourceChannelMessage)[nestedUrlIndex];
     const nextSourceChannelMessageImageUrlExists = await State.find("caturday", message => getPictureUrlsFromMessage(message).includes(nextSourceChannelMessageImageUrl));
@@ -299,16 +286,6 @@ async function getPictureSelectReplyComponents({ interaction, nestedUrlIndex, ne
     const newerChannelMessageWithUrlExists = channelMessages.some((item, index) => index < nextSourceChannelMessageIndex && getPictureUrlsFromMessage(item).length);
     const newerChannelMessageAttachmentExists = nestedUrlIndex < getPictureUrlsFromMessage(channelMessages[nextSourceChannelMessageIndex]).length - 1;
     components[0].components[2].setDisabled(!newerChannelMessageWithUrlExists && !newerChannelMessageAttachmentExists);
-
-    const members = await interaction.guild.members.fetch();
-
-    const options = members.map(member => new StringSelectMenuOptionBuilder()
-      .setDescription(member.user.username)
-      .setDefault(member.user.id === nextSourceChannelMessage.author.id)
-      .setLabel(member.nickname || member.user.username)
-      .setValue(member.user.username));
-
-    components[1].components[0].setOptions(options);
 
     return components;
   }
