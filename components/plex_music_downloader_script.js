@@ -50,9 +50,10 @@ export const onMessageCreate = async ({ message }) => {
   try {
     const isPlexChannel = plex_channel_ids.includes(message.channel.id);
     const url = isPlexChannel && getUrlFromString(message.content);
-    const name = url && getCleanTitle(await oembed.extract(url));
-    if (!name) return;
+    if (!url) return;
 
+    let name = "📲 " + getCleanTitle(await oembed.extract(url));
+    if (name.length > 100) name = name.slice(0, 97) + "...";
     const { members } = await message.startThread({ name });
     await members.remove(message.author.id);
 
