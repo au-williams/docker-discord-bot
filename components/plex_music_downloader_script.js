@@ -343,7 +343,7 @@ function getDownloadMessageRow() {
       .setCustomId("DOWNLOAD_MP3_BUTTON")
       .setEmoji("📲")
       .setLabel("Download MP3")
-      .setStyle(ButtonStyle.Primary),
+      .setStyle(ButtonStyle.Success),
     new ButtonBuilder()
       .setCustomId("NULL")
       .setDisabled(true)
