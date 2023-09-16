@@ -60,8 +60,9 @@ export const onClientReady = ({ client }) => {
       }
 
       // send message to channel
-      const { currentEndTime, previousAssignmentsMessageUrl } = assignmentValues;
+      const { currentEndTime, currentStartTime, previousAssignmentsMessageUrl } = assignmentValues;
       const parsedEndTime = date.parse(currentEndTime.split("T")[0], "YYYY-MM-DD");
+      const parsedStartTime = date.parse(currentStartTime.split("T")[0], "YYYY-MM-DD");
       const formattedEndTime = date.format(parsedEndTime, "MMMM DDD");
       const components = [getAssignmentsMessageRow({ previousAssignmentsMessageUrl })];
       const embeds = [await getAssignmentsMessageEmbed({ currentDive, currentEliteDive, embedName: "New weekly", formattedEndTime })];
@@ -70,7 +71,7 @@ export const onClientReady = ({ client }) => {
       Logger.Info(`Sent embed message to ${channel.guild.name} #${channel.name}`);
 
       if (!create_announcement_thread) continue;
-      let name = `💬 Deep Rock Galactic - Deep Dives for ${date.format(parsedEndTime, "MMMM DDD YYYY")}`;
+      let name = `💬 Deep Rock Galactic - Deep Dives for ${date.format(parsedStartTime, "MMMM DDD YYYY")}`;
       await message.startThread({ name });
     }
     Logger.Info(`Scheduled next job on "${date.format(job.nextRun(), "YYYY-MM-DDTHH:mm")}"`);
