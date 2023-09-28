@@ -127,7 +127,7 @@ async function getSteamAnnouncement({ steam_app }) {
 }
 
 async function getSteamAppDetails({ steam_app }) {
-  return await fetch(`https://store.steampowered.com/api/appdetails?appids=${steam_app.app_id}`)
+  return await fetch(`https://store.steampowered.com/api/appdetails?appids=${steam_app.app_id}&l=english`)
     .then(response => response.json())
     .then(json => json[steam_app.app_id].success ? json[steam_app.app_id].data : null);
 }
