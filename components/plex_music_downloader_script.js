@@ -133,17 +133,17 @@ async function createThreadChannel({ link, starterMessage }) {
 }
 
 async function deleteLinkFromPlex({ interaction }) {
+  const interactionProperties = {
+    componentCustomId: "DELETE_FROM_PLEX_MODAL",
+    messageId: interaction.message.id,
+    userId: interaction.user.id
+  };
+
+  if (hasBusyInteraction(interactionProperties)) return;
+  else addBusyInteraction(interactionProperties);
+
   try {
     await interaction.deferReply({ ephemeral: true });
-
-    const interactionProperties = {
-      componentCustomId: "DELETE_FROM_PLEX_MODAL",
-      messageId: interaction.message.id,
-      userId: interaction.user.id
-    };
-
-    if (hasBusyInteraction(interactionProperties)) return;
-    else addBusyInteraction(interactionProperties);
 
     const starterMessage = await interaction.channel.fetchStarterMessage();
     const link = getLinkFromMessage(starterMessage);
@@ -161,17 +161,19 @@ async function deleteLinkFromPlex({ interaction }) {
     }
 
     await validatePlexButton(interaction.message);
-    endBusyInteraction(interactionProperties);
   }
   catch(error) {
     Logger.Error(error.stack);
     await validatePlexButton(interaction.message);
     await interaction.editReply({ content: formatErrorMessage(error) });
   }
+  finally {
+    endBusyInteraction(interactionProperties);
+  }
 }
 
 function formatErrorMessage(error) {
-  return `Sorry! I caught an error while fetching this link:\n\`\`\`${error}\`\`\``;
+  return `Sorry! I caught an error when fetching this URL:\n\`\`\`${error}\`\`\``;
 }
 
 const getCleanArtist = ({ author_name } = { author_name: "", title: "" }) => {
@@ -220,17 +222,17 @@ const getThreadChannelName = async (link) => {
 }
 
 async function importLinkIntoPlex({ interaction }) {
+  const interactionProperties = {
+    componentCustomId: "IMPORT_INTO_PLEX_MODAL",
+    messageId: interaction.message.id,
+    userId: interaction.user.id
+  };
+
+  if (hasBusyInteraction(interactionProperties)) return;
+  else addBusyInteraction(interactionProperties);
+
   try {
     await interaction.deferReply({ ephemeral: true });
-
-    const interactionProperties = {
-      componentCustomId: "IMPORT_INTO_PLEX_MODAL",
-      messageId: interaction.message.id,
-      userId: interaction.user.id
-    };
-
-    if (hasBusyInteraction(interactionProperties)) return;
-    else addBusyInteraction(interactionProperties);
 
     const starterMessage = await interaction.message.channel.fetchStarterMessage();
     const link = getLinkFromMessage(starterMessage);
@@ -282,12 +284,14 @@ async function importLinkIntoPlex({ interaction }) {
     }
 
     await validatePlexButton(interaction.message);
-    endBusyInteraction(interactionProperties);
   }
   catch(error) {
     Logger.Error(error.stack);
     await validatePlexButton(interaction.message);
     await interaction.editReply({ content: formatErrorMessage(error) });
+  }
+  finally {
+    endBusyInteraction(interactionProperties);
   }
 }
 
@@ -379,6 +383,7 @@ async function uploadMp3ToThread({ interaction }) {
       Logger.Error(`Couldn't upload file to Discord: ${error}`);
       const content = `Sorry! I caught an error when uploading your file:\n\`\`\`${error}\`\`\``;
       await interaction.editReply(content);
+      endBusyInteraction(interactionProperties);
     };
 
     const tempDirectory = `${temp_directory}/${customId}${message.id}${user.id}`;
@@ -441,6 +446,7 @@ async function showMetadataModal({ interaction, modalCustomId, modalTitle }) {
       Logger.Error(`Couldn't fetch oembed data: ${error}`);
       const content = formatErrorMessage(error);
       await interaction.reply({ content, ephemeral: true });
+      endBusyInteraction(interactionProperties);
       return { author_name: null, title: null };
     });
 
