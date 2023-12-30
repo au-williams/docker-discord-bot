@@ -1,6 +1,7 @@
 {
-  "plex_channel_ids": [""],
+  "plex_channel_id": "",
   "plex_directory": "",
+  "plex_emoji": "",
   "plex_section_id": "",
   "plex_server_ip": "",
   "plex_user_role_id": "",
