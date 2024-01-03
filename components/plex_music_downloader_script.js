@@ -1,4 +1,4 @@
-import { ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle, ComponentType, ModalBuilder, TextInputBuilder, TextInputStyle } from "discord.js";
+import { ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle, ComponentType, DMChannel, ModalBuilder, TextInputBuilder, TextInputStyle } from "discord.js";
 import { Cron } from "croner";
 import { findChannelMessage, getChannelMessages } from "../index.js";
 import { Logger } from "../logger.js";
@@ -68,17 +68,21 @@ export const COMPONENT_INTERACTIONS = [
 // ------------------------------------------------------------------------- //
 
 /**
- * Delete the child thread when a starter message is deleted
+ * Delete the associated thread when a message gets deleted
+ * @param {{ client: Client }} client The Discord.js client
  * @param {{ message: Message }} message The deleted message
  */
-export const onMessageDelete = async ({ message }) => {
+export const onMessageDelete = async ({ client, message }) => {
   try {
-    if (message.channel.id !== plex_channel_id) return;
+    const isMessageChannelValid = getIsMessageChannelValid(message);
+    if (!isMessageChannelValid) return;
+
     const channelMessage = await findChannelMessage(message.channel.id, ({ id }) => message.id === id);
-    if (channelMessage.hasThread) {
-      await channelMessage.thread.delete();
-      Logger.Info(`Deleted thread for deleted message ${message.id}`);
-    }
+    const isClientOwnedThread = message.hasThread && message.thread.ownerId === client.user.id;
+    if (!isClientOwnedThread) return;
+
+    await channelMessage.thread.delete();
+    Logger.Info(`Deleted thread for deleted message ${message.id}`);
   }
   catch({ stack }) {
     Logger.Error(stack);
@@ -125,11 +129,8 @@ export const onClientReady = async () => {
         await createThreadChannel({ link, starterMessage: channelMessage });
       }
       else {
-        await validatePlexButton(await findChannelMessage(threadChannel.id, message => {
-          const componentType1 = message.components?.[0]?.components?.[0]?.type;
-          const componentType2 = message.components?.[0]?.components?.[1]?.type;
-          return ComponentType.Button === componentType1 && componentType1 === componentType2;
-        }));
+        const messageWithButtons = await findChannelMessage(threadChannel.id, getIsMessageWithButtons);
+        await validatePlexButton(messageWithButtons);
       }
     }
 
@@ -139,12 +140,16 @@ export const onClientReady = async () => {
 
 export const onMessageCreate = async ({ client, message }) => {
   try {
-    if (message.channel.id !== plex_channel_id) return;
-    await message.react('⌛');
+    const isMessageChannelValid = getIsMessageChannelValid(message);
+    if (!isMessageChannelValid) return;
+
+    const reaction = await message.react('⌛');
     const link = getLinkFromMessage(message);
     const isLinkSupported = await getIsLinkSupported(link);
-    await message.reactions.cache.get('⌛').remove();
-    if (isLinkSupported) await createThreadChannel({ client, link, starterMessage: message });
+    await reaction.remove();
+
+    if (!isLinkSupported) return;
+    await createThreadChannel({ client, link, starterMessage: message });
   }
   catch({ stack }) {
     Logger.Error(stack);
@@ -268,6 +273,14 @@ const getIsLinkSupportedOembed = async (link) =>
 
 const getIsLinkSupportedYoutubeDl = async (link) =>
   link && await youtubedl(link, { simulate: true }).then(() => true).catch(() => false);
+
+const getIsMessageChannelValid = (message) => message.channel.id === plex_channel_id;
+
+const getIsMessageWithButtons = message => {
+  const componentType1 = message.components?.[0]?.components?.[0]?.type;
+  const componentType2 = message.components?.[0]?.components?.[1]?.type;
+  return ComponentType.Button === componentType1 && componentType1 === componentType2;
+}
 
 const getThreadChannelName = async (link) => {
   const { author_name: oembedAuthorName, title: oembedTitle } = await oembed.extract(link);
@@ -522,8 +535,10 @@ async function uploadMp3ToThread(interaction) {
     const tempDirectory = `${temp_directory}/`
       + `${interaction.customId}_${interaction.message.id}_${interaction.user.id}`;
 
-    const downloadFilename = metadata.artist || metadata.title
-      ? `${metadata.artist} - ${metadata.title}` : "%(uploader)s - %(title)s";
+    const outputFilename = sanitizeFilename(metadata.artist || metadata.title
+      ? `${metadata.artist} - ${metadata.title}`
+      : "%(uploader)s - %(title)s"
+    );
 
     await youtubedl(link, {
       audioFormat: "mp3",
@@ -531,7 +546,7 @@ async function uploadMp3ToThread(interaction) {
       embedMetadata: true,
       extractAudio: true,
       format: "bestaudio/best",
-      output: `${tempDirectory}/${downloadFilename}.%(ext)s`,
+      output: `${tempDirectory}/${outputFilename}.%(ext)s`,
       postprocessorArgs: "ffmpeg:"
         + " -metadata album='Downloads'"
         + " -metadata album_artist='Various Artists'"
@@ -600,3 +615,50 @@ async function validatePlexButton(message) {
 
   if (isArchived) await message.channel.setArchived(true);
 }
+
+// ------------------------------------------------------------------------- //
+// >> DEAD CODE GRAVEYARD                                                 << //
+// ------------------------------------------------------------------------- //
+
+/* -------------------------------------------------------------------------- *
+ * Separate code path for DMs because Discord does not support threads in DMs *
+ * (it also doesn't support removing reactions the bot made, such a good API) *
+ * -------------------------------------------------------------------------- */
+
+  // const getIsMessageChannelValid = ({ client, message }) =>
+  //   message.channel instanceof DMChannel && message.author.id !== client.user.id || message.channel.id === plex_channel_id;
+
+  // await message.reactions.cache.get('⌛').remove();
+
+  // const getIsLinkSupported = async () => {
+  //   if (message.channel instanceof DMChannel) {
+  //     // DMs do NOT allow removing reactions so send it as a message
+  //     // (thanks discord - this design decision makes so much sense)
+  //     const response = await message.reply('⌛');
+  //     const isLinkSupported = await getIsLinkSupported(link);
+  //     return await response.delete() && isLinkSupported;
+  //   }
+  //   else {
+  //     // send busy indicator because reactions work like they should
+  //     const reaction = await message.react('⌛');
+  //     const isLinkSupported = await getIsLinkSupported(link);
+  //     return await reaction.remove() && isLinkSupported;
+  //   }
+  // }
+
+/* -------------------------------------------------------------------------- *
+ * Query for all messages containing a specific link to keep them all in sync *
+ * (this is already maintained through the CRON batch job so priority is low) *
+ * -------------------------------------------------------------------------- */
+
+  // find all channel messages with this link in case it was posted multiple times to keep all plex buttons in sync
+
+  // const allChannelMessagesForLink =
+  //   await filterChannelMessages(plex_channel_id, message => message.hasThread && getLinkFromMessage(message) === link);
+
+  // const allMessagesWithButtonsForLink =
+  //   allChannelMessagesForLink.map(async ({ thread }) => await findChannelMessage(thread.id, message => getIsMessageWithButtons(message)));
+
+  // for await (const messageWithButtonsForLink of allMessagesWithButtonsForLink) {
+  //   await validatePlexButton(messageWithButtonsForLink);
+  // }
