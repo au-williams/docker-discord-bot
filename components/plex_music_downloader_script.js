@@ -253,11 +253,8 @@ async function getExistingPlexFilename(link) {
   });
 
   return fs
-    .readdirSync(plex_directory)
-    .find(filename => {
-      const existingVideoId = filename.split(' - ').slice(-1)[0].split('.')[0];
-      return existingVideoId === pendingVideoId;
-    });
+    .readdirSync(plex_directory) // filename = "%(uploader)s - %(title)s - %(id)s.%(ext)s"
+    .find(filename => pendingVideoId == filename.split(' - ').slice(-1)[0].split('.')[0]);
 }
 
 function getLinkFromMessage({ content }) {
