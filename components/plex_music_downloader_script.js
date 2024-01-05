@@ -157,7 +157,7 @@ export const onMessageCreate = async ({ client, message }) => {
 }
 
 // ------------------------------------------------------------------------- //
-// >> DISCORD EVENT HANDLERS                                              << //
+// >> COMPONENT FUNCTIONS                                                 << //
 // ------------------------------------------------------------------------- //
 
 async function createThreadChannel({ link, starterMessage }) {
