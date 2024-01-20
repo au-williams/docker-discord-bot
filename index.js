@@ -78,7 +78,7 @@ client.on(Events.InteractionCreate, async interaction => {
 
         else if (!isRequiredRoleId) {
           const uniqueRequiredRoleIds = [...new Set(requiredRoleIds)];
-          const content = formatContent(`This can only be used by the`, "<@&", uniqueRequiredRoleIds, ">") + ` role${uniqueRequiredRoleIds.length === 1 ? "" : "s"}.`;
+          const content = formatContent(`\`🔒Locked\` This can only be used by the`, "<@&", uniqueRequiredRoleIds, ">") + ` role${uniqueRequiredRoleIds.length === 1 ? "" : "s"}.`;
           interaction.reply({ content, ephemeral: true }).then(() => Logger.Info(`${username} tried ${interactionType} interaction "${interactionName}"`, filename));
         }
 
