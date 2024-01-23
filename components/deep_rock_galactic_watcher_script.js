@@ -3,10 +3,16 @@ import { Cron } from "croner";
 import { getChannelMessages, findChannelMessage, filterChannelMessages } from "../index.js";
 import { Logger } from "../logger.js";
 import date from "date-and-time";
+import fetchRetry from 'fetch-retry';
 import fs from "fs-extra";
 import ordinal from "date-and-time/plugin/ordinal";
 import randomItem from "random-item";
 date.plugin(ordinal);
+
+const fetch = fetchRetry(global.fetch, {
+  retries: 10,
+  retryDelay: 1000
+});
 
 const {
   announcement_channel_ids,
