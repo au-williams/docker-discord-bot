@@ -155,7 +155,7 @@ export const onClientReady = async () => {
 
       if (!threadChannel) threadChannel = await createThreadChannel(link, message);
       const messageWithPlexButton = await findChannelMessage(threadChannel.id, getIsMessageWithPlexButtonComponents);
-      if (messageWithPlexButton) await validateMessageWithPlexButton({ message: messageWithPlexButton });
+      if (messageWithPlexButton) await validateMessageWithPlexButton({ messageWithPlexButton });
     }
 
     Logger.Info(`Scheduled next job on "${date.format(job.nextRun(), "YYYY-MM-DDTHH:mm")}"`);
@@ -164,7 +164,7 @@ export const onClientReady = async () => {
 
 /**
  * Create the thread channel for the message with a music link and verify their status in the Plex library
- * @param {Object} param
+ * @param {object} param
  * @param {string} param.message
  */
 export const onMessageCreate = async ({ message }) => {
@@ -188,7 +188,7 @@ export const onMessageCreate = async ({ message }) => {
 
     const threadChannel = await createThreadChannel(link, message);
     const messageWithPlexButton = await findChannelMessage(threadChannel.id, getIsMessageWithPlexButtonComponents);
-    await validateMessageWithPlexButton({ message: messageWithPlexButton });
+    await validateMessageWithPlexButton({ messageWithPlexButton });
   }
   catch({ stack }) {
     Logger.Error(stack);
@@ -197,7 +197,7 @@ export const onMessageCreate = async ({ message }) => {
 
 /**
  * Delete the child thread when its message parent is deleted
- * @param {Object} param
+ * @param {object} param
  * @param {Client} param.client The Discord.js client
  * @param {Message} param.message The deleted message
  */
@@ -225,10 +225,12 @@ export const onMessageDelete = async ({ client, message }) => {
  * @param {string} outputFilepath
  */
 async function callbackImportPlexFile(interaction, outputFilename, outputFilepath) {
+  const messageWithPlexButton = interaction.message;
+
   try {
     await fs.move(outputFilepath, resolve(`${plex_download_directory}/${outputFilename}`));
     await interaction.editReply("Success! Your file was imported into Plex.");
-    await validateMessageWithPlexButton({ interaction, message: interaction.message });
+    await validateMessageWithPlexButton({ interaction, messageWithPlexButton });
     await startPlexLibraryScan();
   }
   catch({ stack }) {
@@ -385,7 +387,8 @@ async function deleteLinkFromPlex(interaction) {
     await interaction.editReply({ content: getFormattedErrorMessage(error) });
   }
   finally {
-    await validateMessageWithPlexButton({ interaction, message: interaction.message });
+    const messageWithPlexButton = interaction.message;
+    await validateMessageWithPlexButton({ interaction, messageWithPlexButton });
     operation.setBusy(false);
   }
 }
@@ -482,17 +485,17 @@ async function downloadLinkAndExecute(interaction, modalCustomId, callback, audi
       audioQuality: 0,
       embedMetadata: true,
       externalDownloader: "ffmpeg",
+      extractAudio: true,
+      format: "bestaudio/best",
+      noPlaylist: true,
+      output: `${outputDirectory}/${sanitizeFilename(`${inputArtist} - ${inputTitle}`)} - %(id)s.%(ext)s`,
       postprocessorArgs: "ffmpeg:"
         + " -metadata album='Downloads'"
         + " -metadata album_artist='Various Artists'"
         + ` -metadata artist='${sanitizeFfmpeg(inputArtist)}'`
         + " -metadata date=''" // remove unwanted ID3 tag
         + ` -metadata title='${sanitizeFfmpeg(inputTitle)}'`
-        + " -metadata track=''", // remove unwanted ID3 tag
-      extractAudio: true,
-      format: "bestaudio/best",
-      noPlaylist: true,
-      output: `${outputDirectory}/${sanitizeFilename(`${inputArtist} - ${inputTitle}`)} - %(id)s.%(ext)s`,
+        + " -metadata track=''" // remove unwanted ID3 tag
     }
 
     if (audioFormat) options["audioFormat"] = audioFormat;
@@ -527,6 +530,7 @@ async function downloadLinkAndExecute(interaction, modalCustomId, callback, audi
 
     const outputFilename = fs.readdirSync(outputDirectory)[0];
     const outputFilepath = resolve(`${outputDirectory}/${outputFilename}`);
+
     await callback(interaction, outputFilename, outputFilepath);
     await fs.remove(outputDirectory);
   }
@@ -685,7 +689,7 @@ async function getThreadChannelName(link) {
     // try fetching the YouTube playlist title
     const isLinkYouTubePlaylistWithoutVideo = getIsLinkYouTubePlaylist(link) && !link.includes("v=");
     if (isLinkYouTubePlaylistWithoutVideo) return `📲 ${(await ytpl(link))?.title}`;
-    // try fetching the video title
+    // try fetching the oembed title
     const { author_name, title } = await oembed.extract(link).catch(() => ({ author_name: null, title: null }));
     if (author_name && title) return `📲 ${getCleanMetadataTitle(author_name, title)}`;
     // give up fetching
@@ -706,35 +710,40 @@ function getTimestampAsTotalSeconds(timestamp) {
 }
 
 async function showButtonDocumentation(interaction) {
-  await interaction.deferReply({ ephemeral: true });
-  const result = [];
+  try {
+    await interaction.deferReply({ ephemeral: true });
+    const result = [];
 
-  const channelMessages = await getChannelMessages(interaction.channel.id);
-  const getIsDocumentationButton = ({ data: custom_id }) => custom_id === COMPONENT_CUSTOM_IDS.SHOW_BUTTON_DOCUMENTATION;
-  const documentationButtonIndex = channelMessages.findIndex(m => m.components?.[0]?.components.some(getIsDocumentationButton));
-  const documentedButtonMessages = channelMessages.slice(0, documentationButtonIndex - 1);
+    const channelMessages = await getChannelMessages(interaction.channel.id);
+    const getIsDocumentationButton = ({ data: custom_id }) => custom_id === COMPONENT_CUSTOM_IDS.SHOW_BUTTON_DOCUMENTATION;
+    const documentationButtonIndex = channelMessages.findIndex(m => m.components?.[0]?.components.some(getIsDocumentationButton));
+    const documentedButtonMessages = channelMessages.slice(0, documentationButtonIndex - 1);
 
-  for(const message of documentedButtonMessages) {
-    const components = message.components?.[0]?.components;
-    if (!components) continue;
+    for(const message of documentedButtonMessages) {
+      const components = message.components?.[0]?.components;
+      if (!components) continue;
 
-    const buttonData = components.map(c => c.data).reverse(); // reverse row items so they're upserted in order
-    const interactionData = buttonData.map(b => COMPONENT_INTERACTIONS.find(c => c.customId === b.custom_id));
+      const buttonData = components.map(c => c.data).reverse(); // reverse row items so they're upserted in order
+      const interactionData = buttonData.map(b => COMPONENT_INTERACTIONS.find(c => c.customId === b.custom_id));
 
-    for(const { custom_id, emoji, label} of buttonData) {
-      const id = interactionData.filter(x => x).find(x => x.customId === custom_id);
-      if (!id || custom_id === COMPONENT_CUSTOM_IDS.SHOW_BUTTON_DOCUMENTATION) continue;
+      for(const { custom_id, emoji, label} of buttonData) {
+        const id = interactionData.filter(x => x).find(x => x.customId === custom_id);
+        if (!id || custom_id === COMPONENT_CUSTOM_IDS.SHOW_BUTTON_DOCUMENTATION) continue;
 
-      const { description, requiredRoleIds } = id;
-      const formattedEmoji = emoji.id ? `<:${emoji.name}:${emoji.id}>` : emoji.name;
-      const formattedRoles = requiredRoleIds ? ` \`🔒Locked\` ${requiredRoleIds.map(r => `<@&${r}>`).join(" ")}` : "";
-      const stringResult = `${formattedEmoji} **${label}**${formattedRoles}\n\`\`\`${description}\`\`\``;
+        const { description, requiredRoleIds } = id;
+        const formattedEmoji = emoji.id ? `<:${emoji.name}:${emoji.id}>` : emoji.name;
+        const formattedRoles = requiredRoleIds ? ` \`🔒Locked\` ${requiredRoleIds.map(r => `<@&${r}>`).join(" ")}` : "";
+        const stringResult = `${formattedEmoji} **${label}**${formattedRoles}\n\`\`\`${description}\`\`\``;
 
-      if (!result.includes(stringResult)) result.unshift(stringResult);
+        if (!result.includes(stringResult)) result.unshift(stringResult);
+      }
     }
-  }
 
-  await interaction.editReply({ content: `Here's what I know about these buttons:\n\n${result.join("\n")}` });
+    await interaction.editReply({ content: `Here's what I know about these buttons:\n\n${result.join("\n")}` });
+  }
+  catch({ stack }) {
+    Logger.Error(stack);
+  }
 }
 
 /**
@@ -742,32 +751,37 @@ async function showButtonDocumentation(interaction) {
  * @param {Interaction} interaction
  */
 async function showAllYouTubePlaylistSongs(interaction) {
-  await interaction.deferReply({ ephemeral: true });
+  try {
+    await interaction.deferReply({ ephemeral: true });
 
-  const link = await getLinkFromMessageHierarchy(interaction.message);
-  const playlist = await ytpl(link);
+    const link = await getLinkFromMessageHierarchy(interaction.message);
+    const playlist = await ytpl(link);
 
-  const downloadMp3Button = new ButtonBuilder();
-  downloadMp3Button.setCustomId(COMPONENT_CUSTOM_IDS.DOWNLOAD_MP3_BUTTON);
-  downloadMp3Button.setEmoji("📲");
-  downloadMp3Button.setLabel("Download MP3");
-  downloadMp3Button.setStyle(ButtonStyle.Secondary);
+    const downloadMp3Button = new ButtonBuilder();
+    downloadMp3Button.setCustomId(COMPONENT_CUSTOM_IDS.DOWNLOAD_MP3_BUTTON);
+    downloadMp3Button.setEmoji("📲");
+    downloadMp3Button.setLabel("Download MP3");
+    downloadMp3Button.setStyle(ButtonStyle.Secondary);
 
-  const searchingPlexButton = new ButtonBuilder();
-  searchingPlexButton.setCustomId(COMPONENT_CUSTOM_IDS.SEARCHING_PLEX_BUTTON);
-  searchingPlexButton.setDisabled(true);
-  searchingPlexButton.setEmoji("⏳");
-  searchingPlexButton.setLabel("Searching in Plex");
-  searchingPlexButton.setStyle(ButtonStyle.Secondary);
+    const searchingPlexButton = new ButtonBuilder();
+    searchingPlexButton.setCustomId(COMPONENT_CUSTOM_IDS.SEARCHING_PLEX_BUTTON);
+    searchingPlexButton.setDisabled(true);
+    searchingPlexButton.setEmoji("⏳");
+    searchingPlexButton.setLabel("Searching in Plex");
+    searchingPlexButton.setStyle(ButtonStyle.Secondary);
 
-  const components = [new ActionRowBuilder().addComponents(downloadMp3Button, searchingPlexButton)];
+    const components = [new ActionRowBuilder().addComponents(downloadMp3Button, searchingPlexButton)];
 
-  for(let i = 0; i < playlist.items.length; i++) {
-    const cleanTitle = playlist.title.replaceAll("`", "").replaceAll("*", "").replaceAll(" _", "").replaceAll("_ ", "");
-    const content = `${discord_youtube_emoji} \`${i + 1}/${playlist.items.length}\` **${cleanTitle}**\n${playlist.items[i].shortUrl}`;
-    const message = await interaction.followUp({ components, content, ephemeral: true });
-    validateMessageWithPlexButton({ interaction, message }); // don't await or we'll be here all day!
-    await new Promise(resolve => setTimeout(resolve, 250)); // reduce load on the Discord API
+    for(let i = 0; i < playlist.items.length; i++) {
+      const cleanTitle = playlist.title.replaceAll("`", "").replaceAll("*", "").replaceAll(" _", "").replaceAll("_ ", "");
+      const content = `${discord_youtube_emoji} \`${i + 1}/${playlist.items.length}\` **${cleanTitle}**\n${playlist.items[i].shortUrl}`;
+      const messageWithPlexButton = await interaction.followUp({ components, content, ephemeral: true });
+      validateMessageWithPlexButton({ interaction, messageWithPlexButton });
+      await new Promise(resolve => setTimeout(resolve, 250));
+    }
+  }
+  catch({ stack }) {
+    Logger.Error(stack);
   }
 }
 
@@ -907,33 +921,33 @@ async function startPlexLibraryScan() {
 }
 
 /**
- * Fetch the download filename and update the Plex button with the status of its existence in the Plex folder
+ * Update the Plex button with the status of the links existence in the Plex library download folder
  * @param {Message} message
  */
-async function validateMessageWithPlexButton({ interaction, message }) {
+async function validateMessageWithPlexButton({ interaction, messageWithPlexButton }) {
   try {
-    const link = await getLinkFromMessageHierarchy(message);
+    const link = await getLinkFromMessageHierarchy(messageWithPlexButton);
     const linkWithoutParameters = getLinkWithParametersRemoved(link);
 
-    const isArchived = message.channel.archived;
-    if (isArchived) await message.channel.setArchived(false);
+    const isArchived = messageWithPlexButton.channel.archived;
+    if (isArchived) await messageWithPlexButton.channel.setArchived(false);
 
-    const referenceMessage = message.reference
-      && !getIsMessageWithPlexButtonComponents(message)
-      && await findChannelMessage(message.reference.channelId, ({ id }) => id === message.reference.messageId);
+    const referenceMessage = messageWithPlexButton.reference
+      && !getIsMessageWithPlexButtonComponents(messageWithPlexButton)
+      && await findChannelMessage(messageWithPlexButton.reference.channelId, ({ id }) => id === messageWithPlexButton.reference.messageId);
 
-    const actualMessage = referenceMessage || message;
-    const buttonIndex = actualMessage.components[0].components.findIndex(getIsPlexButtonComponent);
-    const components = [ActionRowBuilder.from(actualMessage.components[0])];
+    const actualMessageWithPlexButton = referenceMessage || messageWithPlexButton;
+    const buttonIndex = actualMessageWithPlexButton.components[0].components.findIndex(getIsPlexButtonComponent);
+    const components = [ActionRowBuilder.from(actualMessageWithPlexButton.components[0])];
 
     components[0].components[buttonIndex].setCustomId(COMPONENT_CUSTOM_IDS.SEARCHING_PLEX_BUTTON);
     components[0].components[buttonIndex].setDisabled(true);
     components[0].components[buttonIndex].setEmoji("⏳");
     components[0].components[buttonIndex].setLabel("Searching in Plex");
 
-    actualMessage.type === MessageType.Reply
-      ? await interaction.editReply({ message: actualMessage, components })
-      : await actualMessage.edit({ components });
+    actualMessageWithPlexButton.type === MessageType.Reply
+      ? await interaction.editReply({ message: actualMessageWithPlexButton, components })
+      : await actualMessageWithPlexButton.edit({ components });
 
     const isPlexFile = await getExistingPlexFilename(linkWithoutParameters);
     const customId = isPlexFile ? COMPONENT_CUSTOM_IDS.DELETE_FROM_PLEX_BUTTON : COMPONENT_CUSTOM_IDS.IMPORT_INTO_PLEX_BUTTON;
@@ -944,9 +958,9 @@ async function validateMessageWithPlexButton({ interaction, message }) {
     components[0].components[buttonIndex].setEmoji(discord_plex_emoji)
     components[0].components[buttonIndex].setLabel(label);
 
-    actualMessage.type === MessageType.Reply
-      ? await interaction.editReply({ message: actualMessage, components })
-      : await actualMessage.edit({ components });
+    actualMessageWithPlexButton.type === MessageType.Reply
+      ? await interaction.editReply({ message: actualMessageWithPlexButton, components })
+      : await actualMessageWithPlexButton.edit({ components });
   }
   catch({ stack }) {
     Logger.Error(stack);
