@@ -2,17 +2,20 @@
 
 ## Script — [plex_music_downloader_script.js](plex_music_downloader_script.js)
 
-This script downloads music using [yt-dlp](https://github.com/yt-dlp/yt-dlp) and post-processes it with [ffmpeg](https://github.com/FFmpeg/FFmpeg). Any user can download the transcoded MP3 file and authorized users can save the file in source quality to the Plex media library.
+This script downloads music using [yt-dlp](https://github.com/yt-dlp/yt-dlp) and post-processes it with [ffmpeg](https://github.com/FFmpeg/FFmpeg). Any guild member can download the MP3 file, and authorized guild members can import the file in source quality to the Plex media library on the host machine.
 
-These metadata tags are provided by the user before starting a download:
+**These metadata tags are provided by the user before starting a download:**
 
-| Tag      | Default value                                        | Required |
-| -------- | ---------------------------------------------------- | -------- |
-| `Title`  | The URLs [oEmbed](https://oembed.com/) `title`       | Yes      |
-| `Artist` | The URLs [oEmbed](https://oembed.com/) `author_name` | Yes      |
-| `Genre`  |                                                      | No       |
+| Tag            | Default value                                        | Required |
+| -------------- | ---------------------------------------------------- | -------- |
+| `Track Title`  | The URLs [oEmbed](https://oembed.com/) `title`       | ✔        |
+| `Track Artist` | The URLs [oEmbed](https://oembed.com/) `author_name` | ✔        |
+| `Track Start`  | The URLs music start time (usually 00:00:00)         | ✔        |
+| `Track End`    | The URLs music end time (such as 00:03:32)           | ✔        |
 
-These metadata tags are overwrote for better library integration:
+> _Specifying custom start / end times will post-process fade effects to improve quality._
+
+**These metadata tags are overwrote for better music library integration:**
 
 | Tag            | Value           |
 | -------------- | --------------- |
@@ -25,14 +28,17 @@ These metadata tags are overwrote for better library integration:
 
 The following values should be provided before use:
 
-| Key                   | Value                                                                                                                                                                        | Required |
-| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
-| `"plex_channel_ids"`  | The Discord channel IDs that this module will run in                                                                                                                         | ✔        |
-| `"plex_directory"`    | The music library directory (or where you store your downloads)                                                                                                              | ✔        |
-| `"plex_section_id"`   | The music library key in Plex [(instructions on how to find it here)](https://support.plex.tv/articles/201638786-plex-media-server-url-commands/)                            | ✖        |
-| `"plex_server_ip"`    | The local IP of the Plex server (this should be the `ipconfig` IPv4 address)                                                                                                 | ✖        |
-| `"plex_user_role_id"` | The Discord guild role ID that's authorized to make Plex server file changes                                                                                                 | ✔        |
-| `"plex_x_token"`      | The Plex token for endpoint authentication [(instructions on how to find it here)](https://support.plex.tv/articles/204059436-finding-an-authentication-token-x-plex-token/) | ✖        |
-| `"temp_directory"`    | The temporary working directory (default is the root "temp_storage" folder)                                                                                                  | ✔        |
+| Key                           | Value                                                                                                                                                                        | Required |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| `"cron_job_pattern"`          | The Cron pattern for this components job                                                                                                                                     | ✔        |
+| `"discord_channel_id"`        | The Discord guild channel ID this component will run in                                                                                                                      | ✔        |
+| `"discord_member_role_id"`    | The Discord guild role ID authorizing a member to make administrative file changes                                                                                           | ✔        |
+| `"discord_plex_emoji"`        | The Discord guild emoji ID containing the Plex logo                                                                                                                          | ✔        |
+| `"discord_youtube_emoji"`     | The Discord guild emoji ID containing the YouTube logo                                                                                                                       | ✔        |
+| `"plex_authentication_token"` | The Plex token for endpoint authentication [(instructions on how to find it here)](https://support.plex.tv/articles/204059436-finding-an-authentication-token-x-plex-token/) | ✔        |
+| `"plex_download_directory"`   | The Plex music download directory (or wherever else you store your downloads)                                                                                                | ✔        |
+| `"plex_library_section_id"`   | The Plex music library section ID [(instructions on how to find it here)](https://support.plex.tv/articles/201638786-plex-media-server-url-commands/)                        | ✔        |
+| `"plex_server_ip_address"`    | The Plex server IP address (this is usually just `127.0.0.1` for localhost)                                                                                                  | ✔        |
 
-`"plex_section_id"`, `"plex_server_ip"`, `"plex_x_token"` are **optional** and refresh the Plex media library after a file operation is complete.
+<!-- ... I'm not sure if this is still true and I don't have enough interest to find out! -->
+<!-- `"plex_section_id"`, `"plex_server_ip"`, `"plex_x_token"` are **optional** and refresh the Plex media library after a file operation is complete. -->

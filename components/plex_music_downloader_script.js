@@ -5,6 +5,7 @@ import { Logger } from "../logger.js";
 import { extname, resolve } from "path";
 import * as oembed from "@extractus/oembed-extractor";
 import AFHConvert from 'ascii-fullwidth-halfwidth-convert';
+import ComponentOperation from "../shared/models/ComponentOperation.js"
 import date from "date-and-time";
 import fs from "fs-extra";
 import sanitize from "sanitize-filename";
@@ -14,45 +15,33 @@ import ytpl from "@distube/ytpl";
 const asciiWidthConverter = new AFHConvert();
 
 const {
-  plex_channel_id, plex_directory, plex_emoji, plex_user_role_id,
-  plex_section_id, plex_server_ip, plex_x_token, temp_directory
+  temp_directory
+} = fs.readJsonSync("config.json");
+
+const {
+  cron_job_pattern, discord_channel_id, discord_member_role_id, discord_plex_emoji, discord_youtube_emoji,
+  plex_authentication_token, plex_download_directory, plex_library_section_id, plex_server_ip_address
 } = fs.readJsonSync("components/plex_music_downloader_config.json");
 
 // ------------------------------------------------------------------------- //
 // >> INTERACTION DEFINITIONS                                             << //
 // ------------------------------------------------------------------------- //
 
-/**
- * Discord, in their infinite wisdom, requires modals to resolve in <= 3 seconds
- * This obviously causes an incredible amount of issue with fetched dependencies
- * Work around this dumpster API design by caching fetch requests modals may use
- * (Key: YouTubeDL ID, Value: Track Duration)
+/*
+ * Discord, in their infinite wisdom and investment money, requires
+ *   modals to resolve in <= 3 seconds which obviously causes a lot
+ *   of issues with external dependencies with unknown fetch times.
+ *   Work around this dumpster API design by caching these outbound
+ *   requests before the client requests them. Yay, waste! Remember
+ *   to thank a Discord developer for their high quality API if you
+ *   see one inside its zoo exhibit or leaving their moms basement.
  */
-const VALIDATED_TRACK_DURATIONS = {};
+const CACHED_LINK_DATA = {};
 
-/**
- * Define what interactions are busy so multiple clicks do not make multiple invocations
- */
-const BUSY_INTERACTIONS = new Set();
-
-class InteractionOperation {
-  constructor({ customId, messageId, userId }) {
-    this.customId = customId;
-    this.messageId = messageId;
-    this.userId = userId;
-  }
-
-  get isBusy() {
-    return BUSY_INTERACTIONS.has(`${this}`);
-  }
-
-  setBusy(bool) {
-    if (bool) !this.isBusy && BUSY_INTERACTIONS.add(`${this}`);
-    else this.isBusy && BUSY_INTERACTIONS.delete(`${this}`);
-  }
-
-  toString() {
-    return this.customId + this.messageId + this.userId;
+class LinkData {
+  constructor(endTime, segments) {
+    this.endTime = endTime; // total track duration fetched via YoutubeDL
+    this.segments = segments; // undesired segments fetched via SponsorBlock
   }
 }
 
@@ -85,30 +74,30 @@ export const COMPONENT_INTERACTIONS = [
   {
     customId: COMPONENT_CUSTOM_IDS.FOLLOW_UPDATES_BUTTON,
     description: "Monitors the YouTube playlist for new videos and publicly posts those links to the Discord channel.",
-    onInteractionCreate: ({ interaction }) => { interaction.deferUpdate() },//{ throw "Not implemented" },
-    requiredRoleIds: [plex_user_role_id]
+    onInteractionCreate: ({ interaction }) => { interaction.deferUpdate() }, // { throw "Not implemented" },
+    requiredRoleIds: [discord_member_role_id]
   },
   {
     customId: COMPONENT_CUSTOM_IDS.IMPORT_INTO_PLEX_BUTTON,
     description: "Extracts the audio from a link and imports it into the bot's Plex library for secured long-term storage.",
     onInteractionCreate: ({ interaction }) => showMetadataModal(interaction, COMPONENT_CUSTOM_IDS.IMPORT_INTO_PLEX_MODAL, "Import into Plex"),
-    requiredRoleIds: [plex_user_role_id]
+    requiredRoleIds: [discord_member_role_id]
   },
   {
     customId: COMPONENT_CUSTOM_IDS.IMPORT_INTO_PLEX_MODAL,
     onInteractionCreate: ({ interaction }) => downloadLinkAndExecute(interaction, COMPONENT_CUSTOM_IDS.IMPORT_INTO_PLEX_MODAL, callbackImportPlexFile),
-    requiredRoleIds: [plex_user_role_id]
+    requiredRoleIds: [discord_member_role_id]
   },
   {
     customId: COMPONENT_CUSTOM_IDS.DELETE_FROM_PLEX_BUTTON,
     description: "Removes the previously imported audio file from the bot's Plex library and deletes it from the filesystem.",
     onInteractionCreate: ({ interaction }) => showDeletionModal(interaction, COMPONENT_CUSTOM_IDS.DELETE_FROM_PLEX_MODAL, "Delete from Plex"),
-    requiredRoleIds: [plex_user_role_id]
+    requiredRoleIds: [discord_member_role_id]
   },
   {
     customId: COMPONENT_CUSTOM_IDS.DELETE_FROM_PLEX_MODAL,
     onInteractionCreate: ({ interaction }) => deleteLinkFromPlex(interaction),
-    requiredRoleIds: [plex_user_role_id]
+    requiredRoleIds: [discord_member_role_id]
   },
   {
     customId: COMPONENT_CUSTOM_IDS.SHOW_ALL_YOUTUBE_SONGS,
@@ -126,20 +115,17 @@ export const COMPONENT_INTERACTIONS = [
 // ------------------------------------------------------------------------- //
 
 /**
- * Delete the associated thread when a message gets deleted
+ * Delete the child thread when its message parent is deleted
  * @param {Object} param
  * @param {Client} param.client The Discord.js client
  * @param {Message} param.message The deleted message
  */
 export const onMessageDelete = async ({ client, message }) => {
   try {
-    // validate thread delete operation
-    const isClientOwnedThread = message.hasThread && message.thread.ownerId === client.user.id;
-    const isChannelValid = getIsChannelValid(message.channel);
-    if (!isClientOwnedThread || !isChannelValid) return;
-    // perform thread delete operation
-    const channelMessage = await findChannelMessage(message.channel.id, ({ id }) => message.id === id);
-    await channelMessage.thread.delete();
+    const isAllowedChannel = message.channel === discord_channel_id;
+    const isClientOwnedThread = !message.thread?.ownerId === client.user.id;
+    if (!isAllowedChannel || !isClientOwnedThread) return;
+    await message.thread.delete();
     Logger.Info(`Deleted thread for deleted message ${message.id}`);
   }
   catch({ stack }) {
@@ -149,17 +135,23 @@ export const onMessageDelete = async ({ client, message }) => {
 
 /**
  * Start a cron job that validates and repairs channel messages
- * (Scan for Plex changes, restore error disabled buttons, etc)
+ * (Reflect missed Plex changes, enable disabled buttons, etc)
  */
 export const onClientReady = async () => {
-  const onError = ({ stack }) => Logger.Error(stack, "plex_music_downloader_script.js");
-  Cron("0 */8 * * *", { catch: onError }, async job => {
-    Logger.Info(`Triggered job pattern "${job.getPattern()}"`);
+  const cronOptions = {};
+  cronOptions["protect"] = true; // use overrun protection
+  cronOptions["name"] = "plex_music_downloader_script.js";
+  cronOptions["catch"] = ({ stack }) => Logger.Error(stack, cronOptions.name);
 
-    for (const message of await getChannelMessages(plex_channel_id)) {
+  Cron(cron_job_pattern, cronOptions, async job => {
+    const channelMessages = await getChannelMessages(discord_channel_id);
+
+    for (const message of channelMessages) {
       const link = getLinkFromMessage(message);
       const isLinkSupported = await getIsLinkSupported(link);
       if (!isLinkSupported) continue;
+
+      await createCachedLinkData(link);
 
       let threadChannel = message.hasThread && message.thread;
 
@@ -168,7 +160,10 @@ export const onClientReady = async () => {
       // (these are typically links edited for different videos) //
       // ------------------------------------------------------- //
 
-      if (threadChannel && threadChannel.name !== await getThreadChannelName(link)) {
+      const isThreadChannelMetadataObsolete =
+        threadChannel && threadChannel.name !== await getThreadChannelName(link);
+
+      if (isThreadChannelMetadataObsolete) {
         threadChannel = await threadChannel.delete().then(() => false);
         Logger.Info(`Deleted thread for message id ${message.id}`);
       }
@@ -178,8 +173,8 @@ export const onClientReady = async () => {
       // ----------------------------------------------------- //
 
       if (!threadChannel) threadChannel = await createThreadChannel(link, message);
-      const threadMessage = await findChannelMessage(threadChannel.id, getIsMessageWithPlexButtonComponents);
-      if (threadMessage) await validateThreadChannelPlexButton({ message: threadMessage });
+      const messageWithPlexButton = await findChannelMessage(threadChannel.id, getIsMessageWithPlexButtonComponents);
+      if (messageWithPlexButton) await validateMessageWithPlexButton({ message: messageWithPlexButton });
     }
 
     Logger.Info(`Scheduled next job on "${date.format(job.nextRun(), "YYYY-MM-DDTHH:mm")}"`);
@@ -193,17 +188,26 @@ export const onClientReady = async () => {
  */
 export const onMessageCreate = async ({ message }) => {
   try {
-    const link = getIsChannelValid(message.channel) && getLinkFromMessage(message);
+    const isAllowedChannel = message.channel === discord_channel_id;
+    if (!isAllowedChannel) return;
+
+    const link = getLinkFromMessage(message);
     if (!link) return;
 
     const reaction = await message.react("⌛");
     const isLinkSupported = await getIsLinkSupported(link);
-    await reaction.remove(); // todo: reposition this for speed
-    if (!isLinkSupported) return;
+
+    if (!isLinkSupported) {
+      await reaction.remove();
+      return;
+    }
+
+    await createCachedLinkData(link);
+    await reaction.remove();
 
     const threadChannel = await createThreadChannel(link, message);
-    const threadMessage = await findChannelMessage(threadChannel.id, getIsMessageWithPlexButtonComponents);
-    await validateThreadChannelPlexButton({ message: threadMessage });
+    const messageWithPlexButton = await findChannelMessage(threadChannel.id, getIsMessageWithPlexButtonComponents);
+    await validateMessageWithPlexButton({ message: messageWithPlexButton });
   }
   catch({ stack }) {
     Logger.Error(stack);
@@ -215,20 +219,28 @@ export const onMessageCreate = async ({ message }) => {
 // ------------------------------------------------------------------------- //
 
 /**
- * Import the link related to the button interaction into the Plex library
+ * Import the link into the Plex library after it was downloaded
  * @param {Interaction} interaction
+ * @param {string} outputFilename
+ * @param {string} outputFilepath
  */
 async function callbackImportPlexFile(interaction, outputFilename, outputFilepath) {
-  const plexFilepath = resolve(`${plex_directory}/${outputFilename}`);
-  await fs.move(outputFilepath, plexFilepath);
-  await interaction.editReply("Success! Your file was imported into Plex.");
-  await validateThreadChannelPlexButton({ interaction, message: interaction.message });
-  await startPlexLibraryScan();
+  try {
+    await fs.move(outputFilepath, resolve(`${plex_download_directory}/${outputFilename}`));
+    await interaction.editReply("Success! Your file was imported into Plex.");
+    await validateMessageWithPlexButton({ interaction, message: interaction.message });
+    await startPlexLibraryScan();
+  }
+  catch({ stack }) {
+    Logger.Error(stack);
+  }
 }
 
 /**
- * Download the link from the interaction threads starter message and upload it to the thread as a MP3 file
+ * Upload the link to the Discord thread after it was downloaded
  * @param {Interaction} interaction
+ * @param {string} outputFilename
+ * @param {string} outputFilepath
  */
 async function callbackUploadDiscordFile(interaction, outputFilename, outputFilepath) {
   const filenameWithoutId = outputFilename.split(" - ").slice(0, -1).join(" - ");
@@ -240,10 +252,30 @@ async function callbackUploadDiscordFile(interaction, outputFilename, outputFile
 }
 
 /**
+ * Create a cache of potential fetches that we probably won't use because Discord's amazing API can't wait >3 seconds without erroring.
+ * There is no way of improving this code smell without Discord's staff taking a shower and taking an intro to comp-sci college course.
+ * @param {string} link
+ */
+async function createCachedLinkData(link) {
+  const linkWithoutParameters = getLinkWithParametersRemoved(link);
+  if (CACHED_LINK_DATA[linkWithoutParameters]) return;
+
+  const endTime = await youtubedl(linkWithoutParameters, {
+    output: "%(duration>%H:%M:%S)s",
+    print: "%(duration>%H:%M:%S)s",
+    simulate: true,
+    skipDownload: true
+  });
+
+  const segments = []; // todo: fetch SponsorBlock api
+
+  CACHED_LINK_DATA[linkWithoutParameters] = new LinkData(endTime, segments);
+}
+
+/**
  * Create the thread channel for the message with a music link
  * @param {string} link
  * @param {Message} starterMessage
- * @returns {ThreadChannel}
  */
 async function createThreadChannel(link, starterMessage) {
   const thread = await starterMessage.startThread({ name: await getThreadChannelName(link) });
@@ -283,7 +315,7 @@ async function createThreadChannel(link, starterMessage) {
   if (isLinkYouTubePlaylist) {
     const showAllSongsButton = new ButtonBuilder();
     showAllSongsButton.setCustomId(COMPONENT_CUSTOM_IDS.SHOW_ALL_YOUTUBE_SONGS);
-    showAllSongsButton.setEmoji("<:youtube:1196317298844242000>"); // todo: config
+    showAllSongsButton.setEmoji(discord_youtube_emoji);
     showAllSongsButton.setLabel("Show all videos");
     showAllSongsButton.setStyle(ButtonStyle.Secondary);
 
@@ -322,8 +354,8 @@ async function createThreadChannel(link, starterMessage) {
  * @param {Interaction} interaction
  */
 async function deleteLinkFromPlex(interaction) {
-  const operation = new InteractionOperation({
-    customId: COMPONENT_CUSTOM_IDS.DELETE_FROM_PLEX_MODAL,
+  const operation = new ComponentOperation({
+    interactionId: COMPONENT_CUSTOM_IDS.DELETE_FROM_PLEX_MODAL,
     messageId: interaction.message.id,
     userId: interaction.user.id
   });
@@ -342,7 +374,7 @@ async function deleteLinkFromPlex(interaction) {
       Logger.Warn(`Plex filename does not exist`);
     }
     else {
-      await fs.remove(`${plex_directory}/${existingPlexFilename}`);
+      await fs.remove(`${plex_download_directory}/${existingPlexFilename}`);
       Logger.Info(`Deleted file from Plex: "${existingPlexFilename}"`);
       await interaction.editReply("Your file was successfully deleted from Plex.");
       await startPlexLibraryScan();
@@ -353,14 +385,14 @@ async function deleteLinkFromPlex(interaction) {
     await interaction.editReply({ content: getFormattedErrorMessage(error) });
   }
   finally {
-    await validateThreadChannelPlexButton({ interaction, message: interaction.message });
+    await validateMessageWithPlexButton({ interaction, message: interaction.message });
     operation.setBusy(false);
   }
 }
 
 async function downloadLinkAndExecute(interaction, modalCustomId, callback, audioFormat) {
-  const operation = new InteractionOperation({
-    customId: modalCustomId,
+  const operation = new ComponentOperation({
+    interactionId: modalCustomId,
     messageId: interaction.message.id,
     userId: interaction.user.id
   });
@@ -370,25 +402,25 @@ async function downloadLinkAndExecute(interaction, modalCustomId, callback, audi
 
   try {
     await interaction.deferReply({ ephemeral: true });
-    const link = await getLinkFromMessageHierarchy(interaction.message);
 
-    if (!await getIsLinkSupported(link)) {
-      // todo: log error
-      return;
-    }
+    const link = await getLinkFromMessageHierarchy(interaction.message);
+    const isLinkSupported = await getIsLinkSupported(link);
+    if (!isLinkSupported) return;
 
     const inputArtist = interaction.fields.getTextInputValue("artist");
     const inputTitle = interaction.fields.getTextInputValue("title");
 
-    const inputStart = interaction.fields.getTextInputValue("start");
-    const inputStartTotalSeconds = getTimestampAsTotalSeconds(inputStart);
+    const isInputStart = interaction.fields.fields.has("start");
+    const inputStartTime = isInputStart && interaction.fields.getTextInputValue("start");
+    const inputStartTimeTotalSeconds = isInputStart && getTimestampAsTotalSeconds(inputStartTime);
 
-    const inputEnd = interaction.fields.getTextInputValue("end");
-    const inputEndTotalSeconds = getTimestampAsTotalSeconds(inputEnd);
+    const isInputEnd = interaction.fields.fields.has("end");
+    const inputEndTime = isInputEnd && interaction.fields.getTextInputValue("end");
+    const inputEndTimeTotalSeconds = isInputEnd && getTimestampAsTotalSeconds(inputEndTime);
 
     const linkWithoutParameters = getLinkWithParametersRemoved(link);
-    const trackEnd = VALIDATED_TRACK_DURATIONS[linkWithoutParameters];
-    const trackEndTotalSeconds = trackEnd && getTimestampAsTotalSeconds(trackEnd);
+    const cacheEndTime = CACHED_LINK_DATA[linkWithoutParameters]?.endTime;
+    const cacheEndTimeTotalSeconds = cacheEndTime && getTimestampAsTotalSeconds(cacheEndTime);
 
     // ------------------------------------------------------------------ //
     // validate the user inputted timestamp strings if they are available //
@@ -396,25 +428,25 @@ async function downloadLinkAndExecute(interaction, modalCustomId, callback, audi
     // ... (thank a Discord developer for their questionable API designs) //
     // ------------------------------------------------------------------ //
 
-    if (trackEnd && !/^(\d{1,3}:)?\d{2}:\d{2}:\d{2}$/.test(inputStart)) {
-      const content = `Sorry! \`${inputStart}\` is not a valid timestamp. Please try again.`;
+    if (isInputStart && !/^(\d{1,3}:)?\d{2}:\d{2}:\d{2}$/.test(inputStartTime)) {
+      const content = `Sorry! \`${inputStartTime}\` is not a valid timestamp. Please try again.`;
       await interaction.editReply({ content });
       return;
     }
 
-    if (trackEnd && !/^(\d{1,3}:)?\d{2}:\d{2}:\d{2}$/.test(inputEnd)) {
-      const content = `Sorry! \`${inputEnd}\` is not a valid timestamp. Please try again.`;
+    if (isInputEnd && !/^(\d{1,3}:)?\d{2}:\d{2}:\d{2}$/.test(inputEndTime)) {
+      const content = `Sorry! \`${inputEndTime}\` is not a valid timestamp. Please try again.`;
       await interaction.editReply({ content });
       return;
     }
 
-    if (trackEnd && inputEndTotalSeconds > trackEndTotalSeconds) {
-      const content = `Sorry! End time can't exceed \`${VALIDATED_TRACK_DURATIONS[linkWithoutParameters]}\`. Please try again.`;
+    if (isInputEnd && inputEndTimeTotalSeconds > cacheEndTimeTotalSeconds) {
+      const content = `Sorry! End time can't exceed \`${cacheEndTime}\`. Please try again.`;
       await interaction.editReply({ content });
       return;
     }
 
-    if (trackEnd && inputStartTotalSeconds >= inputEndTotalSeconds) {
+    if (isInputEnd && isInputStart && inputStartTimeTotalSeconds >= inputEndTimeTotalSeconds) {
       const content = `Sorry! Start time can't be after end time. Please try again.`;
       await interaction.editReply({ content });
       return;
@@ -424,8 +456,8 @@ async function downloadLinkAndExecute(interaction, modalCustomId, callback, audi
     // check if we're updating the track length so we can post-process it //
     // ------------------------------------------------------------------ //
 
-    const isEndTimeUpdate = trackEnd && trackEndTotalSeconds > inputEndTotalSeconds;
-    const isStartTimeUpdate = trackEnd && inputStartTotalSeconds > 0 && inputStartTotalSeconds < inputEndTotalSeconds;
+    const isEndTimeUpdate = isInputEnd && cacheEndTimeTotalSeconds > inputEndTimeTotalSeconds;
+    const isStartTimeUpdate = isInputStart && inputStartTimeTotalSeconds > 0 && inputStartTimeTotalSeconds < inputEndTimeTotalSeconds;
 
     // ------------------------------------------------------------------ //
     // compile the options consumed by YoutubeDL with optional parameters //
@@ -450,8 +482,8 @@ async function downloadLinkAndExecute(interaction, modalCustomId, callback, audi
       audioQuality: 0,
       embedMetadata: true,
       externalDownloader: "ffmpeg",
-      externalDownloaderArgs:
-        " -metadata album='Downloads'"
+      postprocessorArgs: "ffmpeg:"
+        + " -metadata album='Downloads'"
         + " -metadata album_artist='Various Artists'"
         + ` -metadata artist='${sanitizeFfmpeg(inputArtist)}'`
         + " -metadata date=''" // remove unwanted ID3 tag
@@ -470,34 +502,37 @@ async function downloadLinkAndExecute(interaction, modalCustomId, callback, audi
     // (we want to add audio fade-in / fade-out for trimmed tracks) //
     // ------------------------------------------------------------ //
 
-    const postProcessor = trackEnd && (() => {
-      const outputTotalSeconds = inputEndTotalSeconds - inputStartTotalSeconds;
+    const postProcessor = cacheEndTime && (() => {
+      const outputTotalSeconds = inputEndTimeTotalSeconds - inputStartTimeTotalSeconds;
       const fadeTotalSeconds = outputTotalSeconds >= 20 ? 5 : outputTotalSeconds / 4;
       const execAudioFilters = []; // exec command sourced from https://redd.it/whqfl6/
       if (isStartTimeUpdate) execAudioFilters.push(`afade=t=in:st=0:d=${fadeTotalSeconds}`);
       if (isEndTimeUpdate) execAudioFilters.push(`afade=t=out:st=${outputTotalSeconds - fadeTotalSeconds}:d=${fadeTotalSeconds}`);
-      if (execAudioFilters.length) return `move {} temp & ffmpeg -i temp -af "${execAudioFilters.join(",")}" {} & del temp`;
-      return false; // throw? we should never reach this
+      if (execAudioFilters.length) return `move {} tempfile & ffmpeg -i tempfile -af "${execAudioFilters.join(",")}" {} & del tempfile`;
+      return false;
     })();
 
-    if (isStartTimeUpdate) options.externalDownloaderArgs += ` -ss ${inputStart}.00`;
-    if (isEndTimeUpdate) options.externalDownloaderArgs += ` -to ${inputEnd}.00`;
+    if (isStartTimeUpdate) {
+      options["externalDownloaderArgs"] ??= "";
+      options["externalDownloaderArgs"] += ` -ss ${inputStartTime}.00`;
+    }
+
+    if (isEndTimeUpdate) {
+      options["externalDownloaderArgs"] ??= "";
+      options["externalDownloaderArgs"] += ` -to ${inputEndTime}.00`;
+    }
+
     if (postProcessor) options["exec"] = postProcessor;
     await youtubedl(linkWithoutParameters, options);
 
-    // ----------------------------------------------------------- //
-    // get the result from the filesystem and upload it to Discord //
-    // ----------------------------------------------------------- //
-
     const outputFilename = fs.readdirSync(outputDirectory)[0];
     const outputFilepath = resolve(`${outputDirectory}/${outputFilename}`);
-
-    // perform extra tasks like importing the result into Plex
     await callback(interaction, outputFilename, outputFilepath);
     await fs.remove(outputDirectory);
   }
   catch(error) {
-    await interaction.editReply(getFormattedErrorMessage(error));
+    const content = getFormattedErrorMessage(error);
+    await interaction.editReply(content);
     Logger.Error(error.stack);
   }
   finally {
@@ -506,9 +541,8 @@ async function downloadLinkAndExecute(interaction, modalCustomId, callback, audi
 }
 
 /**
- * Get the metadata artist with undesired substrings either sanitized or removed
+ * Get the metadata artist with undesired substrings sanitized or removed
  * @param {string} author_name
- * @returns {string}
  */
 function getCleanMetadataArtist(author_name = "") {
   let result = author_name;
@@ -517,10 +551,9 @@ function getCleanMetadataArtist(author_name = "") {
 }
 
 /**
- * Get the metadata title with undesired substrings either sanitized or removed
+ * Get the metadata title with undesired substrings sanitized or removed
  * @param {string} author_name
  * @param {string} title
- * @returns {string}
  */
 function getCleanMetadataTitle(author_name = "", title = "") {
   let result = title;
@@ -543,7 +576,7 @@ async function getExistingPlexFilename(link) {
   });
 
   return fs
-    .readdirSync(plex_directory) // filename = "%(uploader)s - %(title)s - %(id)s.%(ext)s"
+    .readdirSync(plex_download_directory) // filename = "%(uploader)s - %(title)s - %(id)s.%(ext)s"
     .find(filename => pendingVideoId == filename.split(' - ').slice(-1)[0].split('.')[0]);
 }
 
@@ -553,14 +586,6 @@ async function getExistingPlexFilename(link) {
  */
 function getFormattedErrorMessage(error) {
   return `Sorry! I caught an error for this link:\n\`\`\`${error}\`\`\``;
-}
-
-/**
- * Get if the channel is valid for this component
- * @param {GuildChannel} channel
- */
-function getIsChannelValid(channel) {
-  return channel.id === plex_channel_id;
 }
 
 /**
@@ -646,7 +671,6 @@ async function getLinkFromStarterMessage(threadMessage) {
 /**
  * Remove any parameters from a link
  * @param {string} link
- * @returns {string}
  */
 function getLinkWithParametersRemoved(link) {
   return link.match(/(https?:\/\/[^&\s]+)/)[1];
@@ -685,7 +709,12 @@ async function showButtonDocumentation(interaction) {
   await interaction.deferReply({ ephemeral: true });
   const result = [];
 
-  for(const message of await getChannelMessages(interaction.channel.id)) {
+  const channelMessages = await getChannelMessages(interaction.channel.id);
+  const getIsDocumentationButton = ({ data: custom_id }) => custom_id === COMPONENT_CUSTOM_IDS.SHOW_BUTTON_DOCUMENTATION;
+  const documentationButtonIndex = channelMessages.findIndex(m => m.components?.[0]?.components.some(getIsDocumentationButton));
+  const documentedButtonMessages = channelMessages.slice(0, documentationButtonIndex - 1);
+
+  for(const message of documentedButtonMessages) {
     const components = message.components?.[0]?.components;
     if (!components) continue;
 
@@ -699,7 +728,9 @@ async function showButtonDocumentation(interaction) {
       const { description, requiredRoleIds } = id;
       const formattedEmoji = emoji.id ? `<:${emoji.name}:${emoji.id}>` : emoji.name;
       const formattedRoles = requiredRoleIds ? ` \`🔒Locked\` ${requiredRoleIds.map(r => `<@&${r}>`).join(" ")}` : "";
-      result.unshift(`${formattedEmoji} **${label}**${formattedRoles}\n\`\`\`${description}\`\`\``);
+      const stringResult = `${formattedEmoji} **${label}**${formattedRoles}\n\`\`\`${description}\`\`\``;
+
+      if (!result.includes(stringResult)) result.unshift(stringResult);
     }
   }
 
@@ -733,9 +764,9 @@ async function showAllYouTubePlaylistSongs(interaction) {
 
   for(let i = 0; i < playlist.items.length; i++) {
     const cleanTitle = playlist.title.replaceAll("`", "").replaceAll("*", "").replaceAll(" _", "").replaceAll("_ ", "");
-    const content = `<:youtube:1196317298844242000> \`${i + 1}/${playlist.items.length}\` **${cleanTitle}**\n${playlist.items[i].shortUrl}`;
+    const content = `${discord_youtube_emoji} \`${i + 1}/${playlist.items.length}\` **${cleanTitle}**\n${playlist.items[i].shortUrl}`;
     const message = await interaction.followUp({ components, content, ephemeral: true });
-    validateThreadChannelPlexButton({ interaction, message }); // don't await or we'll be here all day!
+    validateMessageWithPlexButton({ interaction, message }); // don't await or we'll be here all day!
     await new Promise(resolve => setTimeout(resolve, 250)); // reduce load on the Discord API
   }
 }
@@ -747,8 +778,8 @@ async function showAllYouTubePlaylistSongs(interaction) {
  * @param {string} modalTitle
  */
 async function showDeletionModal(interaction, modalCustomId, modalTitle) {
-  const operation = new InteractionOperation({
-    customId: modalCustomId,
+  const operation = new ComponentOperation({
+    interactionId: modalCustomId,
     messageId: interaction.message.id,
     userId: interaction.user.id
   });
@@ -789,8 +820,8 @@ async function showDeletionModal(interaction, modalCustomId, modalTitle) {
  * @param {string} modalTitle
  */
 async function showMetadataModal(interaction, modalCustomId, modalTitle) {
-  const operation = new InteractionOperation({
-    customId: modalCustomId,
+  const operation = new ComponentOperation({
+    interactionId: modalCustomId,
     messageId: interaction.message.id,
     userId: interaction.user.id
   });
@@ -812,7 +843,7 @@ async function showMetadataModal(interaction, modalCustomId, modalTitle) {
 
     if (!author_name && !title) return;
 
-    const trackEnd = VALIDATED_TRACK_DURATIONS[link];
+    const cacheEndTime = CACHED_LINK_DATA[link]?.endTime;
     // todo: sponsorblock api to get music start time
 
     const titleTextInput = new TextInputBuilder();
@@ -830,24 +861,24 @@ async function showMetadataModal(interaction, modalCustomId, modalTitle) {
     artistTextInput.setValue(getCleanMetadataArtist(author_name));
 
     const startTextInput = new TextInputBuilder();
-    if (trackEnd) startTextInput.setCustomId("start");
-    if (trackEnd) startTextInput.setLabel("Track Start");
-    if (trackEnd) startTextInput.setPlaceholder("00:00:00");
-    if (trackEnd) startTextInput.setStyle(TextInputStyle.Short);
-    if (trackEnd) startTextInput.setValue("00:00:00");
+    if (cacheEndTime) startTextInput.setCustomId("start");
+    if (cacheEndTime) startTextInput.setLabel("Track Start");
+    if (cacheEndTime) startTextInput.setPlaceholder("00:00:00");
+    if (cacheEndTime) startTextInput.setStyle(TextInputStyle.Short);
+    if (cacheEndTime) startTextInput.setValue("00:00:00");
 
     const endTextInput = new TextInputBuilder()
-    if (trackEnd) endTextInput.setCustomId("end");
-    if (trackEnd) endTextInput.setLabel("Track End");
-    if (trackEnd) endTextInput.setPlaceholder(trackEnd);
-    if (trackEnd) endTextInput.setStyle(TextInputStyle.Short);
-    if (trackEnd) endTextInput.setValue(trackEnd);
+    if (cacheEndTime) endTextInput.setCustomId("end");
+    if (cacheEndTime) endTextInput.setLabel("Track End");
+    if (cacheEndTime) endTextInput.setPlaceholder(cacheEndTime);
+    if (cacheEndTime) endTextInput.setStyle(TextInputStyle.Short);
+    if (cacheEndTime) endTextInput.setValue(cacheEndTime);
 
     const actionRows = [];
     actionRows.push(new ActionRowBuilder().addComponents(titleTextInput));
     actionRows.push(new ActionRowBuilder().addComponents(artistTextInput));
-    if (trackEnd) actionRows.push(new ActionRowBuilder().addComponents(startTextInput));
-    if (trackEnd) actionRows.push(new ActionRowBuilder().addComponents(endTextInput));
+    if (cacheEndTime) actionRows.push(new ActionRowBuilder().addComponents(startTextInput));
+    if (cacheEndTime) actionRows.push(new ActionRowBuilder().addComponents(endTextInput));
 
     await interaction.showModal(new ModalBuilder()
       .addComponents(...actionRows)
@@ -865,8 +896,8 @@ async function showMetadataModal(interaction, modalCustomId, modalTitle) {
  */
 async function startPlexLibraryScan() {
   try {
-    const address = `http://${plex_server_ip}:32400/library/sections/${plex_section_id}/refresh`;
-    const options = { method: "GET", headers: { "X-Plex-Token": plex_x_token } };
+    const address = `http://${plex_server_ip_address}:32400/library/sections/${plex_library_section_id}/refresh`;
+    const options = { method: "GET", headers: { "X-Plex-Token": plex_authentication_token } };
     await fetch(address, options);
     Logger.Info(`Plex library scan started`);
   }
@@ -879,21 +910,10 @@ async function startPlexLibraryScan() {
  * Fetch the download filename and update the Plex button with the status of its existence in the Plex folder
  * @param {Message} message
  */
-async function validateThreadChannelPlexButton({ interaction, message }) {
+async function validateMessageWithPlexButton({ interaction, message }) {
   try {
     const link = await getLinkFromMessageHierarchy(message);
     const linkWithoutParameters = getLinkWithParametersRemoved(link);
-
-    // todo: amazing Discord API requires modules resolve in <= 3 seconds
-    //   which is obviously not possible when dependant on fetch requests
-    //   so now we get to fetch them in advance and cache for some reason
-    //   (this inefficiency and code smell is brought to you by Discord!)
-    VALIDATED_TRACK_DURATIONS[link] = await youtubedl(linkWithoutParameters, {
-      output: "%(duration>%H:%M:%S)s",
-      print: "%(duration>%H:%M:%S)s",
-      simulate: true,
-      skipDownload: true
-    });
 
     const isArchived = message.channel.archived;
     if (isArchived) await message.channel.setArchived(false);
@@ -921,7 +941,7 @@ async function validateThreadChannelPlexButton({ interaction, message }) {
 
     components[0].components[buttonIndex].setCustomId(customId);
     components[0].components[buttonIndex].setDisabled(false)
-    components[0].components[buttonIndex].setEmoji(plex_emoji)
+    components[0].components[buttonIndex].setEmoji(discord_plex_emoji)
     components[0].components[buttonIndex].setLabel(label);
 
     actualMessage.type === MessageType.Reply
