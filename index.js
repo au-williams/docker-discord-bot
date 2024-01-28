@@ -3,7 +3,9 @@ import { Logger } from "./logger.js";
 import { State } from "./state.js";
 import fs from "fs-extra";
 
-const config = fs.readJsonSync("./config.json");
+const {
+  login_token, prefetched_channel_ids, temp_directory
+} = fs.readJsonSync("./config.json");
 
 // ---------------------------- //
 // Create the discord.js client //
@@ -78,13 +80,13 @@ client.on(Events.InteractionCreate, async interaction => {
 
         else if (!isRequiredRoleId) {
           const uniqueRequiredRoleIds = [...new Set(requiredRoleIds)];
-          const content = formatContent(`\`🔒Locked\` This can only be used by the`, "<@&", uniqueRequiredRoleIds, ">") + ` role${uniqueRequiredRoleIds.length === 1 ? "" : "s"}.`;
+          const content = formatContent(`\`🔒Locked\` This can only be used by the`, "<@&", uniqueRequiredRoleIds, ">") + ` role${uniqueRequiredRoleIds.length === 1 ? "" : "s"}!`;
           interaction.reply({ content, ephemeral: true }).then(() => Logger.Info(`${username} tried ${interactionType} interaction "${interactionName}"`, filename));
         }
 
         else if (!isRequiredChannelId) {
           const uniqueRequiredChannelIds = [...new Set(requiredChannelIds)];
-          const content = formatContent(`This can only be used in the`, "<#", uniqueRequiredChannelIds, ">") + ` channel${uniqueRequiredChannelIds.length === 1 ? "" : "s"}.`;
+          const content = formatContent(`This can only be used in the`, "<#", uniqueRequiredChannelIds, ">") + ` channel${uniqueRequiredChannelIds.length === 1 ? "" : "s"}!`;
           interaction.reply({ content, ephemeral: true }).then(() => Logger.Info(`${username} tried ${interactionType} interaction "${interactionName}"`, filename));
         }
       });
@@ -142,14 +144,14 @@ async function initializeComponents() {
   for await (const filename of scriptFilenames)
     await import(`./components/${filename}`).then(instance => LOADED_COMPONENTS.push({ filename, instance }));
 
-  fs.emptyDir("./temp_storage/"); // delete last sessions temp data from ./temp_storage/
+  await fs.emptyDir(temp_directory); // delete last sessions temp data from ./temp/
   const channelMessageCount = Object.keys(CHANNEL_MESSAGES).reduce((total, current) => total += CHANNEL_MESSAGES[current].length, 0);
   Logger.Info(`${client.user.username} started with ${LOADED_COMPONENTS.length} of ${scriptFilenames.length} components and ${channelMessageCount} prefetched messages`);
 }
 
 async function initializeMessages() {
   try {
-    for await (const channel_id of config.prefetched_channel_ids.filter(channel_id => channel_id)) {
+    for await (const channel_id of prefetched_channel_ids.filter(channel_id => channel_id)) {
       await getChannelMessages(channel_id);
     }
   }
@@ -170,4 +172,4 @@ async function invokeComponentsFunction(functionName, params) {
   }
 }
 
-client.login(config.login_token);
+client.login(login_token);

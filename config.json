@@ -1,6 +1,7 @@
 {
-  "client_id": "YOUR_BOTS_CLIENT_ID",
-  "login_token": "YOUR_BOTS_LOGIN_TOKEN",
+  "client_id": "",
+  "login_token": "",
   "prefetched_channel_ids": [""],
-  "state_channel_id": ""
+  "state_channel_id": "",
+  "temp_directory": ".\\temp\\"
 }
