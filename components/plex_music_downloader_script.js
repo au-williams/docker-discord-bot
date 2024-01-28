@@ -27,7 +27,7 @@ const {
 // >> INTERACTION DEFINITIONS                                             << //
 // ------------------------------------------------------------------------- //
 
-/*
+/**
  * Discord, in their infinite wisdom and investment money, requires
  *   modals to resolve in <= 3 seconds which obviously causes a lot
  *   of issues with external dependencies with unknown fetch times.
@@ -40,8 +40,8 @@ const CACHED_LINK_DATA = {};
 
 class LinkData {
   constructor(endTime, segments) {
-    this.endTime = endTime; // total track duration fetched via YoutubeDL
-    this.segments = segments; // undesired segments fetched via SponsorBlock
+    this.endTime = endTime;   // total track duration fetched via YoutubeDL API
+    this.segments = segments; // undesired segments fetched via SponsorBlock API (intro, outro, etc)
   }
 }
 
@@ -115,25 +115,6 @@ export const COMPONENT_INTERACTIONS = [
 // ------------------------------------------------------------------------- //
 
 /**
- * Delete the child thread when its message parent is deleted
- * @param {Object} param
- * @param {Client} param.client The Discord.js client
- * @param {Message} param.message The deleted message
- */
-export const onMessageDelete = async ({ client, message }) => {
-  try {
-    const isAllowedChannel = message.channel === discord_channel_id;
-    const isClientOwnedThread = !message.thread?.ownerId === client.user.id;
-    if (!isAllowedChannel || !isClientOwnedThread) return;
-    await message.thread.delete();
-    Logger.Info(`Deleted thread for deleted message ${message.id}`);
-  }
-  catch({ stack }) {
-    Logger.Error(stack);
-  }
-};
-
-/**
  * Start a cron job that validates and repairs channel messages
  * (Reflect missed Plex changes, enable disabled buttons, etc)
  */
@@ -153,12 +134,12 @@ export const onClientReady = async () => {
 
       await createCachedLinkData(link);
 
-      let threadChannel = message.hasThread && message.thread;
-
       // ------------------------------------------------------- //
       // delete threads with obsolete metadata and recreate them //
       // (these are typically links edited for different videos) //
       // ------------------------------------------------------- //
+
+      let threadChannel = message.hasThread && message.thread;
 
       const isThreadChannelMetadataObsolete =
         threadChannel && threadChannel.name !== await getThreadChannelName(link);
@@ -188,8 +169,8 @@ export const onClientReady = async () => {
  */
 export const onMessageCreate = async ({ message }) => {
   try {
-    const isAllowedChannel = message.channel === discord_channel_id;
-    if (!isAllowedChannel) return;
+    const isAllowedDiscordChannel = message.channel.id === discord_channel_id;
+    if (!isAllowedDiscordChannel) return;
 
     const link = getLinkFromMessage(message);
     if (!link) return;
@@ -213,6 +194,25 @@ export const onMessageCreate = async ({ message }) => {
     Logger.Error(stack);
   }
 }
+
+/**
+ * Delete the child thread when its message parent is deleted
+ * @param {Object} param
+ * @param {Client} param.client The Discord.js client
+ * @param {Message} param.message The deleted message
+ */
+export const onMessageDelete = async ({ client, message }) => {
+  try {
+    const isAllowedDiscordChannel = message.channel.id === discord_channel_id;
+    const isClientOwnedThread = message.thread?.ownerId !== client.user.id;
+    if (!isAllowedDiscordChannel || !isClientOwnedThread) return;
+    await message.thread.delete();
+    Logger.Info(`Deleted thread for deleted message ${message.id}`);
+  }
+  catch({ stack }) {
+    Logger.Error(stack);
+  }
+};
 
 // ------------------------------------------------------------------------- //
 // >> COMPONENT FUNCTIONS                                                 << //
