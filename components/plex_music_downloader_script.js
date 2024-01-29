@@ -1,12 +1,12 @@
 import { ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle, ComponentType, MessageType, ModalBuilder, TextInputBuilder, TextInputStyle } from "discord.js";
+import { basename, extname, resolve } from "path";
 import { Cron } from "croner";
-import { extname, resolve } from "path";
+import { fileURLToPath } from "url";
 import { findChannelMessage, getChannelMessages } from "../index.js";
 import { Logger } from "../logger.js";
 import * as oembed from "@extractus/oembed-extractor";
 import AFHConvert from "ascii-fullwidth-halfwidth-convert";
 import ComponentOperation from "../shared/models/ComponentOperation.js"
-import fetchRetry from "fetch-retry";
 import fs from "fs-extra";
 import LinkData from "../shared/models/LinkData.js"
 import sanitize from "sanitize-filename";
@@ -21,12 +21,6 @@ const {
   cron_job_pattern, discord_channel_id, discord_member_role_id, discord_plex_emoji, discord_youtube_emoji,
   plex_authentication_token, plex_download_directory, plex_library_section_id, plex_server_ip_address
 } = fs.readJsonSync("components/plex_music_downloader_config.json");
-
-// extend fetch to include a retry policy
-const fetch = fetchRetry(global.fetch, {
-  retries: 10,
-  retryDelay: 1000
-});
 
 // ------------------------------------------------------------------------- //
 // >> INTERACTION DEFINITIONS                                             << //
@@ -57,7 +51,7 @@ const COMPONENT_CUSTOM_IDS = {
 }
 
 /**
- * Define what functions and restrictions are invoked when a discord interaction is made
+ * Define what functions and restrictions are invoked when a discord component interaction is made
  */
 export const COMPONENT_INTERACTIONS = [
   {
@@ -114,12 +108,12 @@ export const COMPONENT_INTERACTIONS = [
 
 /**
  * Starts a cron job that validates and repairs channel messages
- * (Reflect missed Plex changes, reenable disabled buttons, etc)
+ *   (process new Plex changes, re-enable disabled buttons, etc)
  */
 export const onClientReady = async () => {
   const cronOptions = {};
   cronOptions["protect"] = true;
-  cronOptions["name"] = "plex_music_downloader_script.js";
+  cronOptions["name"] = basename(fileURLToPath(import.meta.url));
   cronOptions["catch"] = ({ stack }) => Logger.Error(stack, cronOptions.name);
 
   const cronJob = async () => {
@@ -169,7 +163,7 @@ export const onMessageCreate = async ({ message }) => {
     if (!isAllowedDiscordChannel) return;
 
     const link = getLinkFromMessage(message);
-    const cachedLinkData = await getOrInitializeLinkData(link);
+    const cachedLinkData = link && await getOrInitializeLinkData(link);
     if (!cachedLinkData) return;
 
     const threadChannel = await createThreadChannel(cachedLinkData, message);
