@@ -1,15 +1,19 @@
+import { basename } from "path";
 import { Cron } from "croner";
+import { fileURLToPath } from "url";
 import { findChannelMessage, getChannelMessages } from "../index.js";
+import { getLeastFrequentlyOccurringStrings } from "../shared/scripts/array.js"
 import { Logger } from "../logger.js";
-import date from 'date-and-time';
 import fs from "fs-extra";
 import randomItem from 'random-item';
 
-const { announcement_channel_ids } = fs.readJsonSync("components/cat_facts_scheduler_config.json");
+const {
+  cron_job_pattern, discord_announcement_channel_id, sanitized_catfact_api_responses
+} = fs.readJsonSync("components/cat_facts_scheduler_config.json");
 
-// ----------------------- //
-// Interaction definitions //
-// ----------------------- //
+// ------------------------------------------------------------------------- //
+// >> INTERACTION DEFINITIONS                                             << //
+// ------------------------------------------------------------------------- //
 
 export const COMMAND_INTERACTIONS = [{
   name: "catfact",
@@ -17,56 +21,52 @@ export const COMMAND_INTERACTIONS = [{
   onInteractionCreate
 }];
 
-// ---------------------- //
-// Discord event handlers //
-// ---------------------- //
+// ------------------------------------------------------------------------- //
+// >> DISCORD EVENT HANDLERS                                              << //
+// ------------------------------------------------------------------------- //
 
 export const onClientReady = async ({ client }) => {
+  const cronOptions = {};
+  cronOptions["protect"] = true;
+  cronOptions["name"] = basename(fileURLToPath(import.meta.url));
+  cronOptions["catch"] = ({ stack }) => Logger.Error(stack, cronOptions.name);
+
+  const cronJob = async () => {
+    const channel = await client.channels.fetch(discord_announcement_channel_id);
+    const channelMessages = await getChannelMessages(discord_announcement_channel_id);
+    const channelCatFacts = channelMessages.map(({ content }) => content);
+
+    let potentialCatFacts = sanitized_catfact_api_responses.filter(apiCatFact => !channelCatFacts.includes(apiCatFact));
+    if (!potentialCatFacts.length) potentialCatFacts = getLeastFrequentlyOccurringStrings(channelCatFacts);
+    const randomCatFact = randomItem(potentialCatFacts);
+    await channel.send(randomCatFact);
+
+    Logger.Info(`Sent a cat fact to ${channel.guild.name} #${channel.name}`);
+  }
+
+  const cronEntrypoint = Cron(cron_job_pattern, cronOptions, cronJob);
+
+  // ------------------------------------------------ //
+  // send a cat fact if one was not sent today at 9am //
+  // ------------------------------------------------ //
+
   const now = new Date();
   const today9am = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 9, 0, 0);
 
-  for(const channel_id of announcement_channel_ids) {
-    const onError = ({ stack }) => Logger.Error(stack, "cat_facts_scheduler_script.js");
-    const cron = Cron("0 9 * * *", { catch: onError }, async job => {
-      Logger.Info(`Triggered job pattern "${job.getPattern()}"`);
-      const oldCatFacts = (await getChannelMessages(channel_id)).map(({ content }) => content);
-      const newCatFacts = (await getApiCatFacts()).filter(catFact => !oldCatFacts.includes(catFact));
-      const channel = await client.channels.fetch(channel_id);
-      await channel.send(randomItem(newCatFacts)); // this should reduce the least posted items when the API runs out of new data
-      Logger.Info(`Sent cat fact message to ${channel.guild.name} #${channel.name}`);
-      Logger.Info(`Scheduled next job on "${date.format(job.nextRun(), "YYYY-MM-DDTHH:mm")}"`);
-    });
-
-    const lastChannelMessage = await findChannelMessage(channel_id, () => true);
-    const isMissedJob = now > today9am && (lastChannelMessage?.createdAt < today9am ?? true);
-    if (isMissedJob) cron.trigger();
-  }
+  const lastChannelMessage = await findChannelMessage(discord_announcement_channel_id, () => true);
+  const isMissedJob = now > today9am && (lastChannelMessage?.createdAt < today9am ?? true);
+  if (isMissedJob) cronEntrypoint.trigger();
 };
 
-// ------------------- //
-// Component functions //
-// ------------------- //
-
-async function getApiCatFacts() {
-  return await fetch("https://catfact.ninja/facts?max_length=256&limit=500")
-    .then(response => response.json())
-    .then(({ data }) => data.map(({ fact }) => {
-      let cleanedFact = fact.trim()
-        .replaceAll("“", "\"").replaceAll("”", "\"")
-        .replaceAll(" .", ".").replaceAll(".i.", ".")
-        .replaceAll(" /", " ").replaceAll("’", "'");
-
-      const punctuations = [".", ".\"", ",", ";", ":", "!", "?", "-", "(", ")", "[", "]", "{", "}"];
-      if (!punctuations.some(punctuation => cleanedFact.endsWith(punctuation))) cleanedFact += ".";
-      return cleanedFact;
-    }));
-}
+// ------------------------------------------------------------------------- //
+// >> COMPONENT FUNCTIONS                                                 << //
+// ------------------------------------------------------------------------- //
 
 async function onInteractionCreate({ interaction }) {
   try {
     await interaction.deferReply();
-    await interaction.editReply({ content: randomItem(await getApiCatFacts()) });
-    Logger.Info(`Sent cat fact reply to ${interaction.channel.guild.name} #${interaction.channel.name}`);
+    await interaction.editReply(randomItem(sanitized_catfact_api_responses));
+    Logger.Info(`Sent a cat fact to ${interaction.channel.guild.name} #${interaction.channel.name}`);
   }
   catch({ stack }) {
     Logger.Error(stack);

@@ -11,12 +11,14 @@ Example facts about cats:
 
 ## Script — [cat_facts_scheduler_script.js](cat_facts_scheduler_script.js)
 
-This script runs every morning and fetches the [catfact.ninja API](https://catfact.ninja/) to send a new cat fact to each Discord channel. If todays schedule was missed when the bot was offline then a new cat fact will be sent on startup.
+This script sends a new cat fact from the [catfact.ninja API](https://catfact.ninja/) every morning. If the schedule was missed when the bot was offline then a new cat fact will be sent on startup.
 
-_Note: The [catfact.ninja API](https://catfact.ninja/) could use better data sanitization. It would be nice to dump the API responses into this modules config and pre-process them with a local LLM to fix grammatical errors and remove duplicate facts of different phrasing._
+_Note: The [catfact.ninja API](https://catfact.ninja/) has awful data sanitization. API responses can have spelling and grammar mistakes or many duplicate entries. The API has been dumped and fed through ChatGPT to fix most of the problems in bulk._
 
 ## Config — [cat_facts_scheduler_config.json](cat_facts_scheduler_config.json)
 
-| Key                          | Value                                                     | Required |
-| ---------------------------- | --------------------------------------------------------- | -------- |
-| `"announcement_channel_ids"` | The Discord channel IDs that will be sent daily cat facts | ✔        |
+| Key                                 | Value                                                                            | Required |
+| ----------------------------------- | -------------------------------------------------------------------------------- | -------- |
+| `"cron_job_pattern"`                | The Cron pattern for this components job                                         | ✔        |
+| `"discord_announcement_channel_id"` | The Discord guild channel ID this component will run in                          | ✔        |
+| `"sanitized_catfact_api_responses"` | The sanitized API responses from the [catfact.ninja API](https://catfact.ninja/) | ✔        |
