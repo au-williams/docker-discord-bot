@@ -10,6 +10,7 @@ This script runs every waking hour and fetches the [DRG API](https://drgapi.com/
 
 ## Config — [deep_rock_galactic_watcher_config.json](deep_rock_galactic_watcher_config.json)
 
-| Key                          | Value                                                                    | Required |
-| ---------------------------- | ------------------------------------------------------------------------ | -------- |
-| `"announcement_channel_ids"` | The Discord channel IDs that will be sent new weekly assignment messages | ✔        |
+| Key                                 | Value                                                                    | Required |
+| ----------------------------------- | ------------------------------------------------------------------------ | -------- |
+| `"cron_job_pattern"`                | The Cron pattern for this plugins job                                    | ✔        |
+| `"discord_announcement_channel_id"` | The Discord channel IDs that will be sent new weekly assignment messages | ✔        |

@@ -1,0 +1,4 @@
+{
+  "cron_job_pattern": "0 * * * *",
+  "discord_announcement_channel_id": ""
+}

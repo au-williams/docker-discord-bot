@@ -1,7 +1,7 @@
 {
-  "client_id": "",
-  "login_token": "",
-  "prefetched_channel_ids": [""],
-  "state_channel_id": "",
+  "discord_bot_client_id": "",
+  "discord_bot_login_token": "",
+  "discord_prefetch_channel_ids": [""],
+  "discord_state_channel_id": "",
   "temp_directory": ".\\temp\\"
 }

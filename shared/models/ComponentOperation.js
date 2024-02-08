@@ -6,7 +6,7 @@ const BUSY_COMPONENT_INTERACTIONS = new Set();
 export default class ComponentOperation {
   /**
    * Create a ComponentOperation
-   * @param {object} param
+   * @param {Object} param
    * @param {string} param.interactionId The Discord.js interaction customId
    * @param {string} param.messageId The Discord.js messageId
    * @param {string} param.userId the Discord.js userId

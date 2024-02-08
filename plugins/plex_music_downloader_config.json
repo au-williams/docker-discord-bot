@@ -5,7 +5,7 @@
   "discord_plex_emoji": "",
   "discord_youtube_emoji": "",
   "plex_authentication_token": "",
-  "plex_download_directory": "",
+  "plex_download_directory": "./temp/",
   "plex_library_section_id": "",
-  "plex_server_ip_address": ""
+  "plex_server_ip_address": "127.0.0.1"
 }

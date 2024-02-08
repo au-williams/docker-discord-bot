@@ -1,20 +1,20 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, SlashCommandBuilder } from "discord.js";
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } from "discord.js";
 import { Cron } from "croner";
 import { filterChannelMessages, findChannelMessage } from "../index.js";
-import { Logger } from "../logger.js";
-import { State } from "../state.js";
 import date from 'date-and-time';
 import fs from "fs-extra";
+import Logger from "../shared/logger.js";
 import randomItem from "random-item";
+import State from "../shared/state.js";
 
 const {
-  announcement_channel_id,
-  remove_button_role_id
-} = fs.readJsonSync("./components/caturday_scheduler_config.json");
+  discord_announcement_channel_id,
+  discord_member_role_id
+} = fs.readJsonSync("plugins/caturday_scheduler_config.json");
 
-// ----------------------- //
-// Interaction definitions //
-// ----------------------- //
+// ------------------------------------------------------------------------- //
+// >> INTERACTION DEFINITIONS                                             << //
+// ------------------------------------------------------------------------- //
 
 export const COMMAND_INTERACTIONS = [{
   name: "caturday",
@@ -23,18 +23,35 @@ export const COMMAND_INTERACTIONS = [{
 }]
 
 export const COMPONENT_INTERACTIONS = [
-  { customId: "CATURDAY_OLDER_BUTTON", onInteractionCreate: ({ interaction }) => onOlderButtonInteraction({ interaction }) },
-  { customId: "CATURDAY_NEWER_BUTTON", onInteractionCreate: ({ interaction }) => onNewerButtonInteraction({ interaction }) },
-  { customId: "CATURDAY_SELECT_BUTTON", onInteractionCreate: ({ interaction }) => onSelectButtonInteraction({ interaction }) },
-  { customId: "CATURDAY_REMOVE_BUTTON", onInteractionCreate: ({ interaction }) => onRemoveButtonInteraction({ interaction }), requiredRoleIds: [remove_button_role_id] }
+  {
+    customId: "CATURDAY_OLDER_BUTTON",
+    onInteractionCreate: ({ interaction }) => onOlderButtonInteraction({ interaction })
+  },
+  {
+    customId: "CATURDAY_NEWER_BUTTON",
+    onInteractionCreate: ({ interaction }) => onNewerButtonInteraction({ interaction })
+  },
+  {
+    customId: "CATURDAY_SELECT_BUTTON",
+    onInteractionCreate: ({ interaction }) => onSelectButtonInteraction({ interaction })
+  },
+  {
+    customId: "CATURDAY_REMOVE_BUTTON",
+    onInteractionCreate: ({ interaction }) => onRemoveButtonInteraction({ interaction }),
+    requiredRoleIds: [discord_member_role_id]
+  }
 ]
 
+// ------------------------------------------------------------------------- //
+// >> DISCORD EVENT HANDLERS                                              << //
+// ------------------------------------------------------------------------- //
+
 export const onClientReady = async ({ client }) => {
-  const onError = ({ stack }) => Logger.Error(stack, "caturday_scheduler_script.js");
+  const onError = ({ stack }) => Logger.error(stack, "caturday_scheduler_script.js");
   const cron = Cron("0 9 * * SAT", { catch: onError }, async job => {
-    Logger.Info(`Triggered job pattern "${job.getPattern()}"`);
-    const channel = await client.channels.fetch(announcement_channel_id);
-    const channelMessages = await filterChannelMessages(announcement_channel_id, message => getPictureUrlsFromMessage(message).length);
+    Logger.info(`Triggered job pattern "${job.getPattern()}"`);
+    const channel = await client.channels.fetch(discord_announcement_channel_id);
+    const channelMessages = await filterChannelMessages(discord_announcement_channel_id, message => getPictureUrlsFromMessage(message).length);
     const channelMessagesPictureUrls = channelMessages.map(message => getPictureUrlsFromMessage(message)[0]);
     const stateMessages = await State.filter("caturday", message => getPictureUrlsFromMessage(message).length);
     const stateMessagesPictureUrls = stateMessages.map(message => getPictureUrlsFromMessage(message)[0]);
@@ -68,20 +85,22 @@ export const onClientReady = async ({ client }) => {
     const text = "Happy Caturday! 🐱";
     const embedBuilder = EmbedBuilder.from(randomEmbed).setAuthor({ iconURL, name }).setFooter({ text });
     await channel.send({ embeds: [embedBuilder] });
-    Logger.Info(`Sent caturday message to ${channel.guild.name} #${channel.name}`);
-    Logger.Info(`Scheduled next job on "${date.format(job.nextRun(), "YYYY-MM-DDTHH:mm")}"`);
+    Logger.info(`Sent caturday message to ${channel.guild.name} #${channel.name}`);
+    Logger.info(`Scheduled next job on "${date.format(job.nextRun(), "YYYY-MM-DDTHH:mm")}"`);
   });
 
   const now = new Date();
   const today9am = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 9, 0, 0);
-  const lastChannelMessage = await findChannelMessage(announcement_channel_id, ({ author }) => author.id === client.user.id);
+  const lastChannelMessage = await findChannelMessage(discord_announcement_channel_id, ({ author }) => author.id === client.user.id);
   const isMissedJob = now.getDay() === 6 && now.getHours() >= 9 && (lastChannelMessage ? lastChannelMessage.createdAt < today9am : true);
   if (isMissedJob) cron.trigger();
+
+  // Logger.info(`Started Cron job with pattern "${cron_job_pattern}"`);
 };
 
-// ------------------- //
-// Component functions //
-// ------------------- //
+// ------------------------------------------------------------------------- //
+// >> PLUGIN FUNCTIONS                                                    << //
+// ------------------------------------------------------------------------- //
 
 async function onCommandInteraction({ interaction }) {
   try {
@@ -95,12 +114,12 @@ async function onCommandInteraction({ interaction }) {
     }
 
     const components = await getPictureSelectReplyComponents({ interaction, nestedUrlIndex: nestedUrls.length - 1, nextSourceChannelMessage: messageWithNestedUrl })
-    const content = `Select a picture from this channel to be included in <#${announcement_channel_id}>`;
+    const content = `Select a picture from this channel to be included in <#${discord_announcement_channel_id}>`;
     const embeds = await getPictureSelectReplyEmbeds({ message: messageWithNestedUrl, url: nestedUrls[nestedUrls.length - 1] });
     await interaction.editReply({ components, content, embeds });
   }
   catch({ stack }) {
-    Logger.Error(stack);
+    Logger.error(stack);
   }
 }
 
@@ -127,7 +146,7 @@ async function onOlderButtonInteraction({ interaction }) {
     await interaction.editReply({ components, embeds });
   }
   catch({ stack }) {
-    Logger.Error(stack);
+    Logger.error(stack);
   }
 }
 
@@ -162,7 +181,7 @@ async function onNewerButtonInteraction({ interaction }) {
     await interaction.editReply({ components, embeds });
   }
   catch({ stack }) {
-    Logger.Error(stack);
+    Logger.error(stack);
   }
 }
 
@@ -184,7 +203,7 @@ async function onSelectButtonInteraction({ interaction }) {
     const success = !exists && await State.add("caturday", { embeds: await getPictureSelectReplyEmbeds({ message: sourceChannelMessage, url: interactionEmbedImageUrl }) });
 
     if (success) {
-      await interaction.followUp({ content: `${sourceChannelMessage.url} was added to <#${announcement_channel_id}>!`, ephemeral: true });
+      await interaction.followUp({ content: `${sourceChannelMessage.url} was added to <#${discord_announcement_channel_id}>!`, ephemeral: true });
     }
 
     await interaction.editReply({
@@ -196,7 +215,7 @@ async function onSelectButtonInteraction({ interaction }) {
     });
   }
   catch({ stack }) {
-    Logger.Error(stack);
+    Logger.error(stack);
   }
 }
 
@@ -215,10 +234,10 @@ async function onRemoveButtonInteraction({ interaction }) {
     const sourceChannelMessage = await findChannelMessage(interaction.channel.id, ({ id }) => id === sourceChannelMessageId);
 
     const exists = await State.find("caturday", message => getPictureUrlsFromMessage(message).includes(interactionEmbedImageUrl));
-    const success = exists && await State.remove("caturday", message => getPictureUrlsFromMessage(message).includes(interactionEmbedImageUrl));
+    const success = exists && await State.delete("caturday", message => getPictureUrlsFromMessage(message).includes(interactionEmbedImageUrl));
 
     if (success) {
-      await interaction.followUp({ content: `${sourceChannelMessage.url} was removed from <#${announcement_channel_id}>.`, ephemeral: true });
+      await interaction.followUp({ content: `${sourceChannelMessage.url} was removed from <#${discord_announcement_channel_id}>.`, ephemeral: true });
     }
 
     await interaction.editReply({
@@ -230,7 +249,7 @@ async function onRemoveButtonInteraction({ interaction }) {
     });
   }
   catch({ stack }) {
-    Logger.Error(stack);
+    Logger.error(stack);
   }
 }
 
@@ -255,7 +274,7 @@ function getPictureUrlsFromMessage({ attachments, embeds }) {
     return [...new Set(nestedPictureUrls)];
   }
   catch({ stack }) {
-    Logger.Error(stack);
+    Logger.error(stack);
   }
 }
 
@@ -290,7 +309,7 @@ async function getPictureSelectReplyComponents({ interaction, nestedUrlIndex, ne
     return components;
   }
   catch({ stack }) {
-    Logger.Error(stack);
+    Logger.error(stack);
   }
 }
 
@@ -302,6 +321,6 @@ async function getPictureSelectReplyEmbeds({ message, url }) {
     return embeds;
   }
   catch({ stack }) {
-    Logger.Error(stack);
+    Logger.error(stack);
   }
 }

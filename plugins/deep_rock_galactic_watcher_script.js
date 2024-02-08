@@ -1,27 +1,29 @@
 import { ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } from "discord.js";
 import { Cron } from "croner";
+import { fetchRetryPolicy, getCronOptions } from "../shared/helpers/object.js";
 import { getChannelMessages, findChannelMessage, filterChannelMessages } from "../index.js";
-import { Logger } from "../logger.js";
+import { getPluginFilename } from "../shared/helpers/string.js";
+import { tryDeleteThread } from "../shared/helpers/discord.js";
 import date from "date-and-time";
 import fetchRetry from 'fetch-retry';
 import fs from "fs-extra";
+import Logger from "../shared/logger.js";
 import ordinal from "date-and-time/plugin/ordinal";
 import randomItem from "random-item";
 date.plugin(ordinal);
 
-const fetch = fetchRetry(global.fetch, {
-  retries: 10,
-  retryDelay: 1000
-});
-
 const {
-  announcement_channel_ids,
-  create_announcement_thread
-} = fs.readJsonSync("components/deep_rock_galactic_watcher_config.json");
+  cron_job_pattern,
+  discord_announcement_channel_id
+} = fs.readJsonSync("plugins/deep_rock_galactic_watcher_config.json");
 
-// ----------------------- //
-// Interaction definitions //
-// ----------------------- //
+const PLUGIN_FILENAME = getPluginFilename(import.meta.url);
+
+const fetch = fetchRetry(global.fetch, fetchRetryPolicy);
+
+// ------------------------------------------------------------------------- //
+// >> INTERACTION DEFINITIONS                                             << //
+// ------------------------------------------------------------------------- //
 
 export const COMMAND_INTERACTIONS = [{
   name: "drg",
@@ -30,83 +32,134 @@ export const COMMAND_INTERACTIONS = [{
 }];
 
 export const COMPONENT_INTERACTIONS = [
-  { customId: "DEEP_DIVE_BUTTON", onInteractionCreate: ({ client, interaction }) => onDeepDiveButtonInteraction({ client, interaction }) },
-  { customId: "ELITE_DEEP_DIVE_BUTTON", onInteractionCreate: ({ client, interaction }) => onEliteDeepDiveButtonInteraction({ client, interaction }) }
+  {
+    customId: "DEEP_DIVE_BUTTON",
+    onInteractionCreate: ({ client, interaction }) => onDeepDiveButtonInteraction({ client, interaction })
+  },
+  {
+    customId: "ELITE_DEEP_DIVE_BUTTON",
+    onInteractionCreate: ({ client, interaction }) => onEliteDeepDiveButtonInteraction({ client, interaction })
+  }
 ]
 
-// ---------------------- //
-// Discord event handlers //
-// ---------------------- //
+// ------------------------------------------------------------------------- //
+// >> DISCORD EVENT HANDLERS                                              << //
+// ------------------------------------------------------------------------- //
 
-export const onClientReady = ({ client }) => {
-  const onError = ({ stack }) => Logger.Error(stack, "deep_rock_galactic_watcher_script.js");
-  Cron("0 * * * *", { catch: onError }, async job => {
-    Logger.Info(`Triggered job pattern "${job.getPattern()}"`);
-    for(const channel_id of announcement_channel_ids) {
-      const channel = await client.channels.fetch(channel_id);
-      const assignmentValues = await getAssignmentValues({ channel, client });
-      const lastChannelMessage = await findChannelMessage(channel.id, ({ author, embeds }) => author.id === client.user.id && embeds?.[0]?.data?.author?.name.includes("Deep Rock Galactic"))
-      const { currentDive, currentEliteDive } = assignmentValues;
-      const { dive: lastDive, eliteDive: lastEliteDive } = getAssignmentValuesFromMessage(lastChannelMessage);
-      const isNewAssignment = lastChannelMessage ? currentDive.name !== lastDive.name || currentEliteDive.name !== lastEliteDive.name : true;
-      if (!isNewAssignment) continue;
+/**
+ * Check for pending announcements on startup and a regular time interval
+ * @param {Object} param
+ * @param {Client} param.client The Discord.js client
+ */
+export const onClientReady = async ({ client }) => {
+  const channel = await client.channels.fetch(discord_announcement_channel_id);
 
-      // disable previous row buttons
-      const previousAssignmentsMessages = await filterChannelMessages(channel.id, channelMessage => {
-        const isClientAuthor = channelMessage.author.id === client.user.id;
-        const isEmbedAuthorName = channelMessage?.embeds?.[0]?.data?.author?.name.includes("Deep Rock Galactic");
-        const isEmbedComponentEnabled = channelMessage.components?.[0]?.components?.[0]?.disabled === false;
-        return isClientAuthor && isEmbedAuthorName && isEmbedComponentEnabled;
-      });
+  const cronJob = async () => {
+    const assignments = await getCurrentAndPreviousAssignments({ channel, client });
+    const { currentDive, currentEliteDive, currentEndTime, currentStartTime, previousAssignmentsMessageUrl } = assignments;
 
-      for await(const previousAssignmentsMessage of previousAssignmentsMessages) {
-        const row = ActionRowBuilder.from(previousAssignmentsMessage.components[0]);
-        row.components[0].setDisabled(true) && row.components[1].setDisabled(true);
-        await previousAssignmentsMessage.edit({ components: [row] });
-      }
+    // ------------------------------------------------------------------------- //
+    // check if the most recent API assignments are new and need to be announced //
+    // ------------------------------------------------------------------------- //
 
-      // send message to channel
-      const { currentEndTime, currentStartTime, previousAssignmentsMessageUrl } = assignmentValues;
-      const parsedEndTime = date.parse(currentEndTime.split("T")[0], "YYYY-MM-DD");
-      const parsedStartTime = date.parse(currentStartTime.split("T")[0], "YYYY-MM-DD");
-      const formattedEndTime = date.format(parsedEndTime, "MMMM DDD");
-      const components = [getAssignmentsMessageRow({ previousAssignmentsMessageUrl })];
-      const embeds = [await getAssignmentsMessageEmbed({ currentDive, currentEliteDive, embedName: "New weekly", formattedEndTime })];
-      const files = [new AttachmentBuilder("assets\\drg_deep_dive.png"), new AttachmentBuilder("assets\\drg_supporter.png")];
-      const message = await channel.send({ components, embeds, files });
-      Logger.Info(`Sent embed message to ${channel.guild.name} #${channel.name}`);
+    const isUnannouncedAssignments = await (async () => {
+      const find = message => getIsPluginMessage(client, message);
+      const lastChannelMessage = await findChannelMessage(channel.id, find);
+      if (!lastChannelMessage) return true;
+      const { dive, eliteDive } = getAssignmentValuesFromMessage(lastChannelMessage);
+      return currentDive.name + currentEliteDive.name !== dive.name + eliteDive.name;
+    })();
 
-      if (!create_announcement_thread) continue;
-      let name = `💬 Deep Rock Galactic - Deep Dives for ${date.format(parsedStartTime, "MMMM DDD YYYY")}`;
-      await message.startThread({ name });
+    if (!isUnannouncedAssignments) return;
+
+    // -------------------------------------------------------------------------- //
+    // disable all enabled buttons so users can't interact with outdated messages //
+    // -------------------------------------------------------------------------- //
+
+    const filter = message =>
+      getIsPluginMessage(client, message)
+      // don't use .some(({ disabled }) => !disabled) because a 3rd button exists that should be enabled!
+      && (!message.components[0].components[0].disabled || !message.components[0].components[1].disabled)
+
+    for (const message of await filterChannelMessages(channel.id, filter)) {
+      const row = ActionRowBuilder.from(message.components[0]);
+      row.components[0].setDisabled(true);
+      row.components[1].setDisabled(true);
+      await message.edit({ components: [row] });
     }
-    Logger.Info(`Scheduled next job on "${date.format(job.nextRun(), "YYYY-MM-DDTHH:mm")}"`);
-  }).trigger();
+
+    // todo: if the 3rd button link doesn't reference the previous message, update it
+    // (this happens when a message is deleted and then the button stops functioning)
+
+    // -------------------------------------------------------------------------- //
+    // create the embedded announcement message then send it to the guild channel //
+    // -------------------------------------------------------------------------- //
+
+    const parsedEndTime = date.parse(currentEndTime.split("T")[0], "YYYY-MM-DD");
+    const parsedStartTime = date.parse(currentStartTime.split("T")[0], "YYYY-MM-DD");
+    const formattedEndTime = date.format(parsedEndTime, "MMMM DDD");
+
+    const message = await channel.send({
+      components: [getAssignmentsMessageRow({ previousAssignmentsMessageUrl })],
+      embeds: [await getAssignmentsMessageEmbed({ currentDive, currentEliteDive, embedName: "New weekly", formattedEndTime })],
+      files: [new AttachmentBuilder("assets\\drg_deep_dive.png"), new AttachmentBuilder("assets\\drg_supporter.png")]
+    });
+
+    const name = `💬 Deep Rock Galactic - Deep Dives for ${date.format(parsedStartTime, "MMMM DDD YYYY")}`;
+    await message.startThread({ name });
+
+    Logger.info(`Sent announcement to ${channel.guild.name} #${channel.name}`);
+  };
+
+  Cron(cron_job_pattern, getCronOptions(PLUGIN_FILENAME), cronJob).trigger();
+  Logger.info(`Started Cron job with pattern "${cron_job_pattern}"`);
 };
 
-// ------------------- //
-// Component functions //
-// ------------------- //
+/**
+ * Delete the child thread when its message parent is deleted
+ * @param {Object} param
+ * @param {Message} param.message The deleted message
+ */
+export const onMessageDelete = ({ message }) => tryDeleteThread({
+  allowedChannelIds: [discord_announcement_channel_id],
+  pluginFilename: PLUGIN_FILENAME,
+  starterMessage: message
+});
+
+// ------------------------------------------------------------------------- //
+// >> PLUGIN FUNCTIONS                                                    << //
+// ------------------------------------------------------------------------- //
+
+/**
+ * Get whether a channel message was sent by this plugin
+ * @param {Client} client
+ * @param {Message} message
+ * @returns {bool}
+ */
+function getIsPluginMessage(client, message) {
+  return message.author.id === client.user.id
+    && message.embeds?.[0]?.data?.author?.name.includes("Deep Rock Galactic");
+}
 
 async function onDeepDiveButtonInteraction({ client, interaction }) {
   try {
     const { channel } = interaction;
-    const { currentDive, currentEndTime, currentStartTime } = await getAssignmentValues({ channel, client });
+    const { currentDive, currentEndTime, currentStartTime } = await getCurrentAndPreviousAssignments({ channel, client });
     sendAssignmentDetailsReply({ assignment: currentDive, currentEndTime, currentStartTime, interaction });
   }
   catch({ stack }) {
-    Logger.Error(stack);
+    Logger.error(stack);
   }
 }
 
 async function onEliteDeepDiveButtonInteraction({ client, interaction }) {
   try {
     const { channel } = interaction;
-    const { currentEliteDive, currentEndTime, currentStartTime } = await getAssignmentValues({ channel, client });
+    const { currentEliteDive, currentEndTime, currentStartTime } = await getCurrentAndPreviousAssignments({ channel, client });
     sendAssignmentDetailsReply({ assignment: currentEliteDive, currentEndTime, currentStartTime, interaction });
   }
   catch({ stack }) {
-    Logger.Error(stack);
+    Logger.error(stack);
   }
 }
 
@@ -117,10 +170,10 @@ async function sendAssignmentDetailsReply({ assignment, currentEndTime, currentS
     const embeds = [getAssignmentDetailsEmbed({ assignment, color, currentEndTime, currentStartTime })];
     const files = [new AttachmentBuilder("assets\\drg_deep_dive.png"), new AttachmentBuilder("assets\\drg_supporter.png")];
     await interaction.editReply({ embeds, files });
-    Logger.Info(`Sent ${assignment.type.toLowerCase()} reply to ${interaction.channel.guild.name} #${interaction.channel.name}`);
+    Logger.info(`Sent ${assignment.type.toLowerCase()} reply to ${interaction.channel.guild.name} #${interaction.channel.name}`);
   }
   catch({ stack }) {
-    Logger.Error(stack);
+    Logger.error(stack);
   }
 }
 
@@ -129,7 +182,7 @@ async function onCommandInteraction({ client, interaction }) {
     await interaction.deferReply({ ephemeral: true });
 
     const { channel } = interaction;
-    const { currentDive, currentEliteDive, currentEndTime, previousAssignmentsMessageUrl } = await getAssignmentValues({ channel, client });
+    const { currentDive, currentEliteDive, currentEndTime, previousAssignmentsMessageUrl } = await getCurrentAndPreviousAssignments({ channel, client });
     const parsedEndTime = date.parse(currentEndTime.split("T")[0], "YYYY-MM-DD");
     const formattedEndTime = date.format(parsedEndTime, "MMMM DDD");
 
@@ -138,14 +191,14 @@ async function onCommandInteraction({ client, interaction }) {
     const files = [new AttachmentBuilder("assets\\drg_deep_dive.png"), new AttachmentBuilder("assets\\drg_supporter.png")];
     await interaction.editReply({ components, embeds, files });
 
-    Logger.Info(`Sent embed reply to ${channel.guild.name} #${channel.name}`);
+    Logger.info(`Sent embed reply to ${channel.guild.name} #${channel.name}`);
   }
   catch({ stack }) {
-    Logger.Error(stack);
+    Logger.error(stack);
   }
 }
 
-async function getAssignmentValues({ channel, client }) {
+async function getCurrentAndPreviousAssignments({ channel, client }) {
   const { currentDive, currentEliteDive, currentEndTime, currentStartTime } =
     await fetch("https://drgapi.com/v1/deepdives")
       .then(response => response.json())

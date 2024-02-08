@@ -21,8 +21,8 @@ This script downloads music using [yt-dlp](https://github.com/yt-dlp/yt-dlp) and
 
 | Tag            | Value                    |
 | -------------- | ------------------------ |
-| `Album`        | "Downloads"                |
-| `Album Artist` | "Various Artists"          |
+| `Album`        | "Downloads"              |
+| `Album Artist` | "Various Artists"        |
 | `Artist`       | The `Track Artist` value |
 | `Date`         |                          |
 | `Title`        | The `Track Title` value  |
@@ -36,8 +36,8 @@ The following values should be provided before use:
 
 | Key                           | Value                                                                                                                                                                        | Required |
 | ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
-| `"cron_job_pattern"`          | The Cron pattern for this components job                                                                                                                                     | ✔        |
-| `"discord_channel_id"`        | The Discord guild channel ID this component will run in                                                                                                                      | ✔        |
+| `"cron_job_pattern"`          | The Cron pattern for this plugins job                                                                                                                                        | ✔        |
+| `"discord_channel_id"`        | The Discord guild channel ID this plugin will run in                                                                                                                         | ✔        |
 | `"discord_member_role_id"`    | The Discord guild role ID authorizing a member to make administrative file changes                                                                                           | ✔        |
 | `"discord_plex_emoji"`        | The Discord guild emoji ID containing the Plex logo                                                                                                                          | ✔        |
 | `"discord_youtube_emoji"`     | The Discord guild emoji ID containing the YouTube logo                                                                                                                       | ✔        |
@@ -45,6 +45,3 @@ The following values should be provided before use:
 | `"plex_download_directory"`   | The Plex music download directory (or wherever else you store your downloads)                                                                                                | ✔        |
 | `"plex_library_section_id"`   | The Plex music library section ID [(instructions on how to find it here)](https://support.plex.tv/articles/201638786-plex-media-server-url-commands/)                        | ✔        |
 | `"plex_server_ip_address"`    | The Plex server IP address (this is usually just `127.0.0.1` for localhost)                                                                                                  | ✔        |
-
-<!-- ... I'm not sure if this is still true and I don't have enough interest to find out! -->
-<!-- `"plex_section_id"`, `"plex_server_ip"`, `"plex_x_token"` are **optional** and refresh the Plex media library after a file operation is complete. -->
