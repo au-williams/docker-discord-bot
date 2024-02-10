@@ -10,7 +10,10 @@ This script runs every Saturday morning and sends a new picture to the Discord c
 
 ## Config — [caturday_scheduler_config.json](caturday_scheduler_config.json)
 
-| Key                                 | Value                                                      | Required |
-| ----------------------------------- | ---------------------------------------------------------- | -------- |
-| `"discord_announcement_channel_id"` | The Discord channel ID that will be sent Caturday pictures | ✔        |
-| `"discord_member_role_id"`          | The Discord role ID permitted to delete Caturday pictures  | ✔        |
+| Key                                 | Value                                                               | Required |
+| ----------------------------------- | ------------------------------------------------------------------- | -------- |
+| `"discord_admin_role_id"`           | The Discord member role ID permitted to delete Caturday pictures    | ✔        |
+| `"discord_announcement_channel_id"` | The Discord guild channel ID this plugin will send announcements to | ✔        |
+
+<!-- todo: -->
+<!-- | `"cron_job_announcement_pattern"`   | The Cron job pattern for this plugin to process announcements                    | ✔        | -->

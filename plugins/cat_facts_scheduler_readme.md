@@ -19,6 +19,6 @@ _Note: The [catfact.ninja API](https://catfact.ninja/) has awful data sanitizati
 
 | Key                                 | Value                                                                            | Required |
 | ----------------------------------- | -------------------------------------------------------------------------------- | -------- |
-| `"cron_job_pattern"`                | The Cron pattern for this plugins job                                            | ✔        |
-| `"discord_announcement_channel_id"` | The Discord guild channel ID this plugin will run in                             | ✔        |
+| `"cron_job_announcement_pattern"`   | The Cron job pattern for this plugin to process announcements                    | ✔        |
+| `"discord_announcement_channel_id"` | The Discord guild channel ID this plugin will send announcements to              | ✔        |
 | `"sanitized_catfact_api_responses"` | The sanitized API responses from the [catfact.ninja API](https://catfact.ninja/) | ✔        |

@@ -20,7 +20,8 @@ const {
 } = fs.readJsonSync("config.json");
 
 const {
-  cron_job_pattern, discord_channel_id, discord_member_role_id, discord_plex_emoji, discord_youtube_emoji,
+  cron_job_announcement_pattern,
+  discord_admin_role_id, discord_allowed_channel_id, discord_plex_emoji, discord_youtube_emoji,
   plex_authentication_token, plex_download_directory, plex_library_section_id, plex_server_ip_address
 } = fs.readJsonSync("plugins/plex_music_downloader_config.json");
 
@@ -71,29 +72,29 @@ export const COMPONENT_INTERACTIONS = [
     customId: COMPONENT_CUSTOM_IDS.FOLLOW_UPDATES_BUTTON,
     description: "Monitors the YouTube playlist for new videos and publicly posts those links to the Discord channel.",
     onInteractionCreate: ({ interaction }) => { followYouTubePlaylistUpdates(interaction) }, // { throw "Not implemented" },
-    requiredRoleIds: [discord_member_role_id]
+    requiredRoleIds: [discord_admin_role_id]
   },
   {
     customId: COMPONENT_CUSTOM_IDS.IMPORT_INTO_PLEX_BUTTON,
     description: "Extracts the audio from a link and imports it into the bot's Plex library for secured long-term storage.",
     onInteractionCreate: ({ interaction }) => showMetadataModal(interaction, COMPONENT_CUSTOM_IDS.IMPORT_INTO_PLEX_MODAL, "Import into Plex"),
-    requiredRoleIds: [discord_member_role_id]
+    requiredRoleIds: [discord_admin_role_id]
   },
   {
     customId: COMPONENT_CUSTOM_IDS.IMPORT_INTO_PLEX_MODAL,
     onInteractionCreate: ({ interaction }) => downloadLinkAndExecute(interaction, COMPONENT_CUSTOM_IDS.IMPORT_INTO_PLEX_MODAL, callbackImportPlexFile),
-    requiredRoleIds: [discord_member_role_id]
+    requiredRoleIds: [discord_admin_role_id]
   },
   {
     customId: COMPONENT_CUSTOM_IDS.DELETE_FROM_PLEX_BUTTON,
     description: "Removes the previously imported audio file from the bot's Plex library and deletes it from the filesystem.",
     onInteractionCreate: ({ interaction }) => showDeletionModal(interaction, COMPONENT_CUSTOM_IDS.DELETE_FROM_PLEX_MODAL, "Delete from Plex"),
-    requiredRoleIds: [discord_member_role_id]
+    requiredRoleIds: [discord_admin_role_id]
   },
   {
     customId: COMPONENT_CUSTOM_IDS.DELETE_FROM_PLEX_MODAL,
     onInteractionCreate: ({ interaction }) => deleteLinkFromPlex(interaction),
-    requiredRoleIds: [discord_member_role_id]
+    requiredRoleIds: [discord_admin_role_id]
   },
   {
     customId: COMPONENT_CUSTOM_IDS.SHOW_ALL_YOUTUBE_SONGS,
@@ -115,7 +116,7 @@ export const COMPONENT_INTERACTIONS = [
  */
 export const onClientReady = async () => {
   const cronJob = async () => {
-    for (const message of await getChannelMessages(discord_channel_id)) {
+    for (const message of await getChannelMessages(discord_allowed_channel_id)) {
       const link = getLinkFromMessage(message);
       const cachedLinkData = link && await getOrInitializeLinkData(link);
       if (!cachedLinkData) continue;
@@ -147,8 +148,8 @@ export const onClientReady = async () => {
     }
   }
 
-  Cron(cron_job_pattern, getCronOptions(PLUGIN_FILENAME), cronJob).trigger();
-  Logger.info(`Started Cron job with pattern "${cron_job_pattern}"`);
+  Cron(cron_job_announcement_pattern, getCronOptions(PLUGIN_FILENAME), cronJob).trigger();
+  Logger.info(`Started Cron job with pattern "${cron_job_announcement_pattern}"`);
 };
 
 /**
@@ -158,7 +159,7 @@ export const onClientReady = async () => {
  */
 export const onMessageCreate = async ({ message }) => {
   try {
-    const isAllowedDiscordChannel = message.channel.id === discord_channel_id;
+    const isAllowedDiscordChannel = message.channel.id === discord_allowed_channel_id;
     if (!isAllowedDiscordChannel) return;
 
     const link = getLinkFromMessage(message);
@@ -181,7 +182,7 @@ export const onMessageCreate = async ({ message }) => {
  * @param {Message} param.message The deleted message
  */
 export const onMessageDelete = ({ message }) => tryDeleteThread({
-  allowedChannelIds: [discord_channel_id],
+  allowedChannelIds: [discord_allowed_channel_id],
   pluginFilename: PLUGIN_FILENAME,
   starterMessage: message
 });

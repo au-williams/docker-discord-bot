@@ -1,5 +1,5 @@
 {
-  "cron_job_pattern": "0 9 * * *",
+  "cron_job_announcement_pattern": "0 9 * * *",
   "discord_announcement_channel_id": "",
   "sanitized_catfact_api_responses": [
     "A cat can jump 5 times its height in a single bound.",

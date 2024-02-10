@@ -13,7 +13,7 @@ import randomItem from "random-item";
 date.plugin(ordinal);
 
 const {
-  cron_job_pattern,
+  cron_job_announcement_pattern,
   discord_announcement_channel_id
 } = fs.readJsonSync("plugins/deep_rock_galactic_watcher_config.json");
 
@@ -111,8 +111,8 @@ export const onClientReady = async ({ client }) => {
     Logger.info(`Sent announcement to ${channel.guild.name} #${channel.name}`);
   };
 
-  Cron(cron_job_pattern, getCronOptions(PLUGIN_FILENAME), cronJob).trigger();
-  Logger.info(`Started Cron job with pattern "${cron_job_pattern}"`);
+  Cron(cron_job_announcement_pattern, getCronOptions(PLUGIN_FILENAME), cronJob).trigger();
+  Logger.info(`Started Cron job with pattern "${cron_job_announcement_pattern}"`);
 };
 
 /**

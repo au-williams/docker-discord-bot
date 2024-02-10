@@ -8,8 +8,8 @@ import randomItem from "random-item";
 import State from "../shared/state.js";
 
 const {
-  discord_announcement_channel_id,
-  discord_member_role_id
+  discord_admin_role_id,
+  discord_announcement_channel_id
 } = fs.readJsonSync("plugins/caturday_scheduler_config.json");
 
 // ------------------------------------------------------------------------- //
@@ -38,7 +38,7 @@ export const COMPONENT_INTERACTIONS = [
   {
     customId: "CATURDAY_REMOVE_BUTTON",
     onInteractionCreate: ({ interaction }) => onRemoveButtonInteraction({ interaction }),
-    requiredRoleIds: [discord_member_role_id]
+    requiredRoleIds: [discord_admin_role_id]
   }
 ]
 
@@ -95,7 +95,7 @@ export const onClientReady = async ({ client }) => {
   const isMissedJob = now.getDay() === 6 && now.getHours() >= 9 && (lastChannelMessage ? lastChannelMessage.createdAt < today9am : true);
   if (isMissedJob) cron.trigger();
 
-  // Logger.info(`Started Cron job with pattern "${cron_job_pattern}"`);
+  // Logger.info(`Started Cron job with pattern "${cron_job_announcement_pattern}"`);
 };
 
 // ------------------------------------------------------------------------- //

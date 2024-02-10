@@ -14,9 +14,9 @@ import probe from "probe-image-size";
 date.plugin(ordinal);
 
 const {
-  announcement_channel_id,
   announcement_steam_app_ids,
-  cron_job_pattern
+  cron_job_announcement_pattern,
+  discord_announcement_channel_id,
 } = fs.readJsonSync("plugins/steam_community_watcher_config.json");
 
 const PLUGIN_FILENAME = getPluginFilename(import.meta.url);
@@ -34,7 +34,7 @@ const fetch = fetchRetry(global.fetch, fetchRetryPolicy);
  * @param {Message} param.message The deleted message
  */
 export const onMessageDelete = ({ message }) => tryDeleteThread({
-  allowedChannelIds: [announcement_channel_id],
+  allowedChannelIds: [discord_announcement_channel_id],
   pluginFilename: PLUGIN_FILENAME,
   starterMessage: message
 });
@@ -45,7 +45,7 @@ export const onMessageDelete = ({ message }) => tryDeleteThread({
  * @param {Client} param.client The Discord.js client
  */
 export const onClientReady = async ({ client }) => {
-  const channel = await client.channels.fetch(announcement_channel_id);
+  const channel = await client.channels.fetch(discord_announcement_channel_id);
 
   const cronJob = async () => {
     for (const steam_app of announcement_steam_app_ids) {
@@ -65,7 +65,7 @@ export const onClientReady = async ({ client }) => {
 
       // if this message already exists skip code execution
       const find = ({ embeds }) => embeds?.[0]?.data?.description?.includes(steamAppAnnouncement.url);
-      const channelMessage = await findChannelMessage(announcement_channel_id, find);
+      const channelMessage = await findChannelMessage(discord_announcement_channel_id, find);
       if (channelMessage) continue;
 
       // format the steam announcement date into a user-readable string
@@ -109,8 +109,8 @@ export const onClientReady = async ({ client }) => {
     }
   }
 
-  Cron(cron_job_pattern, getCronOptions(PLUGIN_FILENAME), cronJob).trigger();
-  Logger.info(`Started Cron job with pattern "${cron_job_pattern}"`);
+  Cron(cron_job_announcement_pattern, getCronOptions(PLUGIN_FILENAME), cronJob).trigger();
+  Logger.info(`Started Cron job with pattern "${cron_job_announcement_pattern}"`);
 };
 
 // ------------------------------------------------------------------------- //

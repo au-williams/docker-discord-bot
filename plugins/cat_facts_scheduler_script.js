@@ -8,7 +8,7 @@ import Logger from "../shared/logger.js";
 import randomItem from 'random-item';
 
 const {
-  cron_job_pattern,
+  cron_job_announcement_pattern,
   discord_announcement_channel_id,
   sanitized_catfact_api_responses
 } = fs.readJsonSync("plugins/cat_facts_scheduler_config.json");
@@ -57,8 +57,8 @@ export const onClientReady = async ({ client }) => {
     Logger.info(`Sent a cat fact to ${channel.guild.name} #${channel.name}`);
   }
 
-  const cronEntrypoint = Cron(cron_job_pattern, getCronOptions(PLUGIN_FILENAME), cronJob);
-  Logger.info(`Started Cron job with pattern "${cron_job_pattern}"`);
+  const cronEntrypoint = Cron(cron_job_announcement_pattern, getCronOptions(PLUGIN_FILENAME), cronJob);
+  Logger.info(`Started Cron job with pattern "${cron_job_announcement_pattern}"`);
 
   // ---------------------------------------------------------------------------- //
   // send a cat fact if the schedule was missed and one was not sent today at 9am //
