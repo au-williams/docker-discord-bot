@@ -2,22 +2,17 @@ import { ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle, EmbedB
 import { Cron } from "croner";
 import { fetchRetryPolicy, getCronOptions } from "../shared/helpers/object.js";
 import { getChannelMessages, findChannelMessage, filterChannelMessages } from "../index.js";
-import { getPluginFilename } from "../shared/helpers/string.js";
 import { tryDeleteThread } from "../shared/helpers/discord.js";
+import Config from "../shared/config.js";
 import date from "date-and-time";
 import fetchRetry from 'fetch-retry';
-import fs from "fs-extra";
 import Logger from "../shared/logger.js";
 import ordinal from "date-and-time/plugin/ordinal";
 import randomItem from "random-item";
 date.plugin(ordinal);
 
-const {
-  cron_job_announcement_pattern,
-  discord_announcement_channel_id
-} = fs.readJsonSync("plugins/deep_rock_galactic_watcher_config.json");
-
-const PLUGIN_FILENAME = getPluginFilename(import.meta.url);
+const config = new Config("deep_rock_galactic_watcher_config.json");
+const logger = new Logger("deep_rock_galactic_watcher_script.js");
 
 const fetch = fetchRetry(global.fetch, fetchRetryPolicy);
 
@@ -52,7 +47,10 @@ export const COMPONENT_INTERACTIONS = [
  * @param {Client} param.client The Discord.js client
  */
 export const onClientReady = async ({ client }) => {
-  const channel = await client.channels.fetch(discord_announcement_channel_id);
+  await config.initialize(client);
+  await logger.initialize(client);
+
+  const channel = await client.channels.fetch(config.discord_announcement_channel_id);
 
   const cronJob = async () => {
     const assignments = await getCurrentAndPreviousAssignments({ channel, client });
@@ -108,11 +106,11 @@ export const onClientReady = async ({ client }) => {
     const name = `💬 Deep Rock Galactic - Deep Dives for ${date.format(parsedStartTime, "MMMM DDD YYYY")}`;
     await message.startThread({ name });
 
-    Logger.info(`Sent announcement to ${channel.guild.name} #${channel.name}`);
+    logger.info(`Sent announcement to ${channel.guild.name} #${channel.name}`);
   };
 
-  Cron(cron_job_announcement_pattern, getCronOptions(PLUGIN_FILENAME), cronJob).trigger();
-  Logger.info(`Started Cron job with pattern "${cron_job_announcement_pattern}"`);
+  Cron(config.cron_job_announcement_pattern, getCronOptions(logger), cronJob).trigger();
+  logger.info(`Queued Cron job with pattern "${config.cron_job_announcement_pattern}"`);
 };
 
 /**
@@ -121,9 +119,8 @@ export const onClientReady = async ({ client }) => {
  * @param {Message} param.message The deleted message
  */
 export const onMessageDelete = ({ message }) => tryDeleteThread({
-  allowedChannelIds: [discord_announcement_channel_id],
-  pluginFilename: PLUGIN_FILENAME,
-  starterMessage: message
+  allowedChannelIds: [config.discord_announcement_channel_id],
+  logger, starterMessage: message
 });
 
 // ------------------------------------------------------------------------- //
@@ -148,7 +145,7 @@ async function onDeepDiveButtonInteraction({ client, interaction }) {
     sendAssignmentDetailsReply({ assignment: currentDive, currentEndTime, currentStartTime, interaction });
   }
   catch({ stack }) {
-    Logger.error(stack);
+    logger.error(stack);
   }
 }
 
@@ -159,7 +156,7 @@ async function onEliteDeepDiveButtonInteraction({ client, interaction }) {
     sendAssignmentDetailsReply({ assignment: currentEliteDive, currentEndTime, currentStartTime, interaction });
   }
   catch({ stack }) {
-    Logger.error(stack);
+    logger.error(stack);
   }
 }
 
@@ -170,10 +167,10 @@ async function sendAssignmentDetailsReply({ assignment, currentEndTime, currentS
     const embeds = [getAssignmentDetailsEmbed({ assignment, color, currentEndTime, currentStartTime })];
     const files = [new AttachmentBuilder("assets\\drg_deep_dive.png"), new AttachmentBuilder("assets\\drg_supporter.png")];
     await interaction.editReply({ embeds, files });
-    Logger.info(`Sent ${assignment.type.toLowerCase()} reply to ${interaction.channel.guild.name} #${interaction.channel.name}`);
+    logger.info(`Sent ${assignment.type.toLowerCase()} reply to ${interaction.channel.guild.name} #${interaction.channel.name}`);
   }
   catch({ stack }) {
-    Logger.error(stack);
+    logger.error(stack);
   }
 }
 
@@ -191,10 +188,10 @@ async function onCommandInteraction({ client, interaction }) {
     const files = [new AttachmentBuilder("assets\\drg_deep_dive.png"), new AttachmentBuilder("assets\\drg_supporter.png")];
     await interaction.editReply({ components, embeds, files });
 
-    Logger.info(`Sent embed reply to ${channel.guild.name} #${channel.name}`);
+    logger.info(`Sent embed reply to ${channel.guild.name} #${channel.name}`);
   }
   catch({ stack }) {
-    Logger.error(stack);
+    logger.error(stack);
   }
 }
 

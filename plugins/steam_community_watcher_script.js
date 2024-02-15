@@ -3,23 +3,17 @@ import { Cron } from "croner";
 import { fetchRetryPolicy } from "../shared/helpers/object.js";
 import { findChannelMessage } from "../index.js";
 import { getCronOptions } from "../shared/helpers/object.js";
-import { getPluginFilename } from "../shared/helpers/string.js";
 import { tryDeleteThread } from "../shared/helpers/discord.js";
+import Config from "../shared/config.js";
 import date from 'date-and-time';
 import fetchRetry from 'fetch-retry';
-import fs from "fs-extra";
 import Logger from "../shared/logger.js";
 import ordinal from 'date-and-time/plugin/ordinal';
 import probe from "probe-image-size";
 date.plugin(ordinal);
 
-const {
-  announcement_steam_app_ids,
-  cron_job_announcement_pattern,
-  discord_announcement_channel_id,
-} = fs.readJsonSync("plugins/steam_community_watcher_config.json");
-
-const PLUGIN_FILENAME = getPluginFilename(import.meta.url);
+const config = new Config("steam_community_watcher_config.json");
+const logger = new Logger("steam_community_watcher_script.js");
 
 const fetch = fetchRetry(global.fetch, fetchRetryPolicy);
 
@@ -34,9 +28,8 @@ const fetch = fetchRetry(global.fetch, fetchRetryPolicy);
  * @param {Message} param.message The deleted message
  */
 export const onMessageDelete = ({ message }) => tryDeleteThread({
-  allowedChannelIds: [discord_announcement_channel_id],
-  pluginFilename: PLUGIN_FILENAME,
-  starterMessage: message
+  allowedChannelIds: [config.discord_announcement_channel_id],
+  logger, starterMessage: message
 });
 
 /**
@@ -45,27 +38,30 @@ export const onMessageDelete = ({ message }) => tryDeleteThread({
  * @param {Client} param.client The Discord.js client
  */
 export const onClientReady = async ({ client }) => {
-  const channel = await client.channels.fetch(discord_announcement_channel_id);
+  await config.initialize(client);
+  await logger.initialize(client);
+
+  const channel = await client.channels.fetch(config.discord_announcement_channel_id);
 
   const cronJob = async () => {
-    for (const steam_app of announcement_steam_app_ids) {
+    for (const steam_app_id of config.announcement_steam_app_ids) {
       // validate steam app id or skip code execution
-      if (!steam_app.app_id) Logger.error("Invalid app_id value in config file");
-      if (!steam_app.app_id) continue;
+      if (!steam_app_id) logger.error("Invalid app_id value in config file");
+      if (!steam_app_id) continue;
 
       // get steam announcement or skip code execution
-      const steamAppAnnouncement = await getSteamAppMostRecentAnnouncement(steam_app);
-      if (!steamAppAnnouncement) Logger.warn(`Couldn't fetch announcement for app_id "${steam_app.app_id}"`);
+      const steamAppAnnouncement = await getSteamAppMostRecentAnnouncement(steam_app_id);
+      if (!steamAppAnnouncement) logger.warn(`Couldn't fetch announcement for app_id "${steam_app_id}"`);
       if (!steamAppAnnouncement) continue;
 
       // get steam app details or skip code execution
-      const steamAppDetailsData = await getSteamAppDetailsData(steam_app);
-      if (!steamAppDetailsData) Logger.warn(`Couldn't fetch Steam details for app_id "${steam_app.app_id}"`);
+      const steamAppDetailsData = await getSteamAppDetailsData(steam_app_id);
+      if (!steamAppDetailsData) logger.warn(`Couldn't fetch Steam details for app_id "${steam_app_id}"`);
       if (!steamAppDetailsData) continue;
 
       // if this message already exists skip code execution
       const find = ({ embeds }) => embeds?.[0]?.data?.description?.includes(steamAppAnnouncement.url);
-      const channelMessage = await findChannelMessage(discord_announcement_channel_id, find);
+      const channelMessage = await findChannelMessage(config.discord_announcement_channel_id, find);
       if (channelMessage) continue;
 
       // format the steam announcement date into a user-readable string
@@ -105,12 +101,12 @@ export const onClientReady = async ({ client }) => {
       if (name.length > 100) name = name.slice(0, 97) + "...";
       await message.startThread({ name });
 
-      Logger.info(`Sent announcement for "${steam_app.app_id}" to ${channel.guild.name} #${channel.name}`)
+      logger.info(`Sent announcement for "${steam_app_id}" to ${channel.guild.name} #${channel.name}`)
     }
   }
 
-  Cron(cron_job_announcement_pattern, getCronOptions(PLUGIN_FILENAME), cronJob).trigger();
-  Logger.info(`Started Cron job with pattern "${cron_job_announcement_pattern}"`);
+  Cron(config.cron_job_announcement_pattern, getCronOptions(logger), cronJob).trigger();
+  logger.info(`Queued Cron job with pattern "${config.cron_job_announcement_pattern}"`);
 };
 
 // ------------------------------------------------------------------------- //
@@ -154,10 +150,10 @@ function formatAnnouncementDescription(steamAnnouncement) {
  * @param {Object} steam_app
  * @returns {Object}
  */
-async function getSteamAppDetailsData(steam_app) {
-  return await fetch(`https://store.steampowered.com/api/appdetails?appids=${steam_app.app_id}&l=english`)
+async function getSteamAppDetailsData(steam_app_id) {
+  return await fetch(`https://store.steampowered.com/api/appdetails?appids=${steam_app_id}&l=english`)
     .then(response => response.json())
-    .then(json => json[steam_app.app_id].data);
+    .then(json => json[steam_app_id].data);
 }
 
 /**
@@ -165,17 +161,8 @@ async function getSteamAppDetailsData(steam_app) {
  * @param {Object} steam_app
  * @returns {Object}
  */
-async function getSteamAppMostRecentAnnouncement(steam_app) {
-  return await fetch(`https://api.steampowered.com/ISteamNews/GetNewsForApp/v2/?appid=${steam_app.app_id}`)
-    .then(response => response.json())
-    .then(({ appnews }) =>
-      appnews?.newsitems.find(({ feed_type: jsonFeedType, title: jsonTitle }) => {
-        const { feed_type: configFeedType, title_keywords: configKeywords } = steam_app;
-        // verify the values defined in the config are found in the result
-        const isConfigFeedTypeExist = Number.isSafeInteger(configFeedType);
-        const isConfigKeywordsExist = Array.isArray(configKeywords) && configKeywords.length > 0;
-        const isConfigFeedTypeMatch = isConfigFeedTypeExist ? configFeedType === jsonFeedType : true;
-        const isConfigKeywordsMatch = isConfigKeywordsExist ? configKeywords.some(x => jsonTitle.toLowerCase().includes(x)) : true;
-        return isConfigFeedTypeMatch && isConfigKeywordsMatch;
-      }));
+async function getSteamAppMostRecentAnnouncement(steam_app_id) {
+  return await fetch(`https://api.steampowered.com/ISteamNews/GetNewsForApp/v2/?appid=${steam_app_id}`)
+    .then(response => response.json()) // "feed_type === 1" finds official announcements
+    .then(({ appnews }) => appnews?.newsitems.find(({ feed_type }) => feed_type === 1));
 }

@@ -1,4 +1,7 @@
 {
+  "cron_job_announcement_pattern": "0 9 * * SAT",
+  "cron_job_maintenance_pattern": "0 * * * *",
   "discord_admin_role_id": "",
-  "discord_announcement_channel_id": ""
+  "discord_announcement_channel_id": "",
+  "discord_channel_message_ids_image_index": []
 }

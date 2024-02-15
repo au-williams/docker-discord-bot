@@ -1,7 +1,6 @@
 import { Client, Events, GatewayIntentBits, Partials, REST, Routes } from "discord.js";
 import fs from "fs-extra";
 import Logger from "./shared/logger.js";
-import State from "./shared/state.js";
 
 const {
   discord_bot_login_token,
@@ -10,6 +9,8 @@ const {
 } = fs.readJsonSync("./config.json");
 
 const INITIALIZED_PLUGINS = [];
+
+const logger = new Logger("index.js");
 
 // ------------------------------------------------------------------------- //
 // >> DISCORD.JS CLIENT                                                   << //
@@ -42,18 +43,17 @@ client.on(Events.ClientReady, async () => {
     await fs.emptyDir(temp_directory);
 
     // initialize client dependencies
-    await State.initialize(client);
     await initializeMessages();
     await initializePlugins();
 
     // compile and send console log
     const messageCount = Object.keys(CHANNEL_MESSAGES).reduce((total, current) => total += CHANNEL_MESSAGES[current].length, 0);
-    Logger.info(`${client.user.username} started with ${INITIALIZED_PLUGINS.length} plugins and ${messageCount} prefetched messages`);
+    logger.info(`${client.user.username} started with ${INITIALIZED_PLUGINS.length} plugins and ${messageCount} prefetched messages`);
 
     invokePluginsFunction("onClientReady", { client });
   }
   catch({ stack }) {
-    Logger.error(stack);
+    logger.error(stack);
   }
 });
 
@@ -64,7 +64,7 @@ client.on(Events.MessageCreate, message => {
     invokePluginsFunction("onMessageCreate", { client, message });
   }
   catch({ stack }) {
-    Logger.error(stack);
+    logger.error(stack);
   }
 });
 
@@ -76,7 +76,7 @@ client.on(Events.MessageDelete, async message => {
     if (index != null && index > -1) CHANNEL_MESSAGES[message.channel.id].splice(index, 1); // remove from lazy-loaded message history
   }
   catch({ stack }) {
-    Logger.error(stack);
+    logger.error(stack);
   }
 });
 
@@ -85,7 +85,7 @@ client.on(Events.MessageUpdate, (oldMessage, newMessage) => {
     invokePluginsFunction("onMessageUpdate", { client, newMessage, oldMessage });
   }
   catch({ stack }) {
-    Logger.error(stack);
+    logger.error(stack);
   }
 });
 
@@ -122,25 +122,25 @@ client.on(Events.InteractionCreate, async interaction => {
 
         if (isRequiredChannelId && isRequiredRoleId) {
           onInteractionCreate({ client, interaction });
-          Logger.info(`${username} used ${interactionType} interaction "${interactionName}"`, filename);
+          logger.info(`${username} used ${interactionType} interaction "${interactionName}"`, filename);
         }
 
         else if (!isRequiredRoleId) {
           const uniqueRequiredRoleIds = [...new Set(requiredRoleIds)];
           const content = formatContent(`\`🔒Locked\` This can only be used by the`, "<@&", uniqueRequiredRoleIds, ">") + ` role${uniqueRequiredRoleIds.length === 1 ? "" : "s"}!`;
-          interaction.reply({ content, ephemeral: true }).then(() => Logger.info(`${username} tried ${interactionType} interaction "${interactionName}"`, filename));
+          interaction.reply({ content, ephemeral: true }).then(() => logger.info(`${username} tried ${interactionType} interaction "${interactionName}"`, filename));
         }
 
         else if (!isRequiredChannelId) {
           const uniqueRequiredChannelIds = [...new Set(requiredChannelIds)];
           const content = formatContent(`This can only be used in the`, "<#", uniqueRequiredChannelIds, ">") + ` channel${uniqueRequiredChannelIds.length === 1 ? "" : "s"}!`;
-          interaction.reply({ content, ephemeral: true }).then(() => Logger.info(`${username} tried ${interactionType} interaction "${interactionName}"`, filename));
+          interaction.reply({ content, ephemeral: true }).then(() => logger.info(`${username} tried ${interactionType} interaction "${interactionName}"`, filename));
         }
       });
     }
   }
   catch({ stack }) {
-    Logger.error(stack);
+    logger.error(stack);
   }
 });
 
@@ -169,7 +169,7 @@ export const getChannelMessages = async channelId => {
     return CHANNEL_MESSAGES[channelId];
   }
   catch({ stack }) {
-    Logger.error(stack);
+    logger.error(stack);
   }
 }
 
@@ -179,7 +179,7 @@ export const filterChannelMessages = async (channelId, filter) => {
     return channelMessages.filter(filter);
   }
   catch({ stack }) {
-    Logger.error(stack);
+    logger.error(stack);
   }
 }
 
@@ -189,7 +189,7 @@ export const findChannelMessage = async (channelId, find) => {
     return channelMessages.find(find);
   }
   catch({ stack }) {
-    Logger.error(stack);
+    logger.error(stack);
   }
 }
 
@@ -202,7 +202,7 @@ export const findChannelMessage = async (channelId, find) => {
  */
 async function deploy() {
   try {
-    Logger.info(`Starting command deployment ...`);
+    logger.info(`Starting command deployment ...`);
 
     await initializePlugins();
     const body = [];
@@ -216,10 +216,10 @@ async function deploy() {
     const rest = new REST({ version: "10" }).setToken(discord_bot_login_token);
     const data = await rest.put(Routes.applicationCommands(discord_bot_client_id), { body });
 
-    Logger.info(`Successfully reloaded ${data.length} (/) commands`);
+    logger.info(`Successfully reloaded ${data.length} (/) commands`);
   }
   catch({ stack }) {
-    Logger.error(stack);
+    logger.error(stack);
   }
 }
 
@@ -232,7 +232,7 @@ async function initializeMessages() {
     for (const channel_id of channelIds) await getChannelMessages(channel_id);
   }
   catch({ stack }) {
-    Logger.error(stack);
+    logger.error(stack);
   }
 }
 
@@ -240,17 +240,19 @@ async function initializeMessages() {
  * Load all plugins into memory so they can execute during discord events
  */
 async function initializePlugins() {
-  try {
-    if (INITIALIZED_PLUGINS.length) return;
+  if (INITIALIZED_PLUGINS.length) return;
 
-    for (const filename of fs.readdirSync(`./plugins/`).filter(fn => fn.endsWith("_script.js"))) {
+  for (const filename of fs.readdirSync(`./plugins/`).filter(fn => fn.endsWith("_script.js"))) {
+    try {
       // todo: allow disabling of plugins - should this run OnClientReady() and not import any that throw?
       await import(`./plugins/${filename}`).then(instance => INITIALIZED_PLUGINS.push({ filename, instance }));
     }
+    catch({ stack }) {
+      logger.error(`"${filename}" ${stack}`);
+    }
   }
-  catch({ stack }) {
-    Logger.error(stack);
-  }
+
+  await import(`./shared/config.js`).then(instance => INITIALIZED_PLUGINS.push({ filename: "config.js", instance }))
 }
 
 /**
@@ -264,8 +266,8 @@ async function invokePluginsFunction(functionName, params) {
       await instance[functionName](params);
     }
     catch ({ stack }) {
-      Logger.error(`${filename} ${functionName} threw an uncaught error`);
-      Logger.error(filename, stack);
+      logger.error(`${filename} ${functionName} threw an uncaught error`);
+      logger.error(filename, stack);
     }
   }
 }

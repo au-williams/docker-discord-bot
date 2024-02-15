@@ -3,11 +3,11 @@ import { Cron } from "croner";
 import { extname, resolve } from "path";
 import { findChannelMessage, getChannelMessages } from "../index.js";
 import { getCronOptions } from "../shared/helpers/object.js";
-import { getPluginFilename } from "../shared/helpers/string.js";
 import { tryDeleteThread } from "../shared/helpers/discord.js";
 import * as oembed from "@extractus/oembed-extractor";
 import AFHConvert from "ascii-fullwidth-halfwidth-convert";
 import ComponentOperation from "../shared/models/ComponentOperation.js"
+import Config from "../shared/config.js";
 import fs from "fs-extra";
 import LinkData from "../shared/models/LinkData.js"
 import Logger from "../shared/logger.js";
@@ -15,17 +15,10 @@ import sanitize from "sanitize-filename";
 import youtubedl from "youtube-dl-exec";
 import ytpl from "@distube/ytpl";
 
-const {
-  temp_directory
-} = fs.readJsonSync("config.json");
+const { temp_directory } = fs.readJsonSync("config.json");
 
-const {
-  cron_job_announcement_pattern,
-  discord_admin_role_id, discord_allowed_channel_id, discord_plex_emoji, discord_youtube_emoji,
-  plex_authentication_token, plex_download_directory, plex_library_section_id, plex_server_ip_address
-} = fs.readJsonSync("plugins/plex_music_downloader_config.json");
-
-const PLUGIN_FILENAME = getPluginFilename(import.meta.url);
+const config = new Config("plex_music_downloader_config.json");
+const logger = new Logger("plex_music_downloader_script.js");
 
 // ------------------------------------------------------------------------- //
 // >> INTERACTION DEFINITIONS                                             << //
@@ -72,29 +65,29 @@ export const COMPONENT_INTERACTIONS = [
     customId: COMPONENT_CUSTOM_IDS.FOLLOW_UPDATES_BUTTON,
     description: "Monitors the YouTube playlist for new videos and publicly posts those links to the Discord channel.",
     onInteractionCreate: ({ interaction }) => { followYouTubePlaylistUpdates(interaction) }, // { throw "Not implemented" },
-    requiredRoleIds: [discord_admin_role_id]
+    requiredRoleIds: [config.discord_admin_role_id]
   },
   {
     customId: COMPONENT_CUSTOM_IDS.IMPORT_INTO_PLEX_BUTTON,
     description: "Extracts the audio from a link and imports it into the bot's Plex library for secured long-term storage.",
     onInteractionCreate: ({ interaction }) => showMetadataModal(interaction, COMPONENT_CUSTOM_IDS.IMPORT_INTO_PLEX_MODAL, "Import into Plex"),
-    requiredRoleIds: [discord_admin_role_id]
+    requiredRoleIds: [config.discord_admin_role_id]
   },
   {
     customId: COMPONENT_CUSTOM_IDS.IMPORT_INTO_PLEX_MODAL,
     onInteractionCreate: ({ interaction }) => downloadLinkAndExecute(interaction, COMPONENT_CUSTOM_IDS.IMPORT_INTO_PLEX_MODAL, callbackImportPlexFile),
-    requiredRoleIds: [discord_admin_role_id]
+    requiredRoleIds: [config.discord_admin_role_id]
   },
   {
     customId: COMPONENT_CUSTOM_IDS.DELETE_FROM_PLEX_BUTTON,
     description: "Removes the previously imported audio file from the bot's Plex library and deletes it from the filesystem.",
     onInteractionCreate: ({ interaction }) => showDeletionModal(interaction, COMPONENT_CUSTOM_IDS.DELETE_FROM_PLEX_MODAL, "Delete from Plex"),
-    requiredRoleIds: [discord_admin_role_id]
+    requiredRoleIds: [config.discord_admin_role_id]
   },
   {
     customId: COMPONENT_CUSTOM_IDS.DELETE_FROM_PLEX_MODAL,
     onInteractionCreate: ({ interaction }) => deleteLinkFromPlex(interaction),
-    requiredRoleIds: [discord_admin_role_id]
+    requiredRoleIds: [config.discord_admin_role_id]
   },
   {
     customId: COMPONENT_CUSTOM_IDS.SHOW_ALL_YOUTUBE_SONGS,
@@ -114,9 +107,12 @@ export const COMPONENT_INTERACTIONS = [
 /**
  * Starts a cron job that validates and repairs channel messages
  */
-export const onClientReady = async () => {
+export const onClientReady = async ({ client }) => {
+  await config.initialize(client);
+  await logger.initialize(client);
+
   const cronJob = async () => {
-    for (const message of await getChannelMessages(discord_allowed_channel_id)) {
+    for (const message of await getChannelMessages(config.discord_allowed_channel_id)) {
       const link = getLinkFromMessage(message);
       const cachedLinkData = link && await getOrInitializeLinkData(link);
       if (!cachedLinkData) continue;
@@ -133,7 +129,7 @@ export const onClientReady = async () => {
 
       if (isThreadChannelObsolete) {
         await threadChannel.delete();
-        Logger.info(`Deleted obsolete thread for message id "${message.id}"`);
+        logger.info(`Deleted obsolete thread for message id "${message.id}"`);
         threadChannel = false;
       }
 
@@ -148,8 +144,8 @@ export const onClientReady = async () => {
     }
   }
 
-  Cron(cron_job_announcement_pattern, getCronOptions(PLUGIN_FILENAME), cronJob).trigger();
-  Logger.info(`Started Cron job with pattern "${cron_job_announcement_pattern}"`);
+  Cron(config.cron_job_announcement_pattern, getCronOptions(logger), cronJob).trigger();
+  logger.info(`Queued Cron job with pattern "${config.cron_job_announcement_pattern}"`);
 };
 
 /**
@@ -159,7 +155,7 @@ export const onClientReady = async () => {
  */
 export const onMessageCreate = async ({ message }) => {
   try {
-    const isAllowedDiscordChannel = message.channel.id === discord_allowed_channel_id;
+    const isAllowedDiscordChannel = message.channel.id === config.discord_allowed_channel_id;
     if (!isAllowedDiscordChannel) return;
 
     const link = getLinkFromMessage(message);
@@ -171,7 +167,7 @@ export const onMessageCreate = async ({ message }) => {
     await validateMessageWithPlexButton({ cachedLinkData, messageWithPlexButton });
   }
   catch({ stack }) {
-    Logger.error(stack);
+    logger.error(stack);
   }
 }
 
@@ -182,9 +178,8 @@ export const onMessageCreate = async ({ message }) => {
  * @param {Message} param.message The deleted message
  */
 export const onMessageDelete = ({ message }) => tryDeleteThread({
-  allowedChannelIds: [discord_allowed_channel_id],
-  pluginFilename: PLUGIN_FILENAME,
-  starterMessage: message
+  allowedChannelIds: [config.discord_allowed_channel_id],
+  logger, starterMessage: message
 });
 
 // ------------------------------------------------------------------------- //
@@ -203,13 +198,13 @@ async function callbackImportPlexFile(interaction, outputFilename, outputFilepat
     const cachedLinkData = await getOrInitializeLinkData(link);
     const messageWithPlexButton = interaction.message;
 
-    await fs.move(outputFilepath, resolve(`${plex_download_directory}/${outputFilename}`));
+    await fs.move(outputFilepath, resolve(`${config.plex_download_directory}/${outputFilename}`));
     await interaction.editReply("Success! Your file was imported into Plex.");
     await validateMessageWithPlexButton({ cachedLinkData, interaction, messageWithPlexButton });
     await startPlexLibraryScan();
   }
   catch({ stack }) {
-    Logger.error(stack);
+    logger.error(stack);
   }
 }
 
@@ -225,7 +220,7 @@ async function callbackUploadDiscordFile(interaction, outputFilename, outputFile
   const name = filenameWithoutId + extname(outputFilename);
   const files = [new AttachmentBuilder(outputFilepath, { name })];
   const reply = await interaction.editReply({ files });
-  Logger.info(`Uploaded "${reply.attachments.first().name}"`);
+  logger.info(`Uploaded "${reply.attachments.first().name}"`);
 }
 
 const asciiWidthConverter = new AFHConvert();
@@ -282,8 +277,8 @@ async function getOrInitializeLinkData(link) {
     return cachedLinkData;
   }
   catch({ stack }) {
-    Logger.error(stack);
-    Logger.error(link);
+    logger.error(stack);
+    logger.error(link);
   }
 }
 
@@ -333,7 +328,7 @@ async function createThreadChannel(cachedLinkData, starterMessage) {
   if (isLinkYouTubePlaylist) {
     const showAllSongsButton = new ButtonBuilder();
     showAllSongsButton.setCustomId(COMPONENT_CUSTOM_IDS.SHOW_ALL_YOUTUBE_SONGS);
-    showAllSongsButton.setEmoji(discord_youtube_emoji);
+    showAllSongsButton.setEmoji(config.discord_youtube_emoji);
     showAllSongsButton.setLabel("Show all videos");
     showAllSongsButton.setStyle(ButtonStyle.Secondary);
 
@@ -389,18 +384,18 @@ async function deleteLinkFromPlex(interaction) {
     const existingPlexFilename = await getExistingPlexFilename(cachedLinkData);
 
     if (existingPlexFilename) {
-      await fs.remove(`${plex_download_directory}/${existingPlexFilename}`);
-      Logger.info(`Deleted file from Plex: "${existingPlexFilename}"`);
+      await fs.remove(`${config.plex_download_directory}/${existingPlexFilename}`);
+      logger.info(`Deleted file from Plex: "${existingPlexFilename}"`);
       await interaction.editReply("Your file was successfully deleted from Plex.");
       await startPlexLibraryScan();
     }
     else {
       await interaction.editReply(`Sorry! Your file wasn't found in Plex.`);
-      Logger.warn(`Plex filename does not exist`);
+      logger.warn(`Plex filename does not exist`);
     }
   }
   catch(error) {
-    Logger.error(error.stack);
+    logger.error(error.stack);
     const content = getFormattedErrorMessage(error);
     await interaction.editReply({ content });
   }
@@ -546,7 +541,7 @@ async function downloadLinkAndExecute(interaction, modalCustomId, callback, audi
   catch(error) {
     const content = getFormattedErrorMessage(error);
     await interaction.editReply(content);
-    Logger.error(error.stack);
+    logger.error(error.stack);
   }
   finally {
     operation.setBusy(false);
@@ -569,11 +564,11 @@ async function followYouTubePlaylistUpdates(interaction) {
 
     // if (!stateValue) {
     //   State.add(stateKey, { content: `\`${COMPONENT_CUSTOM_IDS.FOLLOW_UPDATES_BUTTON}\` ${youTubePlaylistId}`});
-    //   Logger.info(`Added ${COMPONENT_CUSTOM_IDS.FOLLOW_UPDATES_BUTTON} ${youTubePlaylistId} to state`);
+    //   logger.info(`Added ${COMPONENT_CUSTOM_IDS.FOLLOW_UPDATES_BUTTON} ${youTubePlaylistId} to state`);
     // }
   }
   catch({ stack }) {
-    Logger.error(stack);
+    logger.error(stack);
   }
   finally {
     // todo:
@@ -588,7 +583,7 @@ async function followYouTubePlaylistUpdates(interaction) {
  */
 async function getExistingPlexFilename(cachedLinkData) {
   return fs
-    .readdirSync(plex_download_directory)
+    .readdirSync(config.plex_download_directory)
     .find(filename => cachedLinkData.id == filename.split(' - ').slice(-1)[0].split('.')[0]);
 }
 
@@ -680,7 +675,7 @@ async function getThreadChannelName(cachedLinkData) {
     return result;
   }
   catch({ stack }) {
-    Logger.error(stack);
+    logger.error(stack);
     return "⚠️ Error fetching title"
   }
 }
@@ -695,7 +690,7 @@ function getTimestampAsTotalSeconds(timestamp) {
     return (+time[0]) * 60 * 60 + (+time[1]) * 60 + (+time[2]);
   }
   catch({ stack }) {
-    Logger.error(stack);
+    logger.error(stack);
   }
 }
 
@@ -733,7 +728,7 @@ async function showButtonDocumentation(interaction) {
     await interaction.editReply({ content: `Here's what I know about these buttons:\n\n${result.join("\n")}` });
   }
   catch({ stack }) {
-    Logger.error(stack);
+    logger.error(stack);
   }
 }
 
@@ -766,14 +761,14 @@ async function showAllYouTubePlaylistSongs(interaction) {
 
     for(let i = 0; i < playlist.items.length; i++) {
       const cleanTitle = playlist.title.replaceAll("`", "").replaceAll("*", "").replaceAll(" _", "").replaceAll("_ ", "");
-      const content = `${discord_youtube_emoji} \`${i + 1}/${playlist.items.length}\` **${cleanTitle}**\n${playlist.items[i].shortUrl}`;
+      const content = `${config.discord_youtube_emoji} \`${i + 1}/${playlist.items.length}\` **${cleanTitle}**\n${playlist.items[i].shortUrl}`;
       const messageWithPlexButton = await interaction.followUp({ components, content, ephemeral: true });
       validateMessageWithPlexButton({ interaction, messageWithPlexButton });
       await new Promise(resolve => setTimeout(resolve, 250));
     }
   }
   catch({ stack }) {
-    Logger.error(stack);
+    logger.error(stack);
   }
 }
 
@@ -815,7 +810,7 @@ async function showDeletionModal(interaction, modalCustomId, modalTitle) {
     );
   }
   catch({ stack }) {
-    Logger.error(stack);
+    logger.error(stack);
   }
 }
 
@@ -883,7 +878,7 @@ async function showMetadataModal(interaction, modalCustomId, modalTitle) {
     );
   }
   catch({ stack }) {
-    Logger.error(stack);
+    logger.error(stack);
   }
 }
 
@@ -892,12 +887,12 @@ async function showMetadataModal(interaction, modalCustomId, modalTitle) {
  */
 async function startPlexLibraryScan() {
   try {
-    const address = `http://${plex_server_ip_address}:32400/library/sections/${plex_library_section_id}/refresh`;
-    const options = { headers: { "X-Plex-Token": plex_authentication_token }, method: "GET" };
-    await fetch(address, options).then(() => Logger.info(`Plex library scan started`));
+    const address = `http://${config.plex_server_ip_address}:32400/library/sections/${config.plex_library_section_id}/refresh`;
+    const options = { headers: { "X-Plex-Token": config.plex_authentication_token }, method: "GET" };
+    await fetch(address, options).then(() => logger.info(`Plex library scan started`));
   }
   catch({ stack }) {
-    Logger.error(stack);
+    logger.error(stack);
   }
 }
 
@@ -933,7 +928,7 @@ async function validateMessageWithPlexButton({ cachedLinkData, interaction, mess
 
     components[0].components[buttonIndex].setCustomId(customId);
     components[0].components[buttonIndex].setDisabled(false)
-    components[0].components[buttonIndex].setEmoji(discord_plex_emoji)
+    components[0].components[buttonIndex].setEmoji(config.discord_plex_emoji)
     components[0].components[buttonIndex].setLabel(label);
 
     actualMessageWithPlexButton.type === MessageType.Reply
@@ -941,6 +936,6 @@ async function validateMessageWithPlexButton({ cachedLinkData, interaction, mess
       : await actualMessageWithPlexButton.edit({ components });
   }
   catch({ stack }) {
-    Logger.error(stack);
+    logger.error(stack);
   }
 }
