@@ -1,27 +1,81 @@
-import { ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle, ComponentType, MessageType, ModalBuilder, TextInputBuilder, TextInputStyle } from "discord.js";
+import { ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle, ChannelType, ComponentType, ModalBuilder, TextInputBuilder, TextInputStyle } from "discord.js";
 import { Cron } from "croner";
 import { extname, resolve } from "path";
-import { findChannelMessage, getChannelMessages } from "../index.js";
-import { getCronOptions } from "../shared/helpers/object.js";
-import { tryDeleteThread } from "../shared/helpers/discord.js";
+import { filterChannelMessages, findChannelMessage, getChannelMessages } from "../index.js";
+import { getCronOptions, getLinkWithoutParametersFromString, getTimestampAsTotalSeconds } from "../shared/helpers/utilities.js";
+import { getOrCreateThreadChannel, tryDeleteMessageThread } from "../shared/helpers/discord.js";
+import { nanoid } from "nanoid";
+import { setTimeout } from "timers/promises";
 import * as oembed from "@extractus/oembed-extractor";
 import AFHConvert from "ascii-fullwidth-halfwidth-convert";
+import CachedLinkData from "../shared/models/CachedLinkData.js"
 import ComponentOperation from "../shared/models/ComponentOperation.js"
 import Config from "../shared/config.js";
 import fs from "fs-extra";
-import LinkData from "../shared/models/LinkData.js"
 import Logger from "../shared/logger.js";
 import sanitize from "sanitize-filename";
 import youtubedl from "youtube-dl-exec";
-import ytpl from "@distube/ytpl";
-
-const { temp_directory } = fs.readJsonSync("config.json");
 
 const config = new Config("plex_music_downloader_config.json");
 const logger = new Logger("plex_music_downloader_script.js");
 
+// todo: fetch cache on startup, loop cache in cron instead of channel messages
+
 // ------------------------------------------------------------------------- //
 // >> INTERACTION DEFINITIONS                                             << //
+// ------------------------------------------------------------------------- //
+
+export const COMPONENT_CUSTOM_IDS = {
+  DELETE_FROM_PLEX_BUTTON: "DELETE_FROM_PLEX_BUTTON",
+  DELETE_FROM_PLEX_MODAL: "DELETE_FROM_PLEX_MODAL",
+  DOWNLOAD_MP3_BUTTON: "DOWNLOAD_MP3_BUTTON",
+  DOWNLOAD_MP3_MODAL: "DOWNLOAD_MP3_MODAL",
+  IMPORT_MUSIC_INTO_PLEX_BUTTON: "IMPORT_MUSIC_INTO_PLEX_BUTTON",
+  IMPORT_MUSIC_INTO_PLEX_MODAL: "IMPORT_MUSIC_INTO_PLEX_MODAL",
+  SEARCHING_PLEX_BUTTON: "SEARCHING_PLEX_BUTTON",
+  SHOW_BUTTON_DOCUMENTATION: "SHOW_BUTTON_DOCUMENTATION", // todo: move this to global
+}
+
+export const COMPONENT_INTERACTIONS = [
+  {
+    customId: COMPONENT_CUSTOM_IDS.DOWNLOAD_MP3_BUTTON,
+    description: "Extracts the audio from a link and uploads it to Discord as an MP3 file for users to stream or download.",
+    onInteractionCreate: ({ interaction }) => showMetadataModal(interaction, COMPONENT_CUSTOM_IDS.DOWNLOAD_MP3_MODAL, "Download MP3")
+  },
+  {
+    customId: COMPONENT_CUSTOM_IDS.DOWNLOAD_MP3_MODAL,
+    onInteractionCreate: ({ interaction }) => downloadLinkAndExecute(interaction, COMPONENT_CUSTOM_IDS.DOWNLOAD_MP3_MODAL, callbackUploadDiscordFile, "mp3")
+  },
+  {
+    customId: COMPONENT_CUSTOM_IDS.IMPORT_MUSIC_INTO_PLEX_BUTTON,
+    description: "Extracts the audio from a link and imports it into the bot's Plex library for secured long-term storage.",
+    onInteractionCreate: ({ interaction }) => showMetadataModal(interaction, COMPONENT_CUSTOM_IDS.IMPORT_MUSIC_INTO_PLEX_MODAL, "Import into Plex"),
+    requiredUserRoleIds: () => config.discord_admin_role_id
+  },
+  {
+    customId: COMPONENT_CUSTOM_IDS.IMPORT_MUSIC_INTO_PLEX_MODAL,
+    onInteractionCreate: ({ interaction }) => downloadLinkAndExecute(interaction, COMPONENT_CUSTOM_IDS.IMPORT_MUSIC_INTO_PLEX_MODAL, callbackImportPlexFile),
+    requiredUserRoleIds: () => config.discord_admin_role_id
+  },
+  {
+    customId: COMPONENT_CUSTOM_IDS.DELETE_FROM_PLEX_BUTTON,
+    description: "Removes the previously imported audio file from the bot's Plex library and deletes it from the filesystem.",
+    onInteractionCreate: ({ interaction }) => showDeletionModal(interaction, COMPONENT_CUSTOM_IDS.DELETE_FROM_PLEX_MODAL, "Delete from Plex"),
+    requiredUserRoleIds: () => config.discord_admin_role_id
+  },
+  {
+    customId: COMPONENT_CUSTOM_IDS.DELETE_FROM_PLEX_MODAL,
+    onInteractionCreate: ({ interaction }) => deleteLinkFromPlex(interaction),
+    requiredUserRoleIds: () => config.discord_admin_role_id
+  },
+  {
+    customId: COMPONENT_CUSTOM_IDS.SHOW_BUTTON_DOCUMENTATION,
+    onInteractionCreate: ({ interaction }) => showButtonDocumentation(interaction)
+  }
+]
+
+// ------------------------------------------------------------------------- //
+// >> DISCORD EVENT HANDLERS                                              << //
 // ------------------------------------------------------------------------- //
 
 /**
@@ -35,112 +89,27 @@ const logger = new Logger("plex_music_downloader_script.js");
  */
 const CACHED_LINK_DATA = {};
 
-const COMPONENT_CUSTOM_IDS = {
-  DELETE_FROM_PLEX_BUTTON: "DELETE_FROM_PLEX_BUTTON",
-  DELETE_FROM_PLEX_MODAL: "DELETE_FROM_PLEX_MODAL",
-  DOWNLOAD_MP3_BUTTON: "DOWNLOAD_MP3_BUTTON",
-  DOWNLOAD_MP3_MODAL: "DOWNLOAD_MP3_MODAL",
-  FOLLOW_UPDATES_BUTTON: "FOLLOW_UPDATES_BUTTON",
-  IMPORT_INTO_PLEX_BUTTON: "IMPORT_INTO_PLEX_BUTTON",
-  IMPORT_INTO_PLEX_MODAL: "IMPORT_INTO_PLEX_MODAL",
-  SEARCHING_PLEX_BUTTON: "SEARCHING_PLEX_BUTTON",
-  SHOW_ALL_YOUTUBE_SONGS: "SHOW_ALL_YOUTUBE_SONGS",
-  SHOW_BUTTON_DOCUMENTATION: "SHOW_BUTTON_DOCUMENTATION",
-}
-
 /**
- * Define what functions and restrictions are invoked when a discord component interaction is made
- */
-export const COMPONENT_INTERACTIONS = [
-  {
-    customId: COMPONENT_CUSTOM_IDS.DOWNLOAD_MP3_BUTTON,
-    description: "Extracts the audio from a link and uploads it to Discord as an MP3 file for users to stream or download.",
-    onInteractionCreate: ({ interaction }) => showMetadataModal(interaction, COMPONENT_CUSTOM_IDS.DOWNLOAD_MP3_MODAL, "Download MP3")
-  },
-  {
-    customId: COMPONENT_CUSTOM_IDS.DOWNLOAD_MP3_MODAL,
-    onInteractionCreate: ({ interaction }) => downloadLinkAndExecute(interaction, COMPONENT_CUSTOM_IDS.DOWNLOAD_MP3_MODAL, callbackUploadDiscordFile, "mp3")
-  },
-  {
-    customId: COMPONENT_CUSTOM_IDS.FOLLOW_UPDATES_BUTTON,
-    description: "Monitors the YouTube playlist for new videos and publicly posts those links to the Discord channel.",
-    onInteractionCreate: ({ interaction }) => { followYouTubePlaylistUpdates(interaction) }, // { throw "Not implemented" },
-    requiredRoleIds: [config.discord_admin_role_id]
-  },
-  {
-    customId: COMPONENT_CUSTOM_IDS.IMPORT_INTO_PLEX_BUTTON,
-    description: "Extracts the audio from a link and imports it into the bot's Plex library for secured long-term storage.",
-    onInteractionCreate: ({ interaction }) => showMetadataModal(interaction, COMPONENT_CUSTOM_IDS.IMPORT_INTO_PLEX_MODAL, "Import into Plex"),
-    requiredRoleIds: [config.discord_admin_role_id]
-  },
-  {
-    customId: COMPONENT_CUSTOM_IDS.IMPORT_INTO_PLEX_MODAL,
-    onInteractionCreate: ({ interaction }) => downloadLinkAndExecute(interaction, COMPONENT_CUSTOM_IDS.IMPORT_INTO_PLEX_MODAL, callbackImportPlexFile),
-    requiredRoleIds: [config.discord_admin_role_id]
-  },
-  {
-    customId: COMPONENT_CUSTOM_IDS.DELETE_FROM_PLEX_BUTTON,
-    description: "Removes the previously imported audio file from the bot's Plex library and deletes it from the filesystem.",
-    onInteractionCreate: ({ interaction }) => showDeletionModal(interaction, COMPONENT_CUSTOM_IDS.DELETE_FROM_PLEX_MODAL, "Delete from Plex"),
-    requiredRoleIds: [config.discord_admin_role_id]
-  },
-  {
-    customId: COMPONENT_CUSTOM_IDS.DELETE_FROM_PLEX_MODAL,
-    onInteractionCreate: ({ interaction }) => deleteLinkFromPlex(interaction),
-    requiredRoleIds: [config.discord_admin_role_id]
-  },
-  {
-    customId: COMPONENT_CUSTOM_IDS.SHOW_ALL_YOUTUBE_SONGS,
-    description: "Privately sends every video in the YouTube playlist to the Discord thread for easier downloading.",
-    onInteractionCreate: ({ interaction }) => showAllYouTubePlaylistSongs(interaction)
-  },
-  {
-    customId: COMPONENT_CUSTOM_IDS.SHOW_BUTTON_DOCUMENTATION,
-    onInteractionCreate: ({ interaction }) => showButtonDocumentation(interaction)
-  }
-]
-
-// ------------------------------------------------------------------------- //
-// >> DISCORD EVENT HANDLERS                                              << //
-// ------------------------------------------------------------------------- //
-
-/**
- * Starts a cron job that validates and repairs channel messages
+ * Starts a cron job that creates missing threads and validates them
+ * @param {Object} param
+ * @param {Client} param.client
  */
 export const onClientReady = async ({ client }) => {
   await config.initialize(client);
   await logger.initialize(client);
 
   const cronJob = async () => {
-    for (const message of await getChannelMessages(config.discord_allowed_channel_id)) {
-      const link = getLinkFromMessage(message);
-      const cachedLinkData = link && await getOrInitializeLinkData(link);
-      if (!cachedLinkData) continue;
+    const channelMessages =
+      await filterChannelMessages(config.discord_allowed_channel_id, ({ system }) => !system);
 
-      // ------------------------------------------------------- //
-      // delete threads with obsolete metadata and recreate them //
-      //   (this is typically links edited for different videos) //
-      // ------------------------------------------------------- //
+    for (const message of channelMessages) {
+      const cachedLinkData = await getOrCreateCachedLinkData(message);
+      if (!cachedLinkData) continue; // message contents not supported
 
-      let threadChannel = message.hasThread && message.thread;
+      const threadChannel = message.hasThread
+        ? message.thread : await createThreadChannel(cachedLinkData, message);
 
-      const isThreadChannelObsolete =
-        threadChannel && threadChannel.name !== await getThreadChannelName(cachedLinkData);
-
-      if (isThreadChannelObsolete) {
-        await threadChannel.delete();
-        logger.info(`Deleted obsolete thread for message id "${message.id}"`);
-        threadChannel = false;
-      }
-
-      // ------------------------------------------------------- //
-      // create the thread if it doesn't exist, then validate it //
-      // ------------------------------------------------------- //
-
-      if (!threadChannel) threadChannel = await createThreadChannel(cachedLinkData, message);
-
-      const messageWithPlexButton = await findChannelMessage(threadChannel.id, getIsMessageWithPlexButtonComponent);
-      if (messageWithPlexButton) await validateMessageWithPlexButton({ cachedLinkData, messageWithPlexButton });
+      await validateThreadChannel(cachedLinkData, threadChannel);
     }
   }
 
@@ -158,16 +127,25 @@ export const onMessageCreate = async ({ message }) => {
     const isAllowedDiscordChannel = message.channel.id === config.discord_allowed_channel_id;
     if (!isAllowedDiscordChannel) return;
 
-    const link = getLinkFromMessage(message);
-    const cachedLinkData = link && await getOrInitializeLinkData(link);
-    if (!cachedLinkData) return;
+    const linkWithoutParameters = getLinkWithoutParametersFromString(message.content);
+    if (!linkWithoutParameters) return;
+
+    await message.react("⌛");
+    const cachedLinkData = await getOrCreateCachedLinkData(message);
+    await message.reactions.cache.get("⌛").remove();
+
+    if (!cachedLinkData) {
+      await message.react("❌");
+      await setTimeout(2500);
+      await message.reactions.cache.get("❌").remove();
+      return;
+    }
 
     const threadChannel = await createThreadChannel(cachedLinkData, message);
-    const messageWithPlexButton = await findChannelMessage(threadChannel.id, getIsMessageWithPlexButtonComponent);
-    await validateMessageWithPlexButton({ cachedLinkData, messageWithPlexButton });
+    await validateThreadChannel(cachedLinkData, threadChannel);
   }
-  catch({ stack }) {
-    logger.error(stack);
+  catch(e) {
+    logger.error(e);
   }
 }
 
@@ -177,9 +155,10 @@ export const onMessageCreate = async ({ message }) => {
  * @param {Client} param.client The Discord.js client
  * @param {Message} param.message The deleted message
  */
-export const onMessageDelete = ({ message }) => tryDeleteThread({
+export const onMessageDelete = ({ message: starterMessage }) => tryDeleteMessageThread({
   allowedChannelIds: [config.discord_allowed_channel_id],
-  logger, starterMessage: message
+  logger,
+  starterMessage
 });
 
 // ------------------------------------------------------------------------- //
@@ -188,97 +167,42 @@ export const onMessageDelete = ({ message }) => tryDeleteThread({
 
 /**
  * Import the link into the Plex library after it was downloaded
+ * @param {CachedLinkData} cachedLinkData
  * @param {Interaction} interaction
  * @param {string} outputFilename
  * @param {string} outputFilepath
  */
-async function callbackImportPlexFile(interaction, outputFilename, outputFilepath) {
+async function callbackImportPlexFile(cachedLinkData, interaction, outputFilename, outputFilepath) {
   try {
-    const link = await getLinkFromMessageHierarchy(interaction.message);
-    const cachedLinkData = await getOrInitializeLinkData(link);
-    const messageWithPlexButton = interaction.message;
-
-    await fs.move(outputFilepath, resolve(`${config.plex_download_directory}/${outputFilename}`));
+    const destinationFilePath = resolve(`${config.plex_download_directory}/${outputFilename}`);
+    await fs.move(outputFilepath, destinationFilePath);
     await interaction.editReply("Success! Your file was imported into Plex.");
-    await validateMessageWithPlexButton({ cachedLinkData, interaction, messageWithPlexButton });
+    await validateThreadChannel(cachedLinkData, interaction.channel);
     await startPlexLibraryScan();
   }
-  catch({ stack }) {
-    logger.error(stack);
+  catch(e) {
+    logger.error(e);
   }
 }
 
 /**
  * Upload the link to the Discord thread after it was downloaded
+ * @param {CachedLinkData} cachedLinkData
  * @param {Interaction} interaction
  * @param {string} outputFilename
  * @param {string} outputFilepath
  */
-async function callbackUploadDiscordFile(interaction, outputFilename, outputFilepath) {
-  const filenameWithoutId = outputFilename.split(" - ").slice(0, -1).join(" - ");
-  // todo: if reference is a reference, update the reference? improves usability
-  const name = filenameWithoutId + extname(outputFilename);
-  const files = [new AttachmentBuilder(outputFilepath, { name })];
-  const reply = await interaction.editReply({ files });
-  logger.info(`Uploaded "${reply.attachments.first().name}"`);
-}
-
-const asciiWidthConverter = new AFHConvert();
-
-/**
- * Create a cache of potential fetches that we probably won't use because Discord's amazing API can't wait >3 seconds without erroring.
- * There is no way of improving this code smell without Discord's staff taking a shower and taking an intro to comp-sci college course.
- * Unsupported links will return undefined to reduce the number of outbound connections per operation (increasing the operating speed).
- * @param {string} link
- */
-async function getOrInitializeLinkData(link) {
+async function callbackUploadDiscordFile(cachedLinkData, interaction, outputFilename, outputFilepath) {
   try {
-    const linkWithoutParameters = getLinkWithParametersRemoved(link);
-    let cachedLinkData = CACHED_LINK_DATA[linkWithoutParameters];
-    if (cachedLinkData) return cachedLinkData;
-
-    const getCleanMetadataArtist = (author_name = "") => {
-      let result = author_name;
-      if (result.endsWith(" - Topic")) result = result.slice(0, -" - Topic".length)
-      return asciiWidthConverter.toHalfWidth(result.trim());
-    }
-
-    const getCleanMetadataTitle = (author_name = "", title = "") => {
-      let result = title;
-      if (result.startsWith(`${author_name.replace(" Official", "")} - `)) result = result.slice(`${author_name.replace(" Official", "")} - `.length);
-      if (result.endsWith(` by ${author_name}`)) result = result.slice(0, -` by ${author_name}`.length);
-      return asciiWidthConverter.toHalfWidth(result.trim());
-    }
-
-    const { authorName, title } = await oembed.extract(linkWithoutParameters)
-      .then(({ author_name, title }) => ({ authorName: getCleanMetadataArtist(author_name), title: getCleanMetadataTitle(author_name, title) }))
-      .catch(() => ({ authorName: undefined, title: undefined }));
-    if (!authorName || !title) return; // link is unsupported
-
-    const youtubeDlOptions = {
-      output: "%(duration>%H:%M:%S)s,%(id)s",
-      print: "%(duration>%H:%M:%S)s,%(id)s",
-      simulate: true, skipDownload: true
-    }
-
-    // fetch youtubedl data
-    const { endTime, id } = await youtubedl(linkWithoutParameters, youtubeDlOptions)
-      .then(str => ({ endTime: str.split(",")[0], id: str.split(",")[1] }))
-      .catch(() => ({ endTime: undefined, id: undefined }));
-    if (!endTime || !id) return; // link is unsupported
-
-    // todo: fetch SponsorBlock data
-    //   const isYouTubeLink = linkWithoutParameters.includes("youtu.be") || linkWithoutParameters.includes("youtube.com");
-    //   const sponsorBlockUrl = `https://sponsor.ajay.app/api/skipSegments?videoID=${id}&category=sponsor&category=selfpromo&category=interaction&category=intro&category=outro&category=preview&category=music_offtopic`
-    //   const test = isYouTubeLink && await fetch().then(async response => await response.json());
-
-    cachedLinkData = new LinkData({ authorName, endTime, id, link, linkWithoutParameters, title });
-    CACHED_LINK_DATA[linkWithoutParameters] = cachedLinkData;
-    return cachedLinkData;
+    const filenameWithoutId = outputFilename.split(" - ").slice(0, -1).join(" - ");
+    // todo: if reference is a reference, update the reference? improves usability
+    const name = filenameWithoutId + extname(outputFilename);
+    const files = [new AttachmentBuilder(outputFilepath, { name })];
+    const reply = await interaction.editReply({ files });
+    logger.info(`Uploaded "${reply.attachments.first().name}"`);
   }
-  catch({ stack }) {
-    logger.error(stack);
-    logger.error(link);
+  catch(e) {
+    logger.error(e);
   }
 }
 
@@ -289,19 +213,17 @@ async function getOrInitializeLinkData(link) {
  * @param {Function} callback
  */
 async function createThreadChannel(cachedLinkData, starterMessage) {
-  const name = await getThreadChannelName(cachedLinkData);
+  try {
+    const threadChannel = await getOrCreateThreadChannel({
+      starterMessage,
+      clientOptions: { removeMembers: true },
+      threadOptions: { name: cachedLinkData.threadChannelName }
+    });
 
-  const thread = await starterMessage.startThread({ name });
-  await thread.members.remove(starterMessage.author.id);
+    // --------------------------------------------------- //
+    // send buttons to download the message link in thread //
+    // --------------------------------------------------- //
 
-  // --------------------------------------------------- //
-  // send buttons to download the message link in thread //
-  // --------------------------------------------------- //
-
-  const isLinkYouTubePlaylist = getIsLinkYouTubePlaylist(cachedLinkData.link);
-  const isLinkYouTubePlaylistWithoutVideo = isLinkYouTubePlaylist && !cachedLinkData.link.includes("v=");
-
-  if (!isLinkYouTubePlaylistWithoutVideo) {
     const downloadMp3Button = new ButtonBuilder();
     downloadMp3Button.setCustomId(COMPONENT_CUSTOM_IDS.DOWNLOAD_MP3_BUTTON);
     downloadMp3Button.setEmoji("📲");
@@ -315,51 +237,31 @@ async function createThreadChannel(cachedLinkData, starterMessage) {
     searchingPlexButton.setLabel("Searching in Plex");
     searchingPlexButton.setStyle(ButtonStyle.Secondary);
 
-    await thread.send({
+    await threadChannel.send({
       components: [new ActionRowBuilder().addComponents(downloadMp3Button, searchingPlexButton)],
       content: "Use these to download this music from Discord:"
     });
-  }
 
-  // ----------------------------------------------------- //
-  // send buttons to manage the YouTube playlist in thread //
-  // ----------------------------------------------------- //
+    // ----------------------------------------------------- //
+    // send button to get documentation for previous buttons //
+    // ----------------------------------------------------- //
 
-  if (isLinkYouTubePlaylist) {
-    const showAllSongsButton = new ButtonBuilder();
-    showAllSongsButton.setCustomId(COMPONENT_CUSTOM_IDS.SHOW_ALL_YOUTUBE_SONGS);
-    showAllSongsButton.setEmoji(config.discord_youtube_emoji);
-    showAllSongsButton.setLabel("Show all videos");
-    showAllSongsButton.setStyle(ButtonStyle.Secondary);
+    const showDocumentationButton = new ButtonBuilder();
+    showDocumentationButton.setCustomId(COMPONENT_CUSTOM_IDS.SHOW_BUTTON_DOCUMENTATION);
+    showDocumentationButton.setEmoji("🔖");
+    showDocumentationButton.setLabel("Show documentation");
+    showDocumentationButton.setStyle(ButtonStyle.Primary);
 
-    const followInChannelButton = new ButtonBuilder();
-    followInChannelButton.setCustomId(COMPONENT_CUSTOM_IDS.FOLLOW_UPDATES_BUTTON);
-    followInChannelButton.setEmoji("🔔");
-    followInChannelButton.setLabel("Follow updates");
-    followInChannelButton.setStyle(ButtonStyle.Secondary);
-
-    await thread.send({
-      components: [new ActionRowBuilder().addComponents(showAllSongsButton, followInChannelButton)],
-      content: "Use these to manage this YouTube playlist:"
+    await threadChannel.send({
+      components: [new ActionRowBuilder().addComponents(showDocumentationButton)],
+      content: "Use this for help with these buttons:"
     });
+
+    return threadChannel;
   }
-
-  // ----------------------------------------------------- //
-  // send button to get documentation for previous buttons //
-  // ----------------------------------------------------- //
-
-  const showDocumentationButton = new ButtonBuilder();
-  showDocumentationButton.setCustomId(COMPONENT_CUSTOM_IDS.SHOW_BUTTON_DOCUMENTATION);
-  showDocumentationButton.setEmoji("🔖");
-  showDocumentationButton.setLabel("Show documentation");
-  showDocumentationButton.setStyle(ButtonStyle.Primary);
-
-  await thread.send({
-    components: [new ActionRowBuilder().addComponents(showDocumentationButton)],
-    content: "Use this for help with these buttons:"
-  });
-
-  return thread;
+  catch(e) {
+    logger.error(e);
+  }
 }
 
 /**
@@ -379,8 +281,13 @@ async function deleteLinkFromPlex(interaction) {
   try {
     await interaction.deferReply({ ephemeral: true });
 
-    const link = await getLinkFromMessageHierarchy(interaction.message);
-    const cachedLinkData = await getOrInitializeLinkData(link);
+    const cachedLinkData = await getOrCreateCachedLinkData(interaction.message);
+
+    if (!cachedLinkData) {
+      logger.error("Attempted to import Plex file without cached data");
+      return;
+    }
+
     const existingPlexFilename = await getExistingPlexFilename(cachedLinkData);
 
     if (existingPlexFilename) {
@@ -393,17 +300,14 @@ async function deleteLinkFromPlex(interaction) {
       await interaction.editReply(`Sorry! Your file wasn't found in Plex.`);
       logger.warn(`Plex filename does not exist`);
     }
+
+    await validateThreadChannel(cachedLinkData, interaction.channel);
   }
-  catch(error) {
-    logger.error(error.stack);
-    const content = getFormattedErrorMessage(error);
-    await interaction.editReply({ content });
+  catch(e) {
+    logger.error(e);
+    await interaction.editReply({ content: getFormattedErrorMessage(e) });
   }
   finally {
-    const link = await getLinkFromMessageHierarchy(interaction.message);
-    const cachedLinkData = await getOrInitializeLinkData(link);
-    const messageWithPlexButton = interaction.message;
-    await validateMessageWithPlexButton({ cachedLinkData, interaction, messageWithPlexButton });
     operation.setBusy(false);
   }
 }
@@ -421,9 +325,8 @@ async function downloadLinkAndExecute(interaction, modalCustomId, callback, audi
   try {
     await interaction.deferReply({ ephemeral: true });
 
-    const link = await getLinkFromMessageHierarchy(interaction.message);
-    const { endTime, linkWithoutParameters } = await getOrInitializeLinkData(link);
-    const endTimeTotalSeconds = getTimestampAsTotalSeconds(endTime);
+    const cachedLinkData = await getOrCreateCachedLinkData(interaction.message);
+    const endTimeTotalSeconds = getTimestampAsTotalSeconds(cachedLinkData.endTime);
 
     const inputArtist = interaction.fields.getTextInputValue("artist");
     const inputTitle = interaction.fields.getTextInputValue("title");
@@ -449,7 +352,7 @@ async function downloadLinkAndExecute(interaction, modalCustomId, callback, audi
     }
 
     if (inputEndTimeTotalSeconds > endTimeTotalSeconds) {
-      const content = `End time can't exceed \`${endTime}\`. Please try again.`;
+      const content = `End time can't exceed \`${cachedLinkData.endTime}\`. Please try again.`;
       await interaction.editReply({ content });
       return;
     }
@@ -476,8 +379,7 @@ async function downloadLinkAndExecute(interaction, modalCustomId, callback, audi
      */
     const sanitizeFilename = str => sanitize(str.replace(/[/\\]/g, " ").replace(/  +/g, " "));
 
-    const outputDirectory =
-      `${temp_directory}/${interaction.customId}${interaction.message.id}${interaction.user.id}`;
+    const tempDownloadDirectory = `${config.temp_directory}\\${nanoid()}`;
 
     const options = {
       audioQuality: 0,
@@ -485,7 +387,7 @@ async function downloadLinkAndExecute(interaction, modalCustomId, callback, audi
       extractAudio: true,
       format: "bestaudio/best",
       noPlaylist: true,
-      output: `${outputDirectory}/${sanitizeFilename(`${inputArtist} - ${inputTitle}`)} - %(id)s.%(ext)s`,
+      output: `${tempDownloadDirectory}/${sanitizeFilename(`${inputArtist} - ${inputTitle}`)} - %(id)s.%(ext)s`,
       postprocessorArgs: "ffmpeg:"
         + " -metadata album='Downloads'"
         + " -metadata album_artist='Various Artists'"
@@ -532,47 +434,18 @@ async function downloadLinkAndExecute(interaction, modalCustomId, callback, audi
     // download, execute the callback function, remove temporary file //
     // -------------------------------------------------------------- //
 
-    await youtubedl(linkWithoutParameters, options);
-    const outputFilename = fs.readdirSync(outputDirectory)[0];
-    const outputFilepath = resolve(`${outputDirectory}/${outputFilename}`);
-    await callback(interaction, outputFilename, outputFilepath);
-    await fs.remove(outputDirectory);
+    await youtubedl(cachedLinkData.linkWithoutParameters, options);
+    const tempDownloadFilename = fs.readdirSync(tempDownloadDirectory)[0];
+    const tempDownloadFilepath = resolve(`${tempDownloadDirectory}/${tempDownloadFilename}`);
+
+    await callback(cachedLinkData, interaction, tempDownloadFilename, tempDownloadFilepath);
+    await fs.remove(tempDownloadDirectory);
   }
-  catch(error) {
-    const content = getFormattedErrorMessage(error);
-    await interaction.editReply(content);
-    logger.error(error.stack);
+  catch(e) {
+    logger.error(e);
   }
   finally {
     operation.setBusy(false);
-  }
-}
-
-async function followYouTubePlaylistUpdates(interaction) {
-  try {
-    console.log(interaction);
-    // await interaction.deferUpdate();
-
-    // const link = await getLinkFromMessageHierarchy(interaction.message);
-    // const isLinkYouTubePlaylist = getIsLinkYouTubePlaylist(link);
-    // if (!isLinkYouTubePlaylist) return;
-
-    // const youTubePlaylist = await ytpl(link); // todo: show all youtube videos may be broken! cached playlist link?
-    // const youTubePlaylistId = ""; // todo:
-    // const stateKey = basename(fileURLToPath(import.meta.url));
-    // const stateValue = await State.find(stateKey, ({ content }) => content.includes(COMPONENT_CUSTOM_IDS.FOLLOW_UPDATES_BUTTON) && content.includes(playlistId));
-
-    // if (!stateValue) {
-    //   State.add(stateKey, { content: `\`${COMPONENT_CUSTOM_IDS.FOLLOW_UPDATES_BUTTON}\` ${youTubePlaylistId}`});
-    //   logger.info(`Added ${COMPONENT_CUSTOM_IDS.FOLLOW_UPDATES_BUTTON} ${youTubePlaylistId} to state`);
-    // }
-  }
-  catch({ stack }) {
-    logger.error(stack);
-  }
-  finally {
-    // todo:
-    // validateFollowPlaylistButton();
   }
 }
 
@@ -596,104 +469,317 @@ function getFormattedErrorMessage(error) {
 }
 
 /**
- * Get if the link is a playlist on YouTube
+ * Verify the link is not going to cause funky behavior (typically the root of a playlist with no track selected)
+ * @param {string} linkWithoutParameters
+ * @returns {boolean}
+ */
+function getIsLinkSupported(linkWithoutParameters) {
+  const isYoutubeListWithoutItem =
+    linkWithoutParameters.includes("youtube.com")
+    && !linkWithoutParameters.includes("?v=");
+  if (isYoutubeListWithoutItem) return false;
+
+  const isSoundCloudListWithoutItem =
+    linkWithoutParameters.includes("soundcloud.com")
+    && linkWithoutParameters.includes("/sets/")
+    && !linkWithoutParameters.includes("?in=");
+  if (isSoundCloudListWithoutItem) return false;
+
+  return true;
+}
+
+/**
+ * Create a cache of potential fetches that we probably won't use because Discord's amazing API can't wait >3 seconds without erroring.
+ * There is no way of improving this code smell without Discord's staff taking a shower and taking an intro to comp-sci college course.
+ * Unsupported links will return undefined to reduce the number of outbound connections per operation (increasing the operating speed).
  * @param {string} link
  */
-function getIsLinkYouTubePlaylist(link) {
-  return (link.includes("youtu.be") || link.includes("youtube.com")) && link.includes("list=");
-}
-
-/**
- * Get if the message contains a button for managing the Plex library
- * (custom id: DELETE_FROM_PLEX_BUTTON, IMPORT_INTO_PLEX_BUTTON, etc)
- * @param {Message} message
- */
-function getIsMessageWithPlexButtonComponent(message) {
-  return message.components?.[0]?.components.some(getIsPlexButtonComponent);
-}
-
-/**
- * Get if the component is a button component for managing the Plex library
- * @param {Component} component
- */
-function getIsPlexButtonComponent(component) {
-  return component.customId.includes("_PLEX_")
-    && component.type === ComponentType.Button;
-}
-
-/**
- * Get an embedded link from the message content property
- * @param {Message} message
- */
-function getLinkFromMessage(message) {
-  const match = message.content.match(/(https?:\/\/[^\s]+)/g);
-  return match ? match[0] : null;
-}
-
-/**
- * Get an embedded link from the entire message hierarchy
- * (if the message has no link then check its parent too)
- * @param {Message} message The channel or thread message
- */
-async function getLinkFromMessageHierarchy(message) {
-  return getLinkFromMessage(message) ?? await getLinkFromStarterMessage(message);
-}
-
-/**
- * Get an embedded link from the thread message parents content property
- * @param {Message} threadMessage
- */
-async function getLinkFromStarterMessage(threadMessage) {
-  const starterMessage = await threadMessage.channel.fetchStarterMessage();
-  return await getLinkFromMessage(starterMessage);
-}
-
-/**
- * Remove any parameters from a link
- * @param {string} link
- */
-function getLinkWithParametersRemoved(link) {
-  return link.match(/(https?:\/\/[^&\s]+)/)[1];
-}
-
-/**
- * Get the thread name determined by the type of content in the link
- * @param {string} link
- */
-async function getThreadChannelName(cachedLinkData) {
+async function getOrCreateCachedLinkData(message) {
   try {
-    const result = (async () => {
-      const { link, title } = cachedLinkData;
-      // try fetching the YouTube playlist title
-      const isLinkYouTubePlaylistWithoutVideo = getIsLinkYouTubePlaylist(link) && !link.includes("v=");
-      const youTubePlaylistTitle = isLinkYouTubePlaylistWithoutVideo && (await ytpl(link))?.title;
-      if (youTubePlaylistTitle) return `📲 ${youTubePlaylistTitle}`;
-      return `📲 ${title}`;
-    })();
+    const { content } =
+      message.channel.type === ChannelType.PublicThread || message.channel.type === ChannelType.PrivateThread
+        ? await message.channel.fetchStarterMessage()
+        : message;
 
-    if (result.length > 100) return result.slice(0, 97) + "...";
-    return result;
+    const linkWithoutParameters = getLinkWithoutParametersFromString(content);
+    if (!linkWithoutParameters) return undefined;
+
+    const isLinkSupported = getIsLinkSupported(linkWithoutParameters);
+    if (!isLinkSupported) return undefined;
+
+    let cachedLinkData = CACHED_LINK_DATA[linkWithoutParameters];
+    if (cachedLinkData) return cachedLinkData;
+
+    // -------------------- //
+    // fetch youtubedl data //
+    // -------------------- //
+
+    const youtubedlOptions = {
+      output: "%(duration>%H:%M:%S)s,%(id)s",
+      print: "%(duration>%H:%M:%S)s,%(id)s",
+      simulate: true,
+      skipDownload: true
+    }
+
+    let youtubedlError; // this library may return undefined with no error thrown ... nice, right?
+    const youtubedlPayload = await youtubedl(linkWithoutParameters, youtubedlOptions).catch(e => {
+      youtubedlError = e.message || "Couldn't get youtubedl payload";
+      if (youtubedlError.includes(linkWithoutParameters)) return;
+      youtubedlError += ` "${linkWithoutParameters}"`;
+    });
+
+    if (!youtubedlPayload) {
+      logger.warn(youtubedlError)
+      return;
+    }
+
+    const endTime = youtubedlPayload.split(",")[0];
+    const id = youtubedlPayload.split(",")[1];
+
+    // ----------------- //
+    // fetch oembed data //
+    // ----------------- //
+
+    let oembedError;
+    const oembedPayload = await oembed.extract(linkWithoutParameters).catch(e => {
+      oembedError = e.message || "Couldn't get oembed payload";
+      if (oembedError.includes(linkWithoutParameters)) return;
+      oembedError += ` "${linkWithoutParameters}"`;
+    });
+
+    if (!oembedPayload) {
+      logger.warn(oembedError);
+      return;
+    }
+
+    const { author_name: originalAuthorName, title: originalTitle } = oembedPayload;
+    const asciiWidthConverter = new AFHConvert();
+
+    // if titles are in "${author} - ${title}" format
+    const splitTitle = originalTitle.split(" - ");
+    const isSplitTitle = splitTitle.length == 2;
+
+    let authorName = isSplitTitle ? splitTitle[0] : originalAuthorName;
+    let title = isSplitTitle ? splitTitle[1] : originalTitle;
+
+    // format author name
+    if (authorName.endsWith(" - Topic")) authorName = authorName.slice(0, -" - Topic".length);
+    authorName = asciiWidthConverter.toHalfWidth(authorName.trim());
+
+    // format title
+    if (title.startsWith(`${originalAuthorName} - `)) title = title.slice(`${originalAuthorName} - `.length);
+    if (title.endsWith(` by ${originalAuthorName}`)) title = title.slice(0, -` by ${originalAuthorName}`.length);
+    if (title.toLowerCase().endsWith(` [official music video]`)) title = title.slice(0, -` [official music video]`.length);
+    if (title.toLowerCase().endsWith(` (official music video)`)) title = title.slice(0, -` (official music video)`.length);
+    if (title.toLowerCase().endsWith(` [official visualizer]`)) title = title.slice(0, -` [official visualizer]`.length);
+    if (title.toLowerCase().endsWith(` (official visualizer)`)) title = title.slice(0, -` (official visualizer)`.length);
+    if (title.toLowerCase().endsWith(` [official audio]`)) title = title.slice(0, -` [official audio]`.length);
+    if (title.toLowerCase().endsWith(` (official audio)`)) title = title.slice(0, -` (official audio)`.length);
+    if (title.toLowerCase().endsWith(` [official]`)) title = title.slice(0, -` [official]`.length);
+    if (title.toLowerCase().endsWith(` (official)`)) title = title.slice(0, -` (official)`.length);
+    if (title.toLowerCase().endsWith(` [lyrics]`)) title = title.slice(0, -` [lyrics]`.length);
+    if (title.toLowerCase().endsWith(` (lyrics)`)) title = title.slice(0, -` (lyrics)`.length);
+    title = asciiWidthConverter.toHalfWidth(title.trim());
+
+    // ----------------------- //
+    // save link data to cache //
+    // ----------------------- //
+
+    CACHED_LINK_DATA[linkWithoutParameters] = new CachedLinkData({ authorName, endTime, title, id, linkWithoutParameters, });
+    return CACHED_LINK_DATA[linkWithoutParameters];
   }
-  catch({ stack }) {
-    logger.error(stack);
-    return "⚠️ Error fetching title"
+  catch(e) {
+    logger.error(e);
   }
 }
 
 /**
- * Get the total seconds from a HH:MM:SS formatted timestamp
- * @param {string} timestamp HH:MM:SS timestamp
+ * Show the popup modal to confirm file deletion from Plex
+ * @param {Interaction} interaction
+ * @param {string} modalCustomId
+ * @param {string} modalTitle
  */
-function getTimestampAsTotalSeconds(timestamp) {
-  try {
-    const time = timestamp.split(":");
-    return (+time[0]) * 60 * 60 + (+time[1]) * 60 + (+time[2]);
+async function showDeletionModal(interaction, modalCustomId, modalTitle) {
+  const operation = new ComponentOperation({
+    interactionId: modalCustomId,
+    messageId: interaction.message.id,
+    userId: interaction.user.id
+  });
+
+  if (operation.isBusy) {
+    await interaction.deferUpdate();
+    return;
   }
-  catch({ stack }) {
-    logger.error(stack);
+
+  const reasonTextInput = new TextInputBuilder();
+  reasonTextInput.setCustomId("reason");
+  reasonTextInput.setLabel("Reason for deletion");
+  reasonTextInput.setRequired(true);
+  reasonTextInput.setStyle(TextInputStyle.Paragraph);
+
+  const actionRow = new ActionRowBuilder().addComponents(reasonTextInput);
+
+  try {
+    interaction.showModal(new ModalBuilder()
+      .addComponents(actionRow)
+      .setCustomId(modalCustomId)
+      .setTitle(modalTitle)
+    );
+  }
+  catch(e) {
+    logger.error(e);
   }
 }
 
+/**
+ * Show the popup modal to input a links metadata information
+ * @param {Interaction} interaction
+ * @param {string} modalCustomId
+ * @param {string} modalTitle
+ */
+async function showMetadataModal(interaction, modalCustomId, modalTitle) {
+  const operation = new ComponentOperation({
+    interactionId: modalCustomId,
+    messageId: interaction.message.id,
+    userId: interaction.user.id
+  });
+
+  if (operation.isBusy) {
+    await interaction.deferUpdate();
+    return;
+  }
+
+  try {
+    const cachedLinkData = await getOrCreateCachedLinkData(interaction.message);
+
+    if (!cachedLinkData) {
+      logger.warn("Attempted to show metadata modal without cached data");
+      return;
+    }
+
+    const titleTextInput = new TextInputBuilder();
+    titleTextInput.setCustomId("title");
+    titleTextInput.setLabel("Track Title");
+    titleTextInput.setRequired(true);
+    titleTextInput.setStyle(TextInputStyle.Short);
+    titleTextInput.setValue(cachedLinkData.title);
+
+    const artistTextInput = new TextInputBuilder();
+    artistTextInput.setCustomId("artist");
+    artistTextInput.setLabel("Track Artist");
+    artistTextInput.setRequired(true);
+    artistTextInput.setStyle(TextInputStyle.Short);
+    artistTextInput.setValue(cachedLinkData.authorName);
+
+    const startTextInput = new TextInputBuilder();
+    startTextInput.setCustomId("start");
+    startTextInput.setLabel("Track Start");
+    startTextInput.setPlaceholder("00:00:00");
+    startTextInput.setStyle(TextInputStyle.Short);
+    startTextInput.setValue("00:00:00");
+
+    const endTextInput = new TextInputBuilder()
+    endTextInput.setCustomId("end");
+    endTextInput.setLabel("Track End");
+    endTextInput.setPlaceholder(cachedLinkData.endTime);
+    endTextInput.setStyle(TextInputStyle.Short);
+    endTextInput.setValue(cachedLinkData.endTime);
+
+    const actionRows = [];
+    actionRows.push(new ActionRowBuilder().addComponents(titleTextInput));
+    actionRows.push(new ActionRowBuilder().addComponents(artistTextInput));
+    actionRows.push(new ActionRowBuilder().addComponents(startTextInput));
+    actionRows.push(new ActionRowBuilder().addComponents(endTextInput));
+
+    await interaction.showModal(new ModalBuilder()
+      .addComponents(...actionRows)
+      .setCustomId(modalCustomId)
+      .setTitle(modalTitle)
+    );
+  }
+  catch(e) {
+    logger.error(e);
+  }
+}
+
+/**
+ * Fetch the Plex API and request the media library scans for file changes
+ */
+async function startPlexLibraryScan() {
+  try {
+    const address = `http://${config.plex_server_ip_address}:32400/library/sections/${config.plex_library_section_id}/refresh`;
+    const options = { headers: { "X-Plex-Token": config.plex_authentication_token }, method: "GET" };
+    await fetch(address, options);
+    logger.info(`Plex library scan started`);
+  }
+  catch(e) {
+    logger.error(e);
+  }
+}
+
+/**
+ * Validate the thread channel information and repair any inconsistencies
+ * @param {CachedLinkData} cachedLinkData
+ * @param {ThreadChannel} threadChannel
+ */
+async function validateThreadChannel(cachedLinkData, threadChannel) {
+  // ----------------------------------------------------------------------- //
+  // validate the thread channel name in case the attached link was modified //
+  // ----------------------------------------------------------------------- //
+
+  const isThreadChannelNameObsolete =
+    threadChannel?.name !== cachedLinkData.threadChannelName;
+
+  if (isThreadChannelNameObsolete) {
+    const obsoleteThreadChannelName = threadChannel.name;
+    await threadChannel.setName(cachedLinkData.threadChannelName);
+    logger.info(`Updated thread name "${obsoleteThreadChannelName}" -> "${cachedLinkData.threadChannelName}"`);
+  }
+
+  // ----------------------------------------------------------------------- //
+  // validate the thread channel plex button shows the local files existence //
+  // ----------------------------------------------------------------------- //
+
+  const { DELETE_FROM_PLEX_BUTTON, IMPORT_MUSIC_INTO_PLEX_BUTTON, SEARCHING_PLEX_BUTTON } = COMPONENT_CUSTOM_IDS;
+  const plexComponentIds = [DELETE_FROM_PLEX_BUTTON, IMPORT_MUSIC_INTO_PLEX_BUTTON, SEARCHING_PLEX_BUTTON];
+
+  const find = ({ components }) => components?.[0]?.components.some(some);
+  const some = ({ customId, type }) => plexComponentIds.includes(customId) && type === ComponentType.Button;
+
+  const messageWithPlexButton = await findChannelMessage(threadChannel.id, find);
+
+  if (messageWithPlexButton) {
+    const isArchived = messageWithPlexButton.channel.archived;
+    if (isArchived) await messageWithPlexButton.channel.setArchived(false);
+
+    const components = [ActionRowBuilder.from(messageWithPlexButton.components[0])];
+    const buttonIndex = messageWithPlexButton.components[0].components.findIndex(some);
+
+    components[0].components[buttonIndex].setCustomId(COMPONENT_CUSTOM_IDS.SEARCHING_PLEX_BUTTON);
+    components[0].components[buttonIndex].setDisabled(true);
+    components[0].components[buttonIndex].setEmoji("⏳");
+    components[0].components[buttonIndex].setLabel("Searching in Plex");
+
+    await messageWithPlexButton.edit({ components });
+
+    const isPlexFile = await getExistingPlexFilename(cachedLinkData);
+    const customId = isPlexFile ? COMPONENT_CUSTOM_IDS.DELETE_FROM_PLEX_BUTTON : COMPONENT_CUSTOM_IDS.IMPORT_MUSIC_INTO_PLEX_BUTTON;
+    const label = isPlexFile ? "Delete from Plex" : "Import into Plex";
+
+    components[0].components[buttonIndex].setCustomId(customId);
+    components[0].components[buttonIndex].setDisabled(false)
+    components[0].components[buttonIndex].setEmoji(config.discord_plex_emoji)
+    components[0].components[buttonIndex].setLabel(label);
+
+    await messageWithPlexButton.edit({ components });
+  }
+}
+
+// ------------------------------------------------------------------------- //
+// >> NEEDS TO BE MOVE                                                    << //
+// ------------------------------------------------------------------------- //
+
+// todo: move to index.js
 async function showButtonDocumentation(interaction) {
   try {
     await interaction.deferReply({ ephemeral: true });
@@ -727,215 +813,136 @@ async function showButtonDocumentation(interaction) {
 
     await interaction.editReply({ content: `Here's what I know about these buttons:\n\n${result.join("\n")}` });
   }
-  catch({ stack }) {
-    logger.error(stack);
+  catch(e) {
+    logger.error(e);
   }
 }
 
-/**
- * Get all songs within a YouTube playlist and post them as interaction replies
- * @param {Interaction} interaction
- */
-async function showAllYouTubePlaylistSongs(interaction) {
-  try {
-    await interaction.deferReply({ ephemeral: true });
+// ------------------------------------------------------------------------- //
+// >> CODE GRAVEYARD                                                      << //
+// ------------------------------------------------------------------------- //
 
-    const link = await getLinkFromMessageHierarchy(interaction.message);
-    const cachedLinkData = await getOrInitializeLinkData(link);
-    const playlist = await ytpl(cachedLinkData.link);
-
-    const downloadMp3Button = new ButtonBuilder();
-    downloadMp3Button.setCustomId(COMPONENT_CUSTOM_IDS.DOWNLOAD_MP3_BUTTON);
-    downloadMp3Button.setEmoji("📲");
-    downloadMp3Button.setLabel("Download MP3");
-    downloadMp3Button.setStyle(ButtonStyle.Secondary);
-
-    const searchingPlexButton = new ButtonBuilder();
-    searchingPlexButton.setCustomId(COMPONENT_CUSTOM_IDS.SEARCHING_PLEX_BUTTON);
-    searchingPlexButton.setDisabled(true);
-    searchingPlexButton.setEmoji("⏳");
-    searchingPlexButton.setLabel("Searching in Plex");
-    searchingPlexButton.setStyle(ButtonStyle.Secondary);
-
-    const components = [new ActionRowBuilder().addComponents(downloadMp3Button, searchingPlexButton)];
-
-    for(let i = 0; i < playlist.items.length; i++) {
-      const cleanTitle = playlist.title.replaceAll("`", "").replaceAll("*", "").replaceAll(" _", "").replaceAll("_ ", "");
-      const content = `${config.discord_youtube_emoji} \`${i + 1}/${playlist.items.length}\` **${cleanTitle}**\n${playlist.items[i].shortUrl}`;
-      const messageWithPlexButton = await interaction.followUp({ components, content, ephemeral: true });
-      validateMessageWithPlexButton({ interaction, messageWithPlexButton });
-      await new Promise(resolve => setTimeout(resolve, 250));
-    }
-  }
-  catch({ stack }) {
-    logger.error(stack);
-  }
-}
-
-/**
- * Show the popup modal to confirm file deletion from Plex
- * @param {Interaction} interaction
- * @param {string} modalCustomId
- * @param {string} modalTitle
- */
-async function showDeletionModal(interaction, modalCustomId, modalTitle) {
-  const operation = new ComponentOperation({
-    interactionId: modalCustomId,
-    messageId: interaction.message.id,
-    userId: interaction.user.id
-  });
-
-  if (operation.isBusy) {
-    await interaction.deferUpdate();
-    return;
-  }
-
-  // we don't do anything with this data, we just want a confirmation
-  //   before the file gets deleted (and Discord has no way besides a
-  //   text input because it doesn't have other types of basic input)
-
-  const reasonTextInput = new TextInputBuilder();
-  reasonTextInput.setCustomId("reason");
-  reasonTextInput.setLabel("Reason for deletion");
-  reasonTextInput.setRequired(true);
-  reasonTextInput.setStyle(TextInputStyle.Paragraph);
-
-  const actionRow = new ActionRowBuilder().addComponents(reasonTextInput);
-
-  try {
-    interaction.showModal(new ModalBuilder()
-      .addComponents(actionRow)
-      .setCustomId(modalCustomId)
-      .setTitle(modalTitle)
-    );
-  }
-  catch({ stack }) {
-    logger.error(stack);
-  }
-}
-
-/**
- * Show the popup modal to input a links metadata information
- * @param {Interaction} interaction
- * @param {string} modalCustomId
- * @param {string} modalTitle
- */
-async function showMetadataModal(interaction, modalCustomId, modalTitle) {
-  const operation = new ComponentOperation({
-    interactionId: modalCustomId,
-    messageId: interaction.message.id,
-    userId: interaction.user.id
-  });
-
-  if (operation.isBusy) {
-    await interaction.deferUpdate();
-    return;
-  }
-
-  try {
-    const link = await getLinkFromMessageHierarchy(interaction.message);
-    const cachedLinkData = await getOrInitializeLinkData(link);
-    const { authorName, endTime, title } = cachedLinkData;
-
-    const titleTextInput = new TextInputBuilder();
-    titleTextInput.setCustomId("title");
-    titleTextInput.setLabel("Track Title");
-    titleTextInput.setRequired(true);
-    titleTextInput.setStyle(TextInputStyle.Short);
-    titleTextInput.setValue(title);
-
-    const artistTextInput = new TextInputBuilder();
-    artistTextInput.setCustomId("artist");
-    artistTextInput.setLabel("Track Artist");
-    artistTextInput.setRequired(true);
-    artistTextInput.setStyle(TextInputStyle.Short);
-    artistTextInput.setValue(authorName);
-
-    const startTextInput = new TextInputBuilder();
-    startTextInput.setCustomId("start");
-    startTextInput.setLabel("Track Start");
-    startTextInput.setPlaceholder("00:00:00");
-    startTextInput.setStyle(TextInputStyle.Short);
-    startTextInput.setValue("00:00:00");
-
-    const endTextInput = new TextInputBuilder()
-    endTextInput.setCustomId("end");
-    endTextInput.setLabel("Track End");
-    endTextInput.setPlaceholder(endTime);
-    endTextInput.setStyle(TextInputStyle.Short);
-    endTextInput.setValue(endTime);
-
-    const actionRows = [];
-    actionRows.push(new ActionRowBuilder().addComponents(titleTextInput));
-    actionRows.push(new ActionRowBuilder().addComponents(artistTextInput));
-    actionRows.push(new ActionRowBuilder().addComponents(startTextInput));
-    actionRows.push(new ActionRowBuilder().addComponents(endTextInput));
-
-    await interaction.showModal(new ModalBuilder()
-      .addComponents(...actionRows)
-      .setCustomId(modalCustomId)
-      .setTitle(modalTitle)
-    );
-  }
-  catch({ stack }) {
-    logger.error(stack);
-  }
-}
-
-/**
- * Fetch the Plex API and request the media library scans for file changes
- */
-async function startPlexLibraryScan() {
-  try {
-    const address = `http://${config.plex_server_ip_address}:32400/library/sections/${config.plex_library_section_id}/refresh`;
-    const options = { headers: { "X-Plex-Token": config.plex_authentication_token }, method: "GET" };
-    await fetch(address, options).then(() => logger.info(`Plex library scan started`));
-  }
-  catch({ stack }) {
-    logger.error(stack);
-  }
-}
+// /**
+//  * Get if the link is a playlist on YouTube
+//  * @param {string} link
+//  */
+// function getIsLinkYouTubePlaylist(link) {
+//   return (link.includes("youtu.be") || link.includes("youtube.com")) && link.includes("list=");
+// }
 
 /**
  * Update the Plex button with the status of the links existence in the Plex library download folder
  * @param {Message} message
  */
-async function validateMessageWithPlexButton({ cachedLinkData, interaction, messageWithPlexButton }) {
-  try {
-    const isArchived = messageWithPlexButton.channel.archived;
-    if (isArchived) await messageWithPlexButton.channel.setArchived(false);
+// async function validateMessageWithPlexButton({ cachedLinkData, interaction, messageWithPlexButton }) {
+//   try {
+//     const isArchived = messageWithPlexButton.channel.archived;
+//     if (isArchived) await messageWithPlexButton.channel.setArchived(false);
 
-    const referenceMessage = messageWithPlexButton.reference
-      && !getIsMessageWithPlexButtonComponent(messageWithPlexButton)
-      && await findChannelMessage(messageWithPlexButton.reference.channelId, ({ id }) => id === messageWithPlexButton.reference.messageId);
+//     const referenceMessage = messageWithPlexButton.reference
+//       && !getIsMessageWithPlexButtonComponent(messageWithPlexButton)
+//       && await findChannelMessage(messageWithPlexButton.reference.channelId, ({ id }) => id === messageWithPlexButton.reference.messageId);
 
-    const actualMessageWithPlexButton = referenceMessage || messageWithPlexButton;
-    const buttonIndex = actualMessageWithPlexButton.components[0].components.findIndex(getIsPlexButtonComponent);
-    const components = [ActionRowBuilder.from(actualMessageWithPlexButton.components[0])];
+//     const actualMessageWithPlexButton = referenceMessage || messageWithPlexButton;
+//     const buttonIndex = actualMessageWithPlexButton.components[0].components.findIndex(getIsPlexButtonComponent);
+//     const components = [ActionRowBuilder.from(actualMessageWithPlexButton.components[0])];
 
-    components[0].components[buttonIndex].setCustomId(COMPONENT_CUSTOM_IDS.SEARCHING_PLEX_BUTTON);
-    components[0].components[buttonIndex].setDisabled(true);
-    components[0].components[buttonIndex].setEmoji("⏳");
-    components[0].components[buttonIndex].setLabel("Searching in Plex");
+//     components[0].components[buttonIndex].setCustomId(COMPONENT_CUSTOM_IDS.SEARCHING_PLEX_BUTTON);
+//     components[0].components[buttonIndex].setDisabled(true);
+//     components[0].components[buttonIndex].setEmoji("⏳");
+//     components[0].components[buttonIndex].setLabel("Searching in Plex");
 
-    actualMessageWithPlexButton.type === MessageType.Reply
-      ? await interaction.editReply({ message: actualMessageWithPlexButton, components })
-      : await actualMessageWithPlexButton.edit({ components });
+//     actualMessageWithPlexButton.type === MessageType.Reply
+//       ? await interaction.editReply({ message: actualMessageWithPlexButton, components })
+//       : await actualMessageWithPlexButton.edit({ components });
 
-    const isPlexFile = await getExistingPlexFilename(cachedLinkData);
-    const customId = isPlexFile ? COMPONENT_CUSTOM_IDS.DELETE_FROM_PLEX_BUTTON : COMPONENT_CUSTOM_IDS.IMPORT_INTO_PLEX_BUTTON;
-    const label = isPlexFile ? "Delete from Plex" : "Import into Plex";
+//     const isPlexFile = await getExistingPlexFilename(cachedLinkData);
+//     const customId = isPlexFile ? COMPONENT_CUSTOM_IDS.DELETE_FROM_PLEX_BUTTON : COMPONENT_CUSTOM_IDS.IMPORT_MUSIC_INTO_PLEX_BUTTON;
+//     const label = isPlexFile ? "Delete from Plex" : "Import into Plex";
 
-    components[0].components[buttonIndex].setCustomId(customId);
-    components[0].components[buttonIndex].setDisabled(false)
-    components[0].components[buttonIndex].setEmoji(config.discord_plex_emoji)
-    components[0].components[buttonIndex].setLabel(label);
+//     components[0].components[buttonIndex].setCustomId(customId);
+//     components[0].components[buttonIndex].setDisabled(false)
+//     components[0].components[buttonIndex].setEmoji(config.discord_plex_emoji)
+//     components[0].components[buttonIndex].setLabel(label);
 
-    actualMessageWithPlexButton.type === MessageType.Reply
-      ? await interaction.editReply({ message: actualMessageWithPlexButton, components })
-      : await actualMessageWithPlexButton.edit({ components });
-  }
-  catch({ stack }) {
-    logger.error(stack);
-  }
-}
+//     actualMessageWithPlexButton.type === MessageType.Reply
+//       ? await interaction.editReply({ message: actualMessageWithPlexButton, components })
+//       : await actualMessageWithPlexButton.edit({ components });
+//   }
+//   catch(e) {
+//     logger.error(e);
+//   }
+// }
+  // ----------------------------------------------------- //
+  // send buttons to manage the YouTube playlist in thread //
+  // ----------------------------------------------------- //
+
+  // if (isLinkYouTubePlaylist) {
+  //   const showAllSongsButton = new ButtonBuilder();
+  //   showAllSongsButton.setCustomId(COMPONENT_CUSTOM_IDS.SHOW_ALL_YOUTUBE_SONGS);
+  //   showAllSongsButton.setEmoji(config.discord_youtube_emoji);
+  //   showAllSongsButton.setLabel("Show all videos");
+  //   showAllSongsButton.setStyle(ButtonStyle.Secondary);
+
+  //   const followInChannelButton = new ButtonBuilder();
+  //   followInChannelButton.setCustomId(COMPONENT_CUSTOM_IDS.FOLLOW_UPDATES_BUTTON);
+  //   followInChannelButton.setEmoji("🔔");
+  //   followInChannelButton.setLabel("Follow updates");
+  //   followInChannelButton.setStyle(ButtonStyle.Secondary);
+
+  //   await thread.send({
+  //     components: [new ActionRowBuilder().addComponents(showAllSongsButton, followInChannelButton)],
+  //     content: "Use these to manage this YouTube playlist:"
+  //   });
+  // }
+
+
+  // const isLinkYouTubePlaylist = getIsLinkYouTubePlaylist(cachedLinkData.link);
+  // const isLinkYouTubePlaylistWithoutVideo = isLinkYouTubePlaylist && !cachedLinkData.link.includes("v=");
+
+
+// {
+//   customId: COMPONENT_CUSTOM_IDS.SHOW_ALL_YOUTUBE_SONGS,
+//   description: "Privately sends every video in the YouTube playlist to the Discord thread for easier downloading.",
+//   onInteractionCreate: ({ interaction }) => showAllYouTubePlaylistSongs(interaction)
+// },
+
+/**
+ * Get all songs within a YouTube playlist and post them as interaction replies
+ * @param {Interaction} interaction
+ */
+// async function showAllYouTubePlaylistSongs(interaction) {
+//   try {
+//     await interaction.deferReply({ ephemeral: true });
+
+//     const link = await getLinkFromMessageHierarchy(interaction.message);
+//     const cachedLinkData = await getOrCreateCachedLinkData(message);
+//     const playlist = await ytpl(cachedLinkData.link);
+
+//     const downloadMp3Button = new ButtonBuilder();
+//     downloadMp3Button.setCustomId(COMPONENT_CUSTOM_IDS.DOWNLOAD_MP3_BUTTON);
+//     downloadMp3Button.setEmoji("📲");
+//     downloadMp3Button.setLabel("Download MP3");
+//     downloadMp3Button.setStyle(ButtonStyle.Secondary);
+
+//     const searchingPlexButton = new ButtonBuilder();
+//     searchingPlexButton.setCustomId(COMPONENT_CUSTOM_IDS.SEARCHING_PLEX_BUTTON);
+//     searchingPlexButton.setDisabled(true);
+//     searchingPlexButton.setEmoji("⏳");
+//     searchingPlexButton.setLabel("Searching in Plex");
+//     searchingPlexButton.setStyle(ButtonStyle.Secondary);
+
+//     const components = [new ActionRowBuilder().addComponents(downloadMp3Button, searchingPlexButton)];
+
+//     for(let i = 0; i < playlist.items.length; i++) {
+//       const cleanTitle = playlist.title.replaceAll("`", "").replaceAll("*", "").replaceAll(" _", "").replaceAll("_ ", "");
+//       const content = `${config.discord_youtube_emoji} \`${i + 1}/${playlist.items.length}\` **${cleanTitle}**\n${playlist.items[i].shortUrl}`;
+//       const messageWithPlexButton = await interaction.followUp({ components, content, ephemeral: true });
+//       validateMessageWithPlexButton({ interaction, messageWithPlexButton });
+//       await new Promise(resolve => setTimeout(resolve, 250));
+//     }
+//   }
+//   catch(e) {
+//     logger.error(e);
+//   }
+// }

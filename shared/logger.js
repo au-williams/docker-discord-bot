@@ -16,6 +16,7 @@ export default class Logger {
   }
 
   error(message) {
+    if (message.stack) message = message.stack;
     console.error(`🟥 ${this.filename} → ${message}`);
   }
 }

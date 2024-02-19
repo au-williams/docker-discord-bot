@@ -52,8 +52,8 @@ client.on(Events.ClientReady, async () => {
 
     invokePluginsFunction("onClientReady", { client });
   }
-  catch({ stack }) {
-    logger.error(stack);
+  catch(e) {
+    logger.error(e);
   }
 });
 
@@ -63,20 +63,58 @@ client.on(Events.MessageCreate, message => {
     CHANNEL_MESSAGES[message.channel.id]?.unshift(message);
     invokePluginsFunction("onMessageCreate", { client, message });
   }
-  catch({ stack }) {
-    logger.error(stack);
+  catch(e) {
+    logger.error(e);
+  }
+});
+
+/**
+ * Refetch the starter message of a created thread so its readonly .hasThread property is up to date
+ */
+client.on(Events.ThreadCreate, async threadChannel => {
+  try {
+    const starterMessage = await threadChannel.fetchStarterMessage();
+    const { channel } = starterMessage;
+
+    const index = CHANNEL_MESSAGES[channel.id].findIndex(({ id }) => id === starterMessage.id);
+    const response = await channel.messages.fetch(starterMessage.id);
+    CHANNEL_MESSAGES[channel.id][index] = response
+  }
+  catch(e) {
+    logger.error(e);
+  }
+});
+
+/**
+ * Refetch the starter message of a deleted thread so its readonly .hasThread property is up to date
+ */
+client.on(Events.ThreadDelete, async threadChannel => {
+  try {
+    const starterMessage = await threadChannel.fetchStarterMessage().catch(() => null);
+    if (!starterMessage) return; // starterMessage is deleted so we don't care about it
+    const { channel } = starterMessage;
+
+    const index = CHANNEL_MESSAGES[channel.id]?.findIndex(({ id }) => id === starterMessage.id);
+    if (!index) return; // message isn't cached so we don't care about it either
+
+    const response = await channel.messages.fetch(starterMessage.id);
+    CHANNEL_MESSAGES[channel.id][index] = response
+  }
+  catch(e) {
+    logger.error(e);
   }
 });
 
 client.on(Events.MessageDelete, async message => {
   try {
     await invokePluginsFunction("onMessageDelete", { client, message });
+    // remove from lazy-loaded message history
     // todo: instead of deleting message from memory, we should just flag it as deleted instead
     const index = CHANNEL_MESSAGES[message.channel.id]?.map(({ id }) => id).indexOf(message.id);
-    if (index != null && index > -1) CHANNEL_MESSAGES[message.channel.id].splice(index, 1); // remove from lazy-loaded message history
+    if (index != null && index > -1) CHANNEL_MESSAGES[message.channel.id].splice(index, 1);
   }
-  catch({ stack }) {
-    logger.error(stack);
+  catch(e) {
+    logger.error(e);
   }
 });
 
@@ -84,8 +122,8 @@ client.on(Events.MessageUpdate, (oldMessage, newMessage) => {
   try {
     invokePluginsFunction("onMessageUpdate", { client, newMessage, oldMessage });
   }
-  catch({ stack }) {
-    logger.error(stack);
+  catch(e) {
+    logger.error(e);
   }
 });
 
@@ -110,37 +148,57 @@ client.on(Events.InteractionCreate, async interaction => {
     }
 
     function invokeOnInteractionCreate({ filter, interactionName, interactionType, map }) {
-      INITIALIZED_PLUGINS.filter(filter).map(map).forEach(({ filename, onInteractionCreate, requiredChannelIds, requiredRoleIds }) => {
+      INITIALIZED_PLUGINS.filter(filter).map(map).forEach(({ filename, onInteractionCreate, requiredChannelIds, requiredUserRoleIds }) => {
         const { channel, member: { roles }, user: { username } } = interaction;
-        const isRequiredChannelId = !Array.isArray(requiredChannelIds) || requiredChannelIds.includes(channel.id);
-        const isRequiredRoleId = !Array.isArray(requiredRoleIds) || requiredRoleIds.some(requiredId => roles.cache.some(({ id }) => id === requiredId));
+
+        // requiredChannelIds may be a getter function for loaded dependencies, we must resolve it before evaluating it
+        const resolvedChannelIds = typeof requiredChannelIds === "function" ? requiredChannelIds() : requiredChannelIds;
+        const isRequiredChannels = !Array.isArray(resolvedChannelIds) || resolvedChannelIds.includes(channel.id);
+
+        /**
+         * Because some config values may be unavailable at execution time, references to them can be
+         *   in getter format. Try to unpack them before evaluation. If a single value is passed as a
+         *   string to simplify its definition then add support by evaluating it in Array format.
+         * @type {Object} param
+         * @type {bool} param.isRequiredRoles
+         * @type {String[]} param.uniqueRoleIds
+         */
+        const { isRequiredRoles, uniqueRoleIds } = (() => {
+          let resolvedRoleIds = requiredUserRoleIds;
+          if (typeof resolvedRoleIds === "undefined") return { isRequiredRoles: true, uniqueRoleIds: [] };
+          if (typeof resolvedRoleIds === "function") resolvedRoleIds = resolvedRoleIds();
+          if (typeof resolvedRoleIds === "string") resolvedRoleIds = [resolvedRoleIds];
+          if (!Array.isArray(resolvedRoleIds)) throw "Invalid required role ID type";
+          const isRequiredRoles = resolvedRoleIds.some(roleId => roles.cache.some(({ id }) => id === roleId));
+          const uniqueRoleIds = [...new Set(resolvedRoleIds)];
+          return { isRequiredRoles, uniqueRoleIds };
+        })();
 
         const formatContent = (message, valueStart, values, valueEnd) => {
           const predicate = (p, c, i) => `${p}${i && i === values.length - 1 ? " and " : " "}${valueStart}${c}${valueEnd}`;
           return values.reduce(predicate, message);
         }
 
-        if (isRequiredChannelId && isRequiredRoleId) {
+        if (isRequiredChannels && isRequiredRoles) {
           onInteractionCreate({ client, interaction });
           logger.info(`${username} used ${interactionType} interaction "${interactionName}"`, filename);
         }
 
-        else if (!isRequiredRoleId) {
-          const uniqueRequiredRoleIds = [...new Set(requiredRoleIds)];
-          const content = formatContent(`\`🔒Locked\` This can only be used by the`, "<@&", uniqueRequiredRoleIds, ">") + ` role${uniqueRequiredRoleIds.length === 1 ? "" : "s"}!`;
+        else if (!isRequiredRoles) {
+          const content = formatContent(`\`🔒Locked\` This can only be used by the`, "<@&", uniqueRoleIds, ">") + ` role${uniqueRoleIds.length === 1 ? "" : "s"}!`;
           interaction.reply({ content, ephemeral: true }).then(() => logger.info(`${username} tried ${interactionType} interaction "${interactionName}"`, filename));
         }
 
-        else if (!isRequiredChannelId) {
-          const uniqueRequiredChannelIds = [...new Set(requiredChannelIds)];
+        else if (!isRequiredChannels) {
+          const uniqueRequiredChannelIds = [...new Set(resolvedChannelIds)];
           const content = formatContent(`This can only be used in the`, "<#", uniqueRequiredChannelIds, ">") + ` channel${uniqueRequiredChannelIds.length === 1 ? "" : "s"}!`;
           interaction.reply({ content, ephemeral: true }).then(() => logger.info(`${username} tried ${interactionType} interaction "${interactionName}"`, filename));
         }
       });
     }
   }
-  catch({ stack }) {
-    logger.error(stack);
+  catch(e) {
+    logger.error(e);
   }
 });
 
@@ -168,8 +226,8 @@ export const getChannelMessages = async channelId => {
 
     return CHANNEL_MESSAGES[channelId];
   }
-  catch({ stack }) {
-    logger.error(stack);
+  catch(e) {
+    logger.error(e);
   }
 }
 
@@ -178,8 +236,8 @@ export const filterChannelMessages = async (channelId, filter) => {
     const channelMessages = CHANNEL_MESSAGES[channelId] ?? await getChannelMessages(channelId);
     return channelMessages.filter(filter);
   }
-  catch({ stack }) {
-    logger.error(stack);
+  catch(e) {
+    logger.error(e);
   }
 }
 
@@ -188,8 +246,8 @@ export const findChannelMessage = async (channelId, find) => {
     const channelMessages = CHANNEL_MESSAGES[channelId] ?? await getChannelMessages(channelId);
     return channelMessages.find(find);
   }
-  catch({ stack }) {
-    logger.error(stack);
+  catch(e) {
+    logger.error(e);
   }
 }
 
@@ -218,8 +276,8 @@ async function deploy() {
 
     logger.info(`Successfully reloaded ${data.length} (/) commands`);
   }
-  catch({ stack }) {
-    logger.error(stack);
+  catch(e) {
+    logger.error(e);
   }
 }
 
@@ -231,8 +289,8 @@ async function initializeMessages() {
     const channelIds = discord_prefetch_channel_ids.filter(channel_id => channel_id);
     for (const channel_id of channelIds) await getChannelMessages(channel_id);
   }
-  catch({ stack }) {
-    logger.error(stack);
+  catch(e) {
+    logger.error(e);
   }
 }
 
@@ -247,8 +305,8 @@ async function initializePlugins() {
       // todo: allow disabling of plugins - should this run OnClientReady() and not import any that throw?
       await import(`./plugins/${filename}`).then(instance => INITIALIZED_PLUGINS.push({ filename, instance }));
     }
-    catch({ stack }) {
-      logger.error(`"${filename}" ${stack}`);
+    catch(e) {
+      logger.error(`"${filename}" ${e}`);
     }
   }
 
@@ -265,9 +323,9 @@ async function invokePluginsFunction(functionName, params) {
     try {
       await instance[functionName](params);
     }
-    catch ({ stack }) {
-      logger.error(`${filename} ${functionName} threw an uncaught error`);
-      logger.error(filename, stack);
+    catch (e) {
+      logger.error(`"${filename}" "${functionName}" threw an uncaught error`);
+      logger.error(e);
     }
   }
 }

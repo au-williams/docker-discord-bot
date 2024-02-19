@@ -1,9 +1,9 @@
 import { AttachmentBuilder, EmbedBuilder } from "discord.js";
 import { Cron } from "croner";
-import { fetchRetryPolicy } from "../shared/helpers/object.js";
+import { fetchRetryPolicy } from "../shared/helpers/constants.js";
 import { findChannelMessage } from "../index.js";
-import { getCronOptions } from "../shared/helpers/object.js";
-import { tryDeleteThread } from "../shared/helpers/discord.js";
+import { getCronOptions } from "../shared/helpers/utilities.js";
+import { tryDeleteMessageThread } from "../shared/helpers/discord.js";
 import Config from "../shared/config.js";
 import date from 'date-and-time';
 import fetchRetry from 'fetch-retry';
@@ -27,7 +27,7 @@ const fetch = fetchRetry(global.fetch, fetchRetryPolicy);
  * @param {Client} param.client The Discord.js client
  * @param {Message} param.message The deleted message
  */
-export const onMessageDelete = ({ message }) => tryDeleteThread({
+export const onMessageDelete = ({ message }) => tryDeleteMessageThread({
   allowedChannelIds: [config.discord_announcement_channel_id],
   logger, starterMessage: message
 });
