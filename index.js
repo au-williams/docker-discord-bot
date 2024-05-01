@@ -57,76 +57,7 @@ client.on(Events.ClientReady, async () => {
   }
 });
 
-client.on(Events.MessageCreate, message => {
-  try {
-    // add message to lazy-loaded message history
-    CHANNEL_MESSAGES[message.channel.id]?.unshift(message);
-    invokePluginsFunction("onMessageCreate", { client, message });
-  }
-  catch(e) {
-    logger.error(e);
-  }
-});
-
-/**
- * Refetch the starter message of a created thread so its readonly .hasThread property is up to date
- */
-client.on(Events.ThreadCreate, async threadChannel => {
-  try {
-    const starterMessage = await threadChannel.fetchStarterMessage();
-    const { channel } = starterMessage;
-
-    const index = CHANNEL_MESSAGES[channel.id].findIndex(({ id }) => id === starterMessage.id);
-    const response = await channel.messages.fetch(starterMessage.id);
-    CHANNEL_MESSAGES[channel.id][index] = response
-  }
-  catch(e) {
-    logger.error(e);
-  }
-});
-
-/**
- * Refetch the starter message of a deleted thread so its readonly .hasThread property is up to date
- */
-client.on(Events.ThreadDelete, async threadChannel => {
-  try {
-    const starterMessage = await threadChannel.fetchStarterMessage().catch(() => null);
-    if (!starterMessage) return; // starterMessage is deleted so we don't care about it
-    const { channel } = starterMessage;
-
-    const index = CHANNEL_MESSAGES[channel.id]?.findIndex(({ id }) => id === starterMessage.id);
-    if (!index) return; // message isn't cached so we don't care about it either
-
-    const response = await channel.messages.fetch(starterMessage.id);
-    CHANNEL_MESSAGES[channel.id][index] = response
-  }
-  catch(e) {
-    logger.error(e);
-  }
-});
-
-client.on(Events.MessageDelete, async message => {
-  try {
-    await invokePluginsFunction("onMessageDelete", { client, message });
-    // remove from lazy-loaded message history
-    // todo: instead of deleting message from memory, we should just flag it as deleted instead
-    const index = CHANNEL_MESSAGES[message.channel.id]?.map(({ id }) => id).indexOf(message.id);
-    if (index != null && index > -1) CHANNEL_MESSAGES[message.channel.id].splice(index, 1);
-  }
-  catch(e) {
-    logger.error(e);
-  }
-});
-
-client.on(Events.MessageUpdate, (oldMessage, newMessage) => {
-  try {
-    invokePluginsFunction("onMessageUpdate", { client, newMessage, oldMessage });
-  }
-  catch(e) {
-    logger.error(e);
-  }
-});
-
+// todo: this function should be cleaned up ... good luck!
 client.on(Events.InteractionCreate, async interaction => {
   try {
     if (interaction.isChatInputCommand()) {
@@ -201,6 +132,104 @@ client.on(Events.InteractionCreate, async interaction => {
     logger.error(e);
   }
 });
+
+client.on(Events.MessageCreate, message => {
+  try {
+    // add message to lazy-loaded message history
+    CHANNEL_MESSAGES[message.channel.id]?.unshift(message);
+    invokePluginsFunction("onMessageCreate", { client, message });
+  }
+  catch(e) {
+    logger.error(e);
+  }
+});
+
+client.on(Events.GuildMemberAdd, member => {
+  try {
+    invokePluginsFunction("onGuildMemberAdd", { client, member });
+  }
+  catch(e) {
+    logger.error(e);
+  }
+});
+
+client.on(Events.GuildMemberUpdate, (oldMember, newMember) => {
+  try {
+    invokePluginsFunction("onGuildMemberUpdate", { client, oldMember, newMember });
+  }
+  catch(e) {
+    logger.error(e);
+  }
+});
+
+client.on(Events.UserUpdate, (oldUser, newUser) => {
+  try {
+    invokePluginsFunction("onUserUpdate", { client, oldUser, newUser });
+  }
+  catch(e) {
+    logger.error(e);
+  }
+});
+
+client.on(Events.MessageDelete, async message => {
+  try {
+    await invokePluginsFunction("onMessageDelete", { client, message });
+    // remove from lazy-loaded message history
+    // todo: instead of deleting message from memory, we should just flag it as deleted instead
+    const index = CHANNEL_MESSAGES[message.channel.id]?.map(({ id }) => id).indexOf(message.id);
+    if (index != null && index > -1) CHANNEL_MESSAGES[message.channel.id].splice(index, 1);
+  }
+  catch(e) {
+    logger.error(e);
+  }
+});
+
+client.on(Events.MessageUpdate, (oldMessage, newMessage) => {
+  try {
+    invokePluginsFunction("onMessageUpdate", { client, newMessage, oldMessage });
+  }
+  catch(e) {
+    logger.error(e);
+  }
+});
+
+/**
+ * Refetch the starter message of a created thread so its readonly .hasThread property is up to date
+ */
+client.on(Events.ThreadCreate, async threadChannel => {
+  try {
+    const starterMessage = await threadChannel.fetchStarterMessage();
+    const { channel } = starterMessage;
+
+    const index = CHANNEL_MESSAGES[channel.id].findIndex(({ id }) => id === starterMessage.id);
+    const response = await channel.messages.fetch(starterMessage.id);
+    CHANNEL_MESSAGES[channel.id][index] = response
+  }
+  catch(e) {
+    logger.error(e);
+  }
+});
+
+/**
+ * Refetch the starter message of a deleted thread so its readonly .hasThread property is up to date
+ */
+client.on(Events.ThreadDelete, async threadChannel => {
+  try {
+    const starterMessage = await threadChannel.fetchStarterMessage().catch(() => null);
+    if (!starterMessage) return; // starterMessage is deleted so we don't care about it
+    const { channel } = starterMessage;
+
+    const index = CHANNEL_MESSAGES[channel.id]?.findIndex(({ id }) => id === starterMessage.id);
+    if (!index) return; // message isn't cached so we don't care about it either
+
+    const response = await channel.messages.fetch(starterMessage.id);
+    CHANNEL_MESSAGES[channel.id][index] = response
+  }
+  catch(e) {
+    logger.error(e);
+  }
+});
+
 
 // ------------------------------------------------------------------------- //
 // >> CHANNEL MESSAGE HANDLERS                                            << //

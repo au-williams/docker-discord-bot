@@ -3,7 +3,7 @@ import { fileURLToPath } from "url";
 import { getAverageColor } from 'fast-average-color-node';
 import { nanoid } from 'nanoid'
 import { scheduledJobs } from "croner";
-import download from "download";
+import Downloader from "nodejs-file-downloader";
 import fs from "fs-extra";
 
 const { temp_directory } = fs.readJsonSync("config.json");
@@ -14,10 +14,9 @@ const { temp_directory } = fs.readJsonSync("config.json");
  */
 export const getAverageColorFromUrl = async url => {
   const tempDownloadDirectory = `${temp_directory}\\${nanoid()}`;
-  await download(url, tempDownloadDirectory);
-  const tempDownloadFilename = fs.readdirSync(tempDownloadDirectory)[0];
-  const tempDownloadFilepath = `${tempDownloadDirectory}\\${tempDownloadFilename}`;
-  const averageColor = await getAverageColor(tempDownloadFilepath);
+  const downloader = new Downloader({ url, directory: tempDownloadDirectory });
+  const { filePath: tempDownloadFilePath } = await downloader.download();
+  const averageColor = await getAverageColor(tempDownloadFilePath);
   // todo: has issues with file locking that need resolving
   // https://stackoverflow.com/questions/20796902/deleting-file-in-node-js
   // fs.removeSync(tempDownloadDirectory);
