@@ -8,5 +8,5 @@ This script creates a guild role for each members average profile picture color 
 
 | Key                            | Value                                                          | Required |
 | ------------------------------ | -------------------------------------------------------------- | -------- |
-| `"discord_excluded_guild_ids"` | The array of Discord guild IDs this plugin will not execute in | ✔        |
-| `"discord_excluded_user_ids"`  | The array of Discord user IDs this plugin will not execute for | ✔        |
+| `"discord_excluded_guild_ids"` | The array of Discord guild IDs this plugin will not execute in | ✖        |
+| `"discord_excluded_user_ids"`  | The array of Discord user IDs this plugin will not execute for | ✖        |
