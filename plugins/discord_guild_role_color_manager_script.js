@@ -30,7 +30,7 @@ export const onClientReady = async ({ client }) => {
         // execute updating the members guild roles
         const { hex } = await getAverageColorFromUrl(member.displayAvatarURL());
         const whitelistRole = await createAssignNewGuildRole(client, hex, member);
-        await deleteUnassignGuildRoles(member, whitelistRole);
+        if (whitelistRole) await deleteUnassignGuildRoles(member, whitelistRole);
       }
     }
   }
@@ -63,6 +63,35 @@ export const onGuildMemberAdd = async ({ client, member }) => {
 }
 
 /**
+ * Update a members role if their server avatar has been updated
+ * @param {Object} param
+ * @param {Client} param.client
+ * @param {GuildMember} param.oldMember
+ * @param {GuildMember} param.newMember
+ */
+export const onGuildMemberUpdate = async ({ client, oldMember, newMember }) => {
+  try {
+    // verify the user is not excluded
+    if (config.discord_excluded_user_ids.includes(newMember.user.id)) return;
+
+    // verify the members server avatar was updated
+    const oldMemberDisplayAvatarURL = oldMember.displayAvatarURL();
+    const newMemberDisplayAvatarURL = newMember.displayAvatarURL();
+    if (oldMemberDisplayAvatarURL === newMemberDisplayAvatarURL) return;
+
+    // get the hex color of their avatar
+    const { hex } = await getAverageColorFromUrl(newMemberDisplayAvatarURL);
+
+    // execute updating the members guild roles
+    const whitelistRole = await createAssignNewGuildRole(client, hex, newMember);
+    if (whitelistRole) await deleteUnassignGuildRoles(newMember, whitelistRole);
+  }
+  catch(e) {
+    logger.error(e);
+  }
+}
+
+/**
  * Update a users role across guilds if their avatar has been updated
  * @param {Object} param
  * @param {Client} param.client
@@ -79,7 +108,7 @@ export const onUserUpdate = async ({ client, oldUser, newUser }) => {
     const newUserDisplayAvatarURL = newUser.displayAvatarURL();
     if (oldUserDisplayAvatarURL === newUserDisplayAvatarURL) return;
 
-    // get the hex color of their profile picture
+    // get the hex color of their avatar
     const { hex } = await getAverageColorFromUrl(newUserDisplayAvatarURL);
 
     for (const guild of [...client.guilds.cache.values()]) {
@@ -92,7 +121,7 @@ export const onUserUpdate = async ({ client, oldUser, newUser }) => {
 
       // execute updating the members guild roles
       const whitelistRole = await createAssignNewGuildRole(client, hex, member);
-      await deleteUnassignGuildRoles(member, whitelistRole);
+      if (whitelistRole) await deleteUnassignGuildRoles(member, whitelistRole);
     }
   }
   catch(e) {
@@ -114,6 +143,11 @@ export const onUserUpdate = async ({ client, oldUser, newUser }) => {
  */
 async function createAssignNewGuildRole(client, hex, member) {
   try {
+    if (member.guild.roles.cache.size === 250) {
+      logger.warn(`Maximum of 250 roles has been reached in ${member.guild.name}.`);
+      return;
+    }
+
     // find the existing guild role for this hex ('#FFFFFF')
     const findRole = ({ name }) => name === hex.toUpperCase();
     let role = member.guild.roles.cache.find(findRole);
@@ -159,27 +193,3 @@ async function deleteUnassignGuildRoles(member, whitelistRole) {
     logger.error(e);
   }
 }
-
-// ------------------------------------------------------------------------- //
-// >> CODE GRAVEYARD o7                                                   << //
-// ------------------------------------------------------------------------- //
-
-// deprecated because Discord API doesn't call onGuildMemberUpdate (which would have been convenient)
-// ...
-// export const onGuildMemberUpdate = async ({ client, oldMember, newMember }) => {
-//   try {
-//     if (config.discord_excluded_user_ids.includes(newMember.user.id)) return;
-
-//     // update the role color if the avatar has been updated
-//     const oldMemberDisplayAvatarURL = oldMember.displayAvatarURL();
-//     const newMemberDisplayAvatarURL = newMember.displayAvatarURL();
-//     if (oldMemberDisplayAvatarURL === newMemberDisplayAvatarURL) return;
-
-//     const { hex } = await getAverageColorFromUrl(newMemberDisplayAvatarURL);
-//     const whitelistRole = await createAssignNewGuildRole(client, hex, newMember);
-//     await deleteUnassignGuildRoles(newMember, whitelistRole);
-//   }
-//   catch(e) {
-//     logger.error(e);
-//   }
-// }
