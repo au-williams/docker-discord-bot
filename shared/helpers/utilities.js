@@ -3,8 +3,10 @@ import { fileURLToPath } from "url";
 import { getAverageColor } from 'fast-average-color-node';
 import { nanoid } from 'nanoid'
 import { scheduledJobs } from "croner";
+import Vibrant from 'node-vibrant'
 import Downloader from "nodejs-file-downloader";
 import fs from "fs-extra";
+import sharp from "sharp";
 
 const { temp_directory } = fs.readJsonSync("config.json");
 
@@ -21,6 +23,31 @@ export const getAverageColorFromUrl = async url => {
   // https://stackoverflow.com/questions/20796902/deleting-file-in-node-js
   // fs.removeSync(tempDownloadDirectory);
   return averageColor;
+}
+
+export const getVibrantColorFromUrl = async url => {
+  // download the file
+  const tempDownloadDirectory = `${temp_directory}\\${nanoid()}`;
+  const downloader = new Downloader({ url, directory: tempDownloadDirectory });
+  let { filePath: tempDownloadFilePath } = await downloader.download();
+
+  // convert the file if it's .webp (Vibrant does not support it)
+  if (tempDownloadFilePath.endsWith(".webp")) {
+    const ext = extname(tempDownloadFilePath);
+    const base = basename(tempDownloadFilePath, ext);
+    const webpTempDownloadFilePath = tempDownloadFilePath;
+    tempDownloadFilePath = `${tempDownloadDirectory}\\${base}.png`;
+    await sharp(webpTempDownloadFilePath).toFormat('png').toFile(tempDownloadFilePath);
+  }
+
+  // extract the vibrant color
+  const vibrantColor = await new Vibrant(tempDownloadFilePath).getPalette();
+  const { LightVibrant, LightMuted, DarkVibrant, DarkMuted } = vibrantColor;
+  // todo: has issues with file locking that need resolving
+  // https://stackoverflow.com/questions/20796902/deleting-file-in-node-js
+  // fs.removeSync(tempDownloadDirectory);
+
+  return LightMuted?.hex || LightVibrant?.hex|| DarkVibrant?.hex || DarkMuted?.hex
 }
 
 /**

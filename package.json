@@ -22,10 +22,12 @@
     "fs-extra": "^11.1.1",
     "get-caller-file": "^2.0.5",
     "nanoid": "^5.0.5",
+    "node-vibrant": "^3.2.1-alpha.1",
     "nodejs-file-downloader": "^4.12.1",
     "probe-image-size": "^7.2.3",
     "random-item": "^4.0.1",
     "sanitize-filename": "^1.6.3",
+    "sharp": "^0.33.3",
     "youtube-dl-exec": "^2.5.7"
   },
   "devDependencies": {

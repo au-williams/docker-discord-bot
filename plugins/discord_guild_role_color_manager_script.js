@@ -1,4 +1,4 @@
-import { getAverageColorFromUrl } from "../shared/helpers/utilities.js";
+import { getVibrantColorFromUrl } from "../shared/helpers/utilities.js";
 import Config from "../shared/config.js";
 import Logger from "../shared/logger.js";
 
@@ -28,7 +28,7 @@ export const onClientReady = async ({ client }) => {
         if (config.discord_excluded_user_ids.includes(member.user.id)) continue;
 
         // execute updating the members guild roles
-        const { hex } = await getAverageColorFromUrl(member.displayAvatarURL());
+        const hex = await getVibrantColorFromUrl(member.displayAvatarURL());
         const whitelistRole = await createAssignNewGuildRole(client, hex, member);
         if (whitelistRole) await deleteUnassignGuildRoles(member, whitelistRole);
       }
@@ -54,7 +54,7 @@ export const onGuildMemberAdd = async ({ client, member }) => {
     if (config.discord_excluded_user_ids.includes(member.user.id)) return;
 
     // execute updating the members guild roles
-    const { hex } = await getAverageColorFromUrl(member.displayAvatarURL());
+    const hex = await getVibrantColorFromUrl(member.displayAvatarURL());
     await createAssignNewGuildRole(client, hex, member);
   }
   catch(e) {
@@ -80,7 +80,7 @@ export const onGuildMemberUpdate = async ({ client, oldMember, newMember }) => {
     if (oldMemberDisplayAvatarURL === newMemberDisplayAvatarURL) return;
 
     // get the hex color of their avatar
-    const { hex } = await getAverageColorFromUrl(newMemberDisplayAvatarURL);
+    const hex = await getVibrantColorFromUrl(newMemberDisplayAvatarURL);
 
     // execute updating the members guild roles
     const whitelistRole = await createAssignNewGuildRole(client, hex, newMember);
@@ -109,7 +109,7 @@ export const onUserUpdate = async ({ client, oldUser, newUser }) => {
     if (oldUserDisplayAvatarURL === newUserDisplayAvatarURL) return;
 
     // get the hex color of their avatar
-    const { hex } = await getAverageColorFromUrl(newUserDisplayAvatarURL);
+    const hex = await getVibrantColorFromUrl(newUserDisplayAvatarURL);
 
     for (const guild of [...client.guilds.cache.values()]) {
       // verify the guild is not excluded
