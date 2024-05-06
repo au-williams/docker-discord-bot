@@ -12,7 +12,7 @@ const logger = new Logger("cat_facts_scheduler_script.js");
 // >> INTERACTION DEFINITIONS                                             << //
 // ------------------------------------------------------------------------- //
 
-export const COMMAND_INTERACTIONS = [{
+export const PLUGIN_COMMANDS = [{
   name: "catfact",
   description: "Publicly sends a message with a random cat fact 🐱",
   onInteractionCreate

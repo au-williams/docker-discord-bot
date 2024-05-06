@@ -25,7 +25,7 @@ const logger = new Logger("plex_music_downloader_script.js");
 // >> INTERACTION DEFINITIONS                                             << //
 // ------------------------------------------------------------------------- //
 
-export const COMPONENT_CUSTOM_IDS = {
+export const PLUGIN_CUSTOM_IDS = {
   DELETE_FROM_PLEX_BUTTON: "DELETE_FROM_PLEX_BUTTON",
   DELETE_FROM_PLEX_MODAL: "DELETE_FROM_PLEX_MODAL",
   DOWNLOAD_MP3_BUTTON: "DOWNLOAD_MP3_BUTTON",
@@ -36,40 +36,40 @@ export const COMPONENT_CUSTOM_IDS = {
   SHOW_BUTTON_DOCUMENTATION: "SHOW_BUTTON_DOCUMENTATION", // todo: move this to global
 }
 
-export const COMPONENT_INTERACTIONS = [
+export const PLUGIN_INTERACTIONS = [
   {
-    customId: COMPONENT_CUSTOM_IDS.DOWNLOAD_MP3_BUTTON,
+    customId: PLUGIN_CUSTOM_IDS.DOWNLOAD_MP3_BUTTON,
     description: "Extracts the audio from a link and uploads it to Discord as an MP3 file for users to stream or download.",
-    onInteractionCreate: ({ interaction }) => showMetadataModal(interaction, COMPONENT_CUSTOM_IDS.DOWNLOAD_MP3_MODAL, "Download MP3")
+    onInteractionCreate: ({ interaction }) => showMetadataModal(interaction, PLUGIN_CUSTOM_IDS.DOWNLOAD_MP3_MODAL, "Download MP3")
   },
   {
-    customId: COMPONENT_CUSTOM_IDS.DOWNLOAD_MP3_MODAL,
-    onInteractionCreate: ({ interaction }) => downloadLinkAndExecute(interaction, COMPONENT_CUSTOM_IDS.DOWNLOAD_MP3_MODAL, callbackUploadDiscordFile, "mp3")
+    customId: PLUGIN_CUSTOM_IDS.DOWNLOAD_MP3_MODAL,
+    onInteractionCreate: ({ interaction }) => downloadLinkAndExecute(interaction, PLUGIN_CUSTOM_IDS.DOWNLOAD_MP3_MODAL, callbackUploadDiscordFile, "mp3")
   },
   {
-    customId: COMPONENT_CUSTOM_IDS.IMPORT_MUSIC_INTO_PLEX_BUTTON,
+    customId: PLUGIN_CUSTOM_IDS.IMPORT_MUSIC_INTO_PLEX_BUTTON,
     description: "Extracts the audio from a link and imports it into the bot's Plex library for secured long-term storage.",
-    onInteractionCreate: ({ interaction }) => showMetadataModal(interaction, COMPONENT_CUSTOM_IDS.IMPORT_MUSIC_INTO_PLEX_MODAL, "Import into Plex"),
+    onInteractionCreate: ({ interaction }) => showMetadataModal(interaction, PLUGIN_CUSTOM_IDS.IMPORT_MUSIC_INTO_PLEX_MODAL, "Import into Plex"),
     requiredUserRoleIds: () => config.discord_admin_role_id
   },
   {
-    customId: COMPONENT_CUSTOM_IDS.IMPORT_MUSIC_INTO_PLEX_MODAL,
-    onInteractionCreate: ({ interaction }) => downloadLinkAndExecute(interaction, COMPONENT_CUSTOM_IDS.IMPORT_MUSIC_INTO_PLEX_MODAL, callbackImportPlexFile),
+    customId: PLUGIN_CUSTOM_IDS.IMPORT_MUSIC_INTO_PLEX_MODAL,
+    onInteractionCreate: ({ interaction }) => downloadLinkAndExecute(interaction, PLUGIN_CUSTOM_IDS.IMPORT_MUSIC_INTO_PLEX_MODAL, callbackImportPlexFile),
     requiredUserRoleIds: () => config.discord_admin_role_id
   },
   {
-    customId: COMPONENT_CUSTOM_IDS.DELETE_FROM_PLEX_BUTTON,
+    customId: PLUGIN_CUSTOM_IDS.DELETE_FROM_PLEX_BUTTON,
     description: "Removes the previously imported audio file from the bot's Plex library and deletes it from the filesystem.",
-    onInteractionCreate: ({ interaction }) => showDeletionModal(interaction, COMPONENT_CUSTOM_IDS.DELETE_FROM_PLEX_MODAL, "Delete from Plex"),
+    onInteractionCreate: ({ interaction }) => showDeletionModal(interaction, PLUGIN_CUSTOM_IDS.DELETE_FROM_PLEX_MODAL, "Delete from Plex"),
     requiredUserRoleIds: () => config.discord_admin_role_id
   },
   {
-    customId: COMPONENT_CUSTOM_IDS.DELETE_FROM_PLEX_MODAL,
+    customId: PLUGIN_CUSTOM_IDS.DELETE_FROM_PLEX_MODAL,
     onInteractionCreate: ({ interaction }) => deleteLinkFromPlex(interaction),
     requiredUserRoleIds: () => config.discord_admin_role_id
   },
   {
-    customId: COMPONENT_CUSTOM_IDS.SHOW_BUTTON_DOCUMENTATION,
+    customId: PLUGIN_CUSTOM_IDS.SHOW_BUTTON_DOCUMENTATION,
     onInteractionCreate: ({ interaction }) => showButtonDocumentation(interaction)
   }
 ]
@@ -225,13 +225,13 @@ async function createThreadChannel(cachedLinkData, starterMessage) {
     // --------------------------------------------------- //
 
     const downloadMp3Button = new ButtonBuilder();
-    downloadMp3Button.setCustomId(COMPONENT_CUSTOM_IDS.DOWNLOAD_MP3_BUTTON);
+    downloadMp3Button.setCustomId(PLUGIN_CUSTOM_IDS.DOWNLOAD_MP3_BUTTON);
     downloadMp3Button.setEmoji("📲");
     downloadMp3Button.setLabel("Download MP3");
     downloadMp3Button.setStyle(ButtonStyle.Secondary);
 
     const searchingPlexButton = new ButtonBuilder();
-    searchingPlexButton.setCustomId(COMPONENT_CUSTOM_IDS.SEARCHING_PLEX_BUTTON);
+    searchingPlexButton.setCustomId(PLUGIN_CUSTOM_IDS.SEARCHING_PLEX_BUTTON);
     searchingPlexButton.setDisabled(true);
     searchingPlexButton.setEmoji("⏳");
     searchingPlexButton.setLabel("Searching in Plex");
@@ -247,7 +247,7 @@ async function createThreadChannel(cachedLinkData, starterMessage) {
     // ----------------------------------------------------- //
 
     const showDocumentationButton = new ButtonBuilder();
-    showDocumentationButton.setCustomId(COMPONENT_CUSTOM_IDS.SHOW_BUTTON_DOCUMENTATION);
+    showDocumentationButton.setCustomId(PLUGIN_CUSTOM_IDS.SHOW_BUTTON_DOCUMENTATION);
     showDocumentationButton.setEmoji("🔖");
     showDocumentationButton.setLabel("Show documentation");
     showDocumentationButton.setStyle(ButtonStyle.Primary);
@@ -270,7 +270,7 @@ async function createThreadChannel(cachedLinkData, starterMessage) {
  */
 async function deleteLinkFromPlex(interaction) {
   const operation = new ComponentOperation({
-    interactionId: COMPONENT_CUSTOM_IDS.DELETE_FROM_PLEX_MODAL,
+    interactionId: PLUGIN_CUSTOM_IDS.DELETE_FROM_PLEX_MODAL,
     messageId: interaction.message.id,
     userId: interaction.user.id
   });
@@ -740,7 +740,7 @@ async function validateThreadChannel(cachedLinkData, threadChannel) {
   // validate the thread channel plex button shows the local files existence //
   // ----------------------------------------------------------------------- //
 
-  const { DELETE_FROM_PLEX_BUTTON, IMPORT_MUSIC_INTO_PLEX_BUTTON, SEARCHING_PLEX_BUTTON } = COMPONENT_CUSTOM_IDS;
+  const { DELETE_FROM_PLEX_BUTTON, IMPORT_MUSIC_INTO_PLEX_BUTTON, SEARCHING_PLEX_BUTTON } = PLUGIN_CUSTOM_IDS;
   const plexComponentIds = [DELETE_FROM_PLEX_BUTTON, IMPORT_MUSIC_INTO_PLEX_BUTTON, SEARCHING_PLEX_BUTTON];
 
   const find = ({ components }) => components?.[0]?.components.some(some);
@@ -755,7 +755,7 @@ async function validateThreadChannel(cachedLinkData, threadChannel) {
     const components = [ActionRowBuilder.from(messageWithPlexButton.components[0])];
     const buttonIndex = messageWithPlexButton.components[0].components.findIndex(some);
 
-    components[0].components[buttonIndex].setCustomId(COMPONENT_CUSTOM_IDS.SEARCHING_PLEX_BUTTON);
+    components[0].components[buttonIndex].setCustomId(PLUGIN_CUSTOM_IDS.SEARCHING_PLEX_BUTTON);
     components[0].components[buttonIndex].setDisabled(true);
     components[0].components[buttonIndex].setEmoji("⏳");
     components[0].components[buttonIndex].setLabel("Searching in Plex");
@@ -763,7 +763,7 @@ async function validateThreadChannel(cachedLinkData, threadChannel) {
     await messageWithPlexButton.edit({ components });
 
     const isPlexFile = await getExistingPlexFilename(cachedLinkData);
-    const customId = isPlexFile ? COMPONENT_CUSTOM_IDS.DELETE_FROM_PLEX_BUTTON : COMPONENT_CUSTOM_IDS.IMPORT_MUSIC_INTO_PLEX_BUTTON;
+    const customId = isPlexFile ? PLUGIN_CUSTOM_IDS.DELETE_FROM_PLEX_BUTTON : PLUGIN_CUSTOM_IDS.IMPORT_MUSIC_INTO_PLEX_BUTTON;
     const label = isPlexFile ? "Delete from Plex" : "Import into Plex";
 
     components[0].components[buttonIndex].setCustomId(customId);
@@ -785,7 +785,7 @@ async function showButtonDocumentation(interaction) {
     await interaction.deferReply({ ephemeral: true });
 
     const channelMessages = await getChannelMessages(interaction.channel.id);
-    const getIsDocumentationButton = ({ data: custom_id }) => custom_id === COMPONENT_CUSTOM_IDS.SHOW_BUTTON_DOCUMENTATION;
+    const getIsDocumentationButton = ({ data: custom_id }) => custom_id === PLUGIN_CUSTOM_IDS.SHOW_BUTTON_DOCUMENTATION;
     const documentationButtonIndex = channelMessages.findIndex(m => m.components?.[0]?.components.some(getIsDocumentationButton));
     const documentedButtonMessages = channelMessages.slice(0, documentationButtonIndex - 1);
 
@@ -796,11 +796,11 @@ async function showButtonDocumentation(interaction) {
       if (!components) continue;
 
       const buttonData = components.map(c => c.data).reverse(); // reverse row items so they're upserted in order
-      const interactionData = buttonData.map(b => COMPONENT_INTERACTIONS.find(c => c.customId === b.custom_id));
+      const interactionData = buttonData.map(b => PLUGIN_INTERACTIONS.find(c => c.customId === b.custom_id));
 
       for(const { custom_id, emoji, label} of buttonData) {
         const id = interactionData.filter(x => x).find(x => x.customId === custom_id);
-        if (!id || custom_id === COMPONENT_CUSTOM_IDS.SHOW_BUTTON_DOCUMENTATION) continue;
+        if (!id || custom_id === PLUGIN_CUSTOM_IDS.SHOW_BUTTON_DOCUMENTATION) continue;
 
         const { description, requiredRoleIds } = id;
         const formattedEmoji = emoji.id ? `<:${emoji.name}:${emoji.id}>` : emoji.name;
@@ -847,7 +847,7 @@ async function showButtonDocumentation(interaction) {
 //     const buttonIndex = actualMessageWithPlexButton.components[0].components.findIndex(getIsPlexButtonComponent);
 //     const components = [ActionRowBuilder.from(actualMessageWithPlexButton.components[0])];
 
-//     components[0].components[buttonIndex].setCustomId(COMPONENT_CUSTOM_IDS.SEARCHING_PLEX_BUTTON);
+//     components[0].components[buttonIndex].setCustomId(PLUGIN_CUSTOM_IDS.SEARCHING_PLEX_BUTTON);
 //     components[0].components[buttonIndex].setDisabled(true);
 //     components[0].components[buttonIndex].setEmoji("⏳");
 //     components[0].components[buttonIndex].setLabel("Searching in Plex");
@@ -857,7 +857,7 @@ async function showButtonDocumentation(interaction) {
 //       : await actualMessageWithPlexButton.edit({ components });
 
 //     const isPlexFile = await getExistingPlexFilename(cachedLinkData);
-//     const customId = isPlexFile ? COMPONENT_CUSTOM_IDS.DELETE_FROM_PLEX_BUTTON : COMPONENT_CUSTOM_IDS.IMPORT_MUSIC_INTO_PLEX_BUTTON;
+//     const customId = isPlexFile ? PLUGIN_CUSTOM_IDS.DELETE_FROM_PLEX_BUTTON : PLUGIN_CUSTOM_IDS.IMPORT_MUSIC_INTO_PLEX_BUTTON;
 //     const label = isPlexFile ? "Delete from Plex" : "Import into Plex";
 
 //     components[0].components[buttonIndex].setCustomId(customId);
@@ -879,13 +879,13 @@ async function showButtonDocumentation(interaction) {
 
   // if (isLinkYouTubePlaylist) {
   //   const showAllSongsButton = new ButtonBuilder();
-  //   showAllSongsButton.setCustomId(COMPONENT_CUSTOM_IDS.SHOW_ALL_YOUTUBE_SONGS);
+  //   showAllSongsButton.setCustomId(PLUGIN_CUSTOM_IDS.SHOW_ALL_YOUTUBE_SONGS);
   //   showAllSongsButton.setEmoji(config.discord_youtube_emoji);
   //   showAllSongsButton.setLabel("Show all videos");
   //   showAllSongsButton.setStyle(ButtonStyle.Secondary);
 
   //   const followInChannelButton = new ButtonBuilder();
-  //   followInChannelButton.setCustomId(COMPONENT_CUSTOM_IDS.FOLLOW_UPDATES_BUTTON);
+  //   followInChannelButton.setCustomId(PLUGIN_CUSTOM_IDS.FOLLOW_UPDATES_BUTTON);
   //   followInChannelButton.setEmoji("🔔");
   //   followInChannelButton.setLabel("Follow updates");
   //   followInChannelButton.setStyle(ButtonStyle.Secondary);
@@ -902,7 +902,7 @@ async function showButtonDocumentation(interaction) {
 
 
 // {
-//   customId: COMPONENT_CUSTOM_IDS.SHOW_ALL_YOUTUBE_SONGS,
+//   customId: PLUGIN_CUSTOM_IDS.SHOW_ALL_YOUTUBE_SONGS,
 //   description: "Privately sends every video in the YouTube playlist to the Discord thread for easier downloading.",
 //   onInteractionCreate: ({ interaction }) => showAllYouTubePlaylistSongs(interaction)
 // },
@@ -920,13 +920,13 @@ async function showButtonDocumentation(interaction) {
 //     const playlist = await ytpl(cachedLinkData.link);
 
 //     const downloadMp3Button = new ButtonBuilder();
-//     downloadMp3Button.setCustomId(COMPONENT_CUSTOM_IDS.DOWNLOAD_MP3_BUTTON);
+//     downloadMp3Button.setCustomId(PLUGIN_CUSTOM_IDS.DOWNLOAD_MP3_BUTTON);
 //     downloadMp3Button.setEmoji("📲");
 //     downloadMp3Button.setLabel("Download MP3");
 //     downloadMp3Button.setStyle(ButtonStyle.Secondary);
 
 //     const searchingPlexButton = new ButtonBuilder();
-//     searchingPlexButton.setCustomId(COMPONENT_CUSTOM_IDS.SEARCHING_PLEX_BUTTON);
+//     searchingPlexButton.setCustomId(PLUGIN_CUSTOM_IDS.SEARCHING_PLEX_BUTTON);
 //     searchingPlexButton.setDisabled(true);
 //     searchingPlexButton.setEmoji("⏳");
 //     searchingPlexButton.setLabel("Searching in Plex");

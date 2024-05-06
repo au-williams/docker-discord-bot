@@ -21,13 +21,13 @@ const fetch = fetchRetry(global.fetch, fetchRetryPolicy);
 // >> INTERACTION DEFINITIONS                                             << //
 // ------------------------------------------------------------------------- //
 
-export const COMMAND_INTERACTIONS = [{
+export const PLUGIN_COMMANDS = [{
   name: "drg",
   description: "Privately shows the weekly deep dive assignments in Deep Rock Galactic 🎮",
   onInteractionCreate: ({ client, interaction }) => onCommandInteraction({ client, interaction })
 }];
 
-export const COMPONENT_INTERACTIONS = [
+export const PLUGIN_INTERACTIONS = [
   {
     customId: "DEEP_DIVE_BUTTON",
     onInteractionCreate: ({ client, interaction }) => onDeepDiveButtonInteraction({ client, interaction })

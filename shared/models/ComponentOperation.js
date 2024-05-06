@@ -1,7 +1,7 @@
 /**
  * Define what interactions are busy so multiple component clicks do not make multiple invocations
  */
-const BUSY_COMPONENT_INTERACTIONS = new Set();
+const BUSY_PLUGIN_INTERACTIONS = new Set();
 
 export default class ComponentOperation {
   /**
@@ -18,12 +18,12 @@ export default class ComponentOperation {
   }
 
   get isBusy() {
-    return BUSY_COMPONENT_INTERACTIONS.has(`${this}`);
+    return BUSY_PLUGIN_INTERACTIONS.has(`${this}`);
   }
 
   setBusy(bool) {
-    if (bool) !this.isBusy && BUSY_COMPONENT_INTERACTIONS.add(`${this}`);
-    else this.isBusy && BUSY_COMPONENT_INTERACTIONS.delete(`${this}`);
+    if (bool) !this.isBusy && BUSY_PLUGIN_INTERACTIONS.add(`${this}`);
+    else this.isBusy && BUSY_PLUGIN_INTERACTIONS.delete(`${this}`);
   }
 
   toString() {

@@ -19,7 +19,7 @@ const CONFIG_INSTANCES = new Map();
 /**
  * Custom IDs used by components within this plugin
  */
-export const COMPONENT_CUSTOM_IDS = {
+export const PLUGIN_CUSTOM_IDS = {
   CONFIG_BUTTON_EDIT_CONFIG: "CONFIG_BUTTON_EDIT_CONFIG",
   CONFIG_BUTTON_SHOW_HELP: "CONFIG_BUTTON_SHOW_HELP",
   CONFIG_BUTTON_USE_CLOUD_HOST: "CONFIG_BUTTON_USE_CLOUD_HOST",
@@ -31,25 +31,25 @@ export const COMPONENT_CUSTOM_IDS = {
 /**
  * Component interactions handled within this plugin
  */
-export const COMPONENT_INTERACTIONS = [
+export const PLUGIN_INTERACTIONS = [
   {
-    customId: COMPONENT_CUSTOM_IDS.CONFIG_BUTTON_EDIT_CONFIG,
+    customId: PLUGIN_CUSTOM_IDS.CONFIG_BUTTON_EDIT_CONFIG,
     onInteractionCreate: ({ interaction }) => onButtonComponentEditConfig({ interaction })
   },
   {
-    customId: COMPONENT_CUSTOM_IDS.CONFIG_BUTTON_SHOW_HELP,
+    customId: PLUGIN_CUSTOM_IDS.CONFIG_BUTTON_SHOW_HELP,
     onInteractionCreate: ({ interaction }) => onButtonComponentShowHelp({ interaction })
   },
   {
-    customId: COMPONENT_CUSTOM_IDS.CONFIG_BUTTON_USE_CLOUD_HOST,
+    customId: PLUGIN_CUSTOM_IDS.CONFIG_BUTTON_USE_CLOUD_HOST,
     onInteractionCreate: ({ interaction }) => onButtonComponentUseCloudHost({ interaction })
   },
   {
-    customId: COMPONENT_CUSTOM_IDS.CONFIG_BUTTON_USE_LOCAL_HOST,
+    customId: PLUGIN_CUSTOM_IDS.CONFIG_BUTTON_USE_LOCAL_HOST,
     onInteractionCreate: ({ interaction }) => onButtonComponentUseLocalHost({ interaction })
   },
   {
-    customId: COMPONENT_CUSTOM_IDS.CONFIG_MODAL_EDIT_CONFIG,
+    customId: PLUGIN_CUSTOM_IDS.CONFIG_MODAL_EDIT_CONFIG,
     onInteractionCreate: ({ client, interaction }) => onModalEditConfig({ client, interaction })
   }
 ]
@@ -214,9 +214,9 @@ async function dropCreateThreadMessages(config) {
     if (!contents.length) contents.push(`{}`);
     contents = contents.map(str => `\`\`\`json\n${str}\n\`\`\``);
 
-    const button1 = getButtonComponent(COMPONENT_CUSTOM_IDS.CONFIG_BUTTON_EDIT_CONFIG);
-    const button2 = getButtonComponent(config.getIsCloudHosted() ? COMPONENT_CUSTOM_IDS.CONFIG_BUTTON_USE_LOCAL_HOST : COMPONENT_CUSTOM_IDS.CONFIG_BUTTON_USE_CLOUD_HOST);
-    const button3 = getButtonComponent(COMPONENT_CUSTOM_IDS.CONFIG_BUTTON_SHOW_HELP);
+    const button1 = getButtonComponent(PLUGIN_CUSTOM_IDS.CONFIG_BUTTON_EDIT_CONFIG);
+    const button2 = getButtonComponent(config.getIsCloudHosted() ? PLUGIN_CUSTOM_IDS.CONFIG_BUTTON_USE_LOCAL_HOST : PLUGIN_CUSTOM_IDS.CONFIG_BUTTON_USE_CLOUD_HOST);
+    const button3 = getButtonComponent(PLUGIN_CUSTOM_IDS.CONFIG_BUTTON_SHOW_HELP);
     const components = [new ActionRowBuilder().addComponents(button1, button2, button3)];
 
     const filter = ({ content }) => content.startsWith("```json");
@@ -246,30 +246,30 @@ async function dropCreateThreadMessages(config) {
  */
 function getButtonComponent(component_custom_id) {
   switch(component_custom_id) {
-    case COMPONENT_CUSTOM_IDS.CONFIG_BUTTON_EDIT_CONFIG:
+    case PLUGIN_CUSTOM_IDS.CONFIG_BUTTON_EDIT_CONFIG:
       return new ButtonBuilder()
-        .setCustomId(COMPONENT_CUSTOM_IDS.CONFIG_BUTTON_EDIT_CONFIG)
+        .setCustomId(PLUGIN_CUSTOM_IDS.CONFIG_BUTTON_EDIT_CONFIG)
         .setEmoji("📝")
         .setLabel("Edit Config")
         .setStyle(ButtonStyle.Primary);
 
-    case COMPONENT_CUSTOM_IDS.CONFIG_BUTTON_SHOW_HELP:
+    case PLUGIN_CUSTOM_IDS.CONFIG_BUTTON_SHOW_HELP:
       return new ButtonBuilder()
-        .setCustomId(COMPONENT_CUSTOM_IDS.CONFIG_BUTTON_SHOW_HELP)
+        .setCustomId(PLUGIN_CUSTOM_IDS.CONFIG_BUTTON_SHOW_HELP)
         .setEmoji("❔")
         .setLabel("Show Help")
         .setStyle(ButtonStyle.Secondary);
 
-    case COMPONENT_CUSTOM_IDS.CONFIG_BUTTON_USE_CLOUD_HOST:
+    case PLUGIN_CUSTOM_IDS.CONFIG_BUTTON_USE_CLOUD_HOST:
       return new ButtonBuilder()
-        .setCustomId(COMPONENT_CUSTOM_IDS.CONFIG_BUTTON_USE_CLOUD_HOST)
+        .setCustomId(PLUGIN_CUSTOM_IDS.CONFIG_BUTTON_USE_CLOUD_HOST)
         .setEmoji("☁️")
         .setLabel("Use Cloud Host")
         .setStyle(ButtonStyle.Success);
 
-    case COMPONENT_CUSTOM_IDS.CONFIG_BUTTON_USE_LOCAL_HOST:
+    case PLUGIN_CUSTOM_IDS.CONFIG_BUTTON_USE_LOCAL_HOST:
       return new ButtonBuilder()
-        .setCustomId(COMPONENT_CUSTOM_IDS.CONFIG_BUTTON_USE_LOCAL_HOST)
+        .setCustomId(PLUGIN_CUSTOM_IDS.CONFIG_BUTTON_USE_LOCAL_HOST)
         .setEmoji("🖥️")
         .setLabel("Use Local Host")
         .setStyle(ButtonStyle.Danger);
@@ -315,7 +315,7 @@ async function onButtonComponentEditConfig({ interaction }) {
     }
 
     const textInput = new TextInputBuilder()
-      .setCustomId(COMPONENT_CUSTOM_IDS.CONFIG_VALUE_EDIT_CONFIG)
+      .setCustomId(PLUGIN_CUSTOM_IDS.CONFIG_VALUE_EDIT_CONFIG)
       .setLabel(interaction.channel.name)
       .setRequired(true)
       .setStyle(TextInputStyle.Paragraph)
@@ -323,7 +323,7 @@ async function onButtonComponentEditConfig({ interaction }) {
 
     const modal = new ModalBuilder()
       .addComponents(new ActionRowBuilder().addComponents(textInput))
-      .setCustomId(COMPONENT_CUSTOM_IDS.CONFIG_MODAL_EDIT_CONFIG)
+      .setCustomId(PLUGIN_CUSTOM_IDS.CONFIG_MODAL_EDIT_CONFIG)
       .setTitle("Edit Config");
 
     await interaction.channel.setArchived(true);
@@ -369,9 +369,9 @@ async function onButtonComponentUseCloudHost({ interaction }) {
     await interaction.channel.setArchived(false);
     const starterMessage = await interaction.channel.fetchStarterMessage();
     await starterMessage.edit("🟩 `Using cloud host`");
-    const button1 = getButtonComponent(COMPONENT_CUSTOM_IDS.CONFIG_BUTTON_EDIT_CONFIG);
-    const button2 = getButtonComponent(COMPONENT_CUSTOM_IDS.CONFIG_BUTTON_USE_LOCAL_HOST);
-    const button3 = getButtonComponent(COMPONENT_CUSTOM_IDS.CONFIG_BUTTON_SHOW_HELP);
+    const button1 = getButtonComponent(PLUGIN_CUSTOM_IDS.CONFIG_BUTTON_EDIT_CONFIG);
+    const button2 = getButtonComponent(PLUGIN_CUSTOM_IDS.CONFIG_BUTTON_USE_LOCAL_HOST);
+    const button3 = getButtonComponent(PLUGIN_CUSTOM_IDS.CONFIG_BUTTON_SHOW_HELP);
     const components = [new ActionRowBuilder().addComponents(button1, button2, button3)];
     await interaction.message.edit({ components });
     await interaction.channel.setArchived(true);
@@ -392,9 +392,9 @@ async function onButtonComponentUseLocalHost({ interaction }) {
     await interaction.channel.setArchived(false);
     const starterMessage = await interaction.channel.fetchStarterMessage();
     await starterMessage.edit("🟥 `Using local host`");
-    const button1 = getButtonComponent(COMPONENT_CUSTOM_IDS.CONFIG_BUTTON_EDIT_CONFIG);
-    const button2 = getButtonComponent(COMPONENT_CUSTOM_IDS.CONFIG_BUTTON_USE_CLOUD_HOST);
-    const button3 = getButtonComponent(COMPONENT_CUSTOM_IDS.CONFIG_BUTTON_SHOW_HELP);
+    const button1 = getButtonComponent(PLUGIN_CUSTOM_IDS.CONFIG_BUTTON_EDIT_CONFIG);
+    const button2 = getButtonComponent(PLUGIN_CUSTOM_IDS.CONFIG_BUTTON_USE_CLOUD_HOST);
+    const button3 = getButtonComponent(PLUGIN_CUSTOM_IDS.CONFIG_BUTTON_SHOW_HELP);
     const components = [new ActionRowBuilder().addComponents(button1, button2, button3)];
     await interaction.message.edit({ components });
     await interaction.channel.setArchived(true);
@@ -417,7 +417,7 @@ async function onModalEditConfig({ interaction }) {
     // validate the user inputted text
 
     const { fields } = interaction;
-    const { CONFIG_VALUE_EDIT_CONFIG } = COMPONENT_CUSTOM_IDS;
+    const { CONFIG_VALUE_EDIT_CONFIG } = PLUGIN_CUSTOM_IDS;
 
     const textInputAsString = fields.getTextInputValue(CONFIG_VALUE_EDIT_CONFIG);
     const textInputAsObject = tryParseStringToObject(textInputAsString);
