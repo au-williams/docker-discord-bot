@@ -1,7 +1,7 @@
 import { Cron } from "croner";
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } from "discord.js";
+import { ActionRowBuilder, ModalBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, SlashCommandBuilder, UserSelectMenuBuilder,  StringSelectMenuBuilder, StringSelectMenuOptionBuilder, ContextMenuCommandBuilder, ApplicationCommandType, AttachmentBuilder } from "discord.js";
 import { filterChannelMessages, findChannelMessage } from "../index.js";
-import { getAverageColorFromUrl, getCronOptions, getLeastFrequentlyOccurringStrings } from "../shared/helpers/utilities.js";
+import { getAverageColorFromUrl, getCronOptions, getLeastFrequentlyOccurringStrings, getPercentage, getVibrantColorFromUrl } from "../shared/helpers/utilities.js";
 import Config from "../shared/config.js";
 import Logger from "../shared/logger.js";
 import randomItem from "random-item";
@@ -13,34 +13,47 @@ const logger = new Logger("caturday_scheduler_script.js");
 // >> INTERACTION DEFINITIONS                                             << //
 // ------------------------------------------------------------------------- //
 
-export const COMMAND_INTERACTIONS = [{
-  name: "caturday",
-  description: "Privately shows a file selector to submit uploaded pictures for #caturday 🐱",
-  onInteractionCreate: ({ interaction }) => onCommandInteraction({ interaction })
-}]
+export const PLUGIN_COMMANDS = [
+  {
+    name: "caturday",
+    description: "Privately shows a file selector to submit uploaded pictures for #caturday 🐱",
+    onInteractionCreate: ({ interaction }) => onCommandInteractionCaturday({ interaction }),
+    requiredRoleIds: () => [config.discord_admin_role_id],
+    type: ApplicationCommandType.ChatInput
+  },
+  {
+    name: "Collect cat taxes",
+    onInteractionCreate: ({ interaction }) => onCommandInteractionCatTax({ interaction }),
+    requiredRoleIds: () => [config.discord_admin_role_id],
+    type: ApplicationCommandType.User
+  },
+]
 
-export const COMPONENT_CUSTOM_IDS = {
+export const PLUGIN_CUSTOM_IDS = {
   CATURDAY_BUTTON_NEWER: "CATURDAY_BUTTON_NEWER",
   CATURDAY_BUTTON_OLDER: "CATURDAY_BUTTON_OLDER",
   CATURDAY_BUTTON_REMOVE: "CATURDAY_BUTTON_REMOVE",
   CATURDAY_BUTTON_SELECT: "CATURDAY_BUTTON_SELECT",
 }
 
-export const COMPONENT_INTERACTIONS = [
+export const PLUGIN_INTERACTIONS = [
   {
-    customId: "CATURDAY_BUTTON_OLDER",
-    onInteractionCreate: ({ interaction }) => onButtonComponentOlder({ interaction })
+    customId: PLUGIN_CUSTOM_IDS.CATURDAY_BUTTON_OLDER,
+    onInteractionCreate: ({ interaction }) => onButtonComponentOlder({ interaction }),
+    requiredRoleIds: [config.discord_admin_role_id]
   },
   {
-    customId: "CATURDAY_BUTTON_NEWER",
-    onInteractionCreate: ({ interaction }) => onButtonComponentNewer({ interaction })
+    customId: PLUGIN_CUSTOM_IDS.CATURDAY_BUTTON_NEWER,
+    onInteractionCreate: ({ interaction }) => onButtonComponentNewer({ interaction }),
+    requiredRoleIds: [config.discord_admin_role_id]
   },
   {
-    customId: "CATURDAY_BUTTON_SELECT",
-    onInteractionCreate: ({ interaction }) => onButtonComponentSelect({ interaction })
+    customId: PLUGIN_CUSTOM_IDS.CATURDAY_BUTTON_SELECT,
+    onInteractionCreate: ({ interaction }) => onButtonComponentSelect({ interaction }),
+    requiredRoleIds: [config.discord_admin_role_id]
   },
   {
-    customId: "CATURDAY_BUTTON_REMOVE",
+    customId: PLUGIN_CUSTOM_IDS.CATURDAY_BUTTON_REMOVE,
     onInteractionCreate: ({ interaction }) => onButtonComponentRemove({ interaction }),
     requiredRoleIds: [config.discord_admin_role_id]
   }
@@ -72,6 +85,29 @@ export const onClientReady = async ({ client }) => {
     const lastChannelMessage = await findChannelMessage(config.discord_announcement_channel_id, () => true);
     const isMissedAnnouncement = now.getDay() === 6 && now.getHours() >= 9 && (lastChannelMessage ? lastChannelMessage.createdAt < today9am : true);
     if (isMissedAnnouncement) cronAnnouncementEntrypoint.trigger();
+  }
+  catch(e) {
+    logger.error(e);
+  }
+}
+
+export const onGuildMemberUpdate = async ({ client, oldMember, newMember }) => {
+  try {
+    // todo: CATURDAY
+    // update the embed uploader displayname if it was updated
+    if (oldMember.displayName == newMember.displayName) return;
+
+  }
+  catch(e) {
+    logger.error(e);
+  }
+}
+
+export const onUserUpdate = async ({ client, oldUser, newUser }) => {
+  try {
+    // todo: CATURDAY
+    const isAvatarUpdate = oldUser.displayAvatarURL() != newUser.displayAvatarURL();
+    const isDisplayNameUpdate = oldUser.displayName != newUser.displayName;
   }
   catch(e) {
     logger.error(e);
@@ -113,7 +149,7 @@ async function cronJobAnnouncement(client) {
 
     const embed = new EmbedBuilder()
       .setAuthor({ iconURL: uploaderAvatarUrl, name: uploaderName })
-      .setColor((await getAverageColorFromUrl(uploaderAvatarUrl)).hex)
+      .setColor((await getVibrantColorFromUrl(uploaderAvatarUrl)))
       .setFooter({ text: "Happy Caturday! 🐱" })
       .setImage(attachmentImageUrl);
 
@@ -140,21 +176,22 @@ async function cronJobMaintenance() {
       const { data: embedData } = message.embeds[0];
       if (!embedData.author) continue;
 
+      // todo: fetch avatar from Discord do not rely on cache
       const find = ({ attachmentImageUrl }) => attachmentImageUrl === embedData.image.url;
       const { uploaderAvatarUrl, uploaderName } = configMessageData.find(find) || {};
       if (!uploaderAvatarUrl && !uploaderName) continue;
 
-      const isObsoleteAvatarUrl = embedData.author.icon_url !== uploaderAvatarUrl;
+      const isObsoleteAvatarUrl = true;//embedData.author.icon_url !== uploaderAvatarUrl;
       const isObsoleteName = embedData.author.name !== uploaderName;
       if (!isObsoleteAvatarUrl && !isObsoleteName) continue;
 
-      const averageAvatarColor = isObsoleteAvatarUrl
-        ? (await getAverageColorFromUrl(uploaderAvatarUrl)).hex
+      const vibrantAvatarColor = isObsoleteAvatarUrl
+        ? await getVibrantColorFromUrl(uploaderAvatarUrl)
         : embedData.color;
 
       const embed = EmbedBuilder.from(message.embeds[0]);
       embed.setAuthor({ iconURL: uploaderAvatarUrl, name: uploaderName });
-      embed.setColor(averageAvatarColor);
+      embed.setColor(vibrantAvatarColor);
 
       await message.edit({ embeds: [embed] });
     }
@@ -189,12 +226,14 @@ async function fetchAllMetadataForConfig() {
  */
 async function fetchMetadataForMessage(message, imageIndex = -1) {
   try {
-    const { attachments, author } = message;
+    const { attachments } = message;
+    const author = await message.author.fetch();
     const member = await message.guild.members.fetch(author.id);
 
     return {
       attachmentImageUrl: imageIndex > -1 ? Array.from(attachments.values())?.[imageIndex]?.url : undefined,
       uploaderAvatarUrl: author.displayAvatarURL(),
+      uploaderId: author.id,
       uploaderName: member?.nickname || author.displayName
     }
   }
@@ -227,7 +266,7 @@ async function getCommandComponents({ interaction, imageIndex, sourceMessage }) 
     const imageUrlExists = config.discord_channel_message_ids_image_index.includes(configString);
 
     components[0].components[0]
-      .setCustomId(imageUrlExists ? COMPONENT_CUSTOM_IDS.CATURDAY_BUTTON_REMOVE : COMPONENT_CUSTOM_IDS.CATURDAY_BUTTON_SELECT)
+      .setCustomId(imageUrlExists ? PLUGIN_CUSTOM_IDS.CATURDAY_BUTTON_REMOVE : PLUGIN_CUSTOM_IDS.CATURDAY_BUTTON_SELECT)
       .setLabel(imageUrlExists ? "Remove Picture" : "Select Picture")
       .setStyle(imageUrlExists ? ButtonStyle.Danger : ButtonStyle.Success);
 
@@ -505,12 +544,62 @@ async function onButtonComponentSelect({ interaction }) {
   }
 }
 
+async function onCommandInteractionCatTax({ interaction }) {
+  try {
+    await interaction.deferReply({ ephemeral: true });
+
+    const member = await interaction.guild.members.fetch(interaction.targetId);
+
+    // verify the target user is a member of the guild
+    if (!member) {
+      await interaction.editReply({ content: `I can't collect cat taxes from <@${interaction.targetId}> because they're not a valid guild member.`})
+      logger.warn(`${interaction.user.displayName} tried to collect cat taxes from a non-guild member "${interaction.targetId}"`);
+      return;
+    }
+
+    // verify the target user is not a bot
+    if (member.user.bot) {
+      await interaction.editReply({ content: `I can't collect cat taxes from ${member} because they're a Discord bot.`})
+      logger.warn(`${interaction.user.displayName} tried to collect cat taxes from a bot "${interaction.targetId}"`);
+      return;
+    }
+
+    // get author of each caturday submission
+    const caturdayAuthorIds = await Promise.all(config.discord_channel_message_ids_image_index.map(async item => {
+      const split = item.split(","); // [channel_id, message_id, image_index]
+      const message = await findChannelMessage(split[0], ({ id }) => id === split[1]);
+      return message.author.id
+    }));
+
+    // get count of times target user is an author
+    const contributionCount = caturdayAuthorIds.filter(id => id === member.user.id).length;
+
+    const contributionString = contributionCount
+      ? `You contributed ${Math.round(getPercentage(contributionCount, config.discord_channel_message_ids_image_index.length))}% of the cat taxes we've collected.`
+      : "You haven't contributed any cat taxes we've collected."
+
+    const content =
+      `### :coin: Hello ${member}! You've been asked to pay your cat tax.`
+      + `\n- __You can pay it by sending me pictures of your pets.__ :calling:`
+      + `\n- ${contributionString} :hand_with_index_finger_and_thumb_crossed:`
+      + `\nAll cat taxes queue for <#${config.discord_announcement_channel_id}> after a review by our pawditors.`
+
+    const files = [new AttachmentBuilder("assets\\cat_tax.jpg")];
+
+    await member.user.send({ content, files });
+    await interaction.editReply({ content: `I sent the cat tax collection DM to ${member} :coin:`});
+  }
+  catch(e) {
+    logger.error(e);
+  }
+}
+
 /**
  * Display the image selector when the command is sent
  * @param {Object} param
  * @param {Interaction} param.interaction
  */
-async function onCommandInteraction({ interaction }) {
+async function onCommandInteractionCaturday({ interaction }) {
   try {
     await interaction.deferReply({ ephemeral: true });
 

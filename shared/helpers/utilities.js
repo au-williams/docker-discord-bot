@@ -135,6 +135,10 @@ export function getLinkWithoutParametersFromString(string, ignoreCodeBlocks = tr
   return match?.length ? match[0] : null;
 }
 
+export function getPercentage(partialValue, totalValue) {
+  return (100 * partialValue) / totalValue;
+}
+
 /**
  * Get the filename of where this function is invoked
  * @param {string} importMetaUrl import.meta.url
@@ -241,4 +245,8 @@ export function tryParseStringToObject(jsonString){
   }
   // eslint-disable-next-line no-empty
   catch (e) { }
+}
+
+export function getPluralizedString(string, count) {
+  return count != 1 ? `${string}s` : string;
 }
