@@ -45,11 +45,11 @@ _**Note:** You can load channels on startup with the `"discord_prefetch_channel_
 
 ### Registering slash commands
 
-You can register slash commands for a plugin by exporting the `COMMAND_INTERACTIONS` array.
+You can register slash commands for a plugin by exporting the `PLUGIN_COMMANDS` array.
 
 ```js
 // define "/hello-world" slash command
-export const COMMAND_INTERACTIONS = [{
+export const PLUGIN_COMMANDS = [{
   name: "hello-world",
   description: `Prints "Hello World" to the console`,
   onInteractionCreate: () => console.log("Hello World!")
