@@ -7,16 +7,16 @@ export default class Logger {
     // todo: send logs to channel
   }
 
-  info(message) {
-    console.log(`🟩 ${this.filename} → ${message}`);
+  info(message, filename = this.filename) {
+    console.log(`🟩 ${filename} → ${message}`);
   }
 
-  warn(message) {
-    console.warn(`🟨 ${this.filename} → ${message}`);
+  warn(message, filename = this.filename) {
+    console.warn(`🟨 ${filename} → ${message}`);
   }
 
-  error(message) {
+  error(message, filename = this.filename) {
     if (message.stack) message = message.stack;
-    console.error(`🟥 ${this.filename} → ${message}`);
+    console.error(`🟥 ${filename} → ${message}`);
   }
 }
