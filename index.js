@@ -1,4 +1,5 @@
-import { Client, Events, GatewayIntentBits, Partials, REST, Routes } from "discord.js";
+import { Client, Events, GatewayIntentBits, Partials, REST, Routes, ContextMenuCommandBuilder, ApplicationCommandType, SlashCommandBuilder } from "discord.js";
+import { getPluralizedString } from "./shared/helpers/utilities.js";
 import fs from "fs-extra";
 import Logger from "./shared/logger.js";
 
@@ -57,93 +58,6 @@ client.on(Events.ClientReady, async () => {
   }
 });
 
-// todo: this function should be cleaned up ... good luck!
-client.on(Events.InteractionCreate, async interaction => {
-  try {
-    if (interaction.isChatInputCommand()) {
-      invokeOnInteractionCreate({
-        filter: ({ instance }) => instance.COMMAND_INTERACTIONS?.some(({ name } = {}) => name === interaction.commandName),
-        map: ({ filename, instance }) => ({ filename, ...instance.COMMAND_INTERACTIONS.find(({ name } = {}) => name === interaction.commandName) }),
-        interactionName: `/${interaction.commandName}`,
-        interactionType: "command"
-      });
-    }
-
-    if (interaction.isButton() || interaction.isModalSubmit()) {
-      invokeOnInteractionCreate({
-        filter: ({ instance }) => instance.COMPONENT_INTERACTIONS?.some(({ customId } = {}) => customId === interaction.customId),
-        map: ({ filename, instance }) => ({ filename, ...instance.COMPONENT_INTERACTIONS.find(({ customId } = {}) => customId === interaction.customId) }),
-        interactionName: interaction.customId,
-        interactionType: interaction.isButton() ? "button" : "modal"
-      });
-    }
-
-    function invokeOnInteractionCreate({ filter, interactionName, interactionType, map }) {
-      INITIALIZED_PLUGINS.filter(filter).map(map).forEach(({ filename, onInteractionCreate, requiredChannelIds, requiredUserRoleIds }) => {
-        const { channel, member: { roles }, user: { username } } = interaction;
-
-        // requiredChannelIds may be a getter function for loaded dependencies, we must resolve it before evaluating it
-        const resolvedChannelIds = typeof requiredChannelIds === "function" ? requiredChannelIds() : requiredChannelIds;
-        const isRequiredChannels = !Array.isArray(resolvedChannelIds) || resolvedChannelIds.includes(channel.id);
-
-        /**
-         * Because some config values may be unavailable at execution time, references to them can be
-         *   in getter format. Try to unpack them before evaluation. If a single value is passed as a
-         *   string to simplify its definition then add support by evaluating it in Array format.
-         * @type {Object} param
-         * @type {bool} param.isRequiredRoles
-         * @type {String[]} param.uniqueRoleIds
-         */
-        const { isRequiredRoles, uniqueRoleIds } = (() => {
-          let resolvedRoleIds = requiredUserRoleIds;
-          if (typeof resolvedRoleIds === "undefined") return { isRequiredRoles: true, uniqueRoleIds: [] };
-          if (typeof resolvedRoleIds === "function") resolvedRoleIds = resolvedRoleIds();
-          if (typeof resolvedRoleIds === "string") resolvedRoleIds = [resolvedRoleIds];
-          if (!Array.isArray(resolvedRoleIds)) throw "Invalid required role ID type";
-          const isRequiredRoles = resolvedRoleIds.some(roleId => roles.cache.some(({ id }) => id === roleId));
-          const uniqueRoleIds = [...new Set(resolvedRoleIds)];
-          return { isRequiredRoles, uniqueRoleIds };
-        })();
-
-        const formatContent = (message, valueStart, values, valueEnd) => {
-          const predicate = (p, c, i) => `${p}${i && i === values.length - 1 ? " and " : " "}${valueStart}${c}${valueEnd}`;
-          return values.reduce(predicate, message);
-        }
-
-        if (isRequiredChannels && isRequiredRoles) {
-          onInteractionCreate({ client, interaction });
-          logger.info(`${username} used ${interactionType} interaction "${interactionName}"`, filename);
-        }
-
-        else if (!isRequiredRoles) {
-          const content = formatContent(`\`🔒Locked\` This can only be used by the`, "<@&", uniqueRoleIds, ">") + ` role${uniqueRoleIds.length === 1 ? "" : "s"}!`;
-          interaction.reply({ content, ephemeral: true }).then(() => logger.info(`${username} tried ${interactionType} interaction "${interactionName}"`, filename));
-        }
-
-        else if (!isRequiredChannels) {
-          const uniqueRequiredChannelIds = [...new Set(resolvedChannelIds)];
-          const content = formatContent(`This can only be used in the`, "<#", uniqueRequiredChannelIds, ">") + ` channel${uniqueRequiredChannelIds.length === 1 ? "" : "s"}!`;
-          interaction.reply({ content, ephemeral: true }).then(() => logger.info(`${username} tried ${interactionType} interaction "${interactionName}"`, filename));
-        }
-      });
-    }
-  }
-  catch(e) {
-    logger.error(e);
-  }
-});
-
-client.on(Events.MessageCreate, message => {
-  try {
-    // add message to lazy-loaded message history
-    CHANNEL_MESSAGES[message.channel.id]?.unshift(message);
-    invokePluginsFunction("onMessageCreate", { client, message });
-  }
-  catch(e) {
-    logger.error(e);
-  }
-});
-
 client.on(Events.GuildMemberAdd, member => {
   try {
     invokePluginsFunction("onGuildMemberAdd", { client, member });
@@ -162,9 +76,52 @@ client.on(Events.GuildMemberUpdate, (oldMember, newMember) => {
   }
 });
 
-client.on(Events.UserUpdate, (oldUser, newUser) => {
+client.on(Events.InteractionCreate, async interaction => {
   try {
-    invokePluginsFunction("onUserUpdate", { client, oldUser, newUser });
+    // get the plugin command definition by the interaction command name
+    const somePlugin = (({ name }) => name === interaction.commandName);
+    const findPlugin = ({ instance }) => instance.PLUGIN_COMMANDS.some(somePlugin);
+    const { filename, instance } = INITIALIZED_PLUGINS.find(findPlugin) || {};
+
+    if (!filename) {
+      logger.warn(`An undefined command was received: "${interaction.commandName}"`);
+      return;
+    }
+
+    const pluginCommand =
+      instance.PLUGIN_COMMANDS.find(({ name }) => name === interaction.commandName);
+
+    // get the roles required for the command
+    const requiredRoleIds = typeof pluginCommand.requiredRoleIds === "function"
+      ? pluginCommand.requiredRoleIds()
+      : pluginCommand.requiredRoleIds;
+
+    // verify the role requirement is met
+    const isAnyRequiredRoleId =
+      !requiredRoleIds
+      || requiredRoleIds.some(roleId => interaction.member.roles.cache.some(({ id }) => id === roleId));
+
+    if (!isAnyRequiredRoleId) {
+      const plural = getPluralizedString("role", requiredRoleIds.length);
+      const content = `🔒 Sorry but this can only be used by the ${requiredRoleIds.map(roleId => `<@&${roleId}>`).join(" ")} ${plural}.`;
+      logger.warn(`${interaction.user.username} tried to use interaction "${interaction.commandName}"`, filename);
+      await interaction.reply({ content, ephemeral: true });
+      return;
+    }
+
+    logger.info(`${interaction.user.username} used interaction "${interaction.commandName}"`, filename);
+    await pluginCommand.onInteractionCreate({ client, interaction });
+  }
+  catch(e) {
+    logger.error(e);
+  }
+});
+
+client.on(Events.MessageCreate, message => {
+  try {
+    // add message to lazy-loaded message history
+    CHANNEL_MESSAGES[message.channel.id]?.unshift(message);
+    invokePluginsFunction("onMessageCreate", { client, message });
   }
   catch(e) {
     logger.error(e);
@@ -230,6 +187,14 @@ client.on(Events.ThreadDelete, async threadChannel => {
   }
 });
 
+client.on(Events.UserUpdate, (oldUser, newUser) => {
+  try {
+    invokePluginsFunction("onUserUpdate", { client, oldUser, newUser });
+  }
+  catch(e) {
+    logger.error(e);
+  }
+});
 
 // ------------------------------------------------------------------------- //
 // >> CHANNEL MESSAGE HANDLERS                                            << //
@@ -291,19 +256,35 @@ async function deploy() {
   try {
     logger.info(`Starting command deployment ...`);
 
+    // load all plugins into memory
     await initializePlugins();
-    const body = [];
 
-    for(const { instance } of INITIALIZED_PLUGINS) {
-      if (!instance.COMMAND_INTERACTIONS) continue;
-      body.push(...instance.COMMAND_INTERACTIONS.map(({ name, description }) => ({ name, description })));
-    }
+    // filter all commands to deploy
+    const commands = INITIALIZED_PLUGINS
+      .filter(({ instance }) => instance.PLUGIN_COMMANDS)
+      .map(({ instance }) => instance.PLUGIN_COMMANDS)
+      .flat();
 
+    // map command properties for Discord
+    const body = commands.map(command => {
+      switch(command.type) {
+        case ApplicationCommandType.ChatInput: return new SlashCommandBuilder()
+          .setDescription(command.description)
+          .setDMPermission(false)
+          .setName(command.name)
+          .setNSFW(false)
+        case ApplicationCommandType.User: return new ContextMenuCommandBuilder()
+          .setDMPermission(false)
+          .setName(command.name)
+          .setType(command.type)
+      }
+    })
+
+    // load credentials from config to push the payload to Discord
     const { discord_bot_client_id, discord_bot_login_token } = fs.readJsonSync("config.json");
     const rest = new REST({ version: "10" }).setToken(discord_bot_login_token);
     const data = await rest.put(Routes.applicationCommands(discord_bot_client_id), { body });
-
-    logger.info(`Successfully reloaded ${data.length} (/) commands`);
+    logger.info(`Successfully reloaded ${data.length} (/) commands [${data.map(x => x.name).join(", ")}]`);
   }
   catch(e) {
     logger.error(e);
