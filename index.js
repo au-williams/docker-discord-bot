@@ -1,5 +1,5 @@
 import { Client, Events, GatewayIntentBits, Partials, REST, Routes, ContextMenuCommandBuilder, ApplicationCommandType, SlashCommandBuilder } from "discord.js";
-import { getPluralizedString } from "./shared/helpers/utilities.js";
+import { getFormattedRoles, getPluralizedString } from "./shared/helpers/utilities.js";
 import fs from "fs-extra";
 import Logger from "./shared/logger.js";
 
@@ -42,7 +42,13 @@ client.on(Events.ClientReady, async () => {
   try {
     // clear last sessions temp folder
     await fs.emptyDir(temp_directory);
+  }
+  catch(e) {
+    // temp may be locked on Windows 💩
+    logger.error(e);
+  }
 
+  try {
     // initialize client dependencies
     await initializeMessages();
     await initializePlugins();
@@ -78,39 +84,30 @@ client.on(Events.GuildMemberUpdate, (oldMember, newMember) => {
 
 client.on(Events.InteractionCreate, async interaction => {
   try {
-    // get the plugin command definition by the interaction command name
-    const somePlugin = (({ name }) => name === interaction.commandName);
-    const findPlugin = ({ instance }) => instance.PLUGIN_COMMANDS.some(somePlugin);
-    const { filename, instance } = INITIALIZED_PLUGINS.find(findPlugin) || {};
+    const isInteractionHandler = handler => handler.isInteraction(interaction);
 
-    if (!filename) {
-      logger.warn(`An undefined command was received: "${interaction.commandName}"`);
+    const pluginHandlers = INITIALIZED_PLUGINS
+      .filter(({ instance }) => instance.PLUGIN_HANDLERS?.some(isInteractionHandler))
+      .map(({ filename, instance }) => ({ filename, handler: instance.PLUGIN_HANDLERS.find(isInteractionHandler) }))
+
+    if (!pluginHandlers.length) {
+      logger.warn(`An unhandled command was received: "${interaction.commandName}"`);
       return;
     }
 
-    const pluginCommand =
-      instance.PLUGIN_COMMANDS.find(({ name }) => name === interaction.commandName);
+    for (const { filename, handler } of pluginHandlers) {
+      if (handler.isLocked(interaction.member)) {
+        logger.warn(`${interaction.user.username} tried to use "${handler.identifier}"`, filename);
+        const rolesLabel = getPluralizedString("role", handler.requiredRoleIds.length);
+        const rolesValue = getFormattedRoles(handler.requiredRoleIds).join(" ");
+        const content = `🔒 Sorry but this can only be used by the ${rolesValue} ${rolesLabel}.`;
+        await interaction.reply({ content, ephemeral: true });
+        continue;
+      }
 
-    // get the roles required for the command
-    const requiredRoleIds = typeof pluginCommand.requiredRoleIds === "function"
-      ? pluginCommand.requiredRoleIds()
-      : pluginCommand.requiredRoleIds;
-
-    // verify the role requirement is met
-    const isAnyRequiredRoleId =
-      !requiredRoleIds
-      || requiredRoleIds.some(roleId => interaction.member.roles.cache.some(({ id }) => id === roleId));
-
-    if (!isAnyRequiredRoleId) {
-      const plural = getPluralizedString("role", requiredRoleIds.length);
-      const content = `🔒 Sorry but this can only be used by the ${requiredRoleIds.map(roleId => `<@&${roleId}>`).join(" ")} ${plural}.`;
-      logger.warn(`${interaction.user.username} tried to use interaction "${interaction.commandName}"`, filename);
-      await interaction.reply({ content, ephemeral: true });
-      return;
+      logger.info(`${interaction.user.username} used "${handler.identifier}"`, filename);
+      await handler.onInteractionCreate({ client, interaction });
     }
-
-    logger.info(`${interaction.user.username} used interaction "${interaction.commandName}"`, filename);
-    await pluginCommand.onInteractionCreate({ client, interaction });
   }
   catch(e) {
     logger.error(e);
@@ -119,8 +116,7 @@ client.on(Events.InteractionCreate, async interaction => {
 
 client.on(Events.MessageCreate, message => {
   try {
-    // add message to lazy-loaded message history
-    CHANNEL_MESSAGES[message.channel.id]?.unshift(message);
+    CHANNEL_MESSAGES[message.channel.id]?.unshift(message); // add message to lazy-loaded message history
     invokePluginsFunction("onMessageCreate", { client, message });
   }
   catch(e) {
@@ -259,26 +255,12 @@ async function deploy() {
     // load all plugins into memory
     await initializePlugins();
 
-    // filter all commands to deploy
-    const commands = INITIALIZED_PLUGINS
-      .filter(({ instance }) => instance.PLUGIN_COMMANDS)
-      .map(({ instance }) => instance.PLUGIN_COMMANDS)
-      .flat();
-
-    // map command properties for Discord
-    const body = commands.map(command => {
-      switch(command.type) {
-        case ApplicationCommandType.ChatInput: return new SlashCommandBuilder()
-          .setDescription(command.description)
-          .setDMPermission(false)
-          .setName(command.name)
-          .setNSFW(false)
-        case ApplicationCommandType.User: return new ContextMenuCommandBuilder()
-          .setDMPermission(false)
-          .setName(command.name)
-          .setType(command.type)
-      }
-    })
+    const body = INITIALIZED_PLUGINS
+      .filter(({ instance }) => instance.PLUGIN_HANDLERS)
+      .map(({ instance }) => instance.PLUGIN_HANDLERS)
+      .flat()
+      .filter(handler => handler.builder)
+      .map(handler => handler.builder);
 
     // load credentials from config to push the payload to Discord
     const { discord_bot_client_id, discord_bot_login_token } = fs.readJsonSync("config.json");

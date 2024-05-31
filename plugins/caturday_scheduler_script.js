@@ -1,7 +1,9 @@
+import { ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } from "discord.js";
 import { Cron } from "croner";
-import { ActionRowBuilder, ModalBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, SlashCommandBuilder, UserSelectMenuBuilder,  StringSelectMenuBuilder, StringSelectMenuOptionBuilder, ContextMenuCommandBuilder, ApplicationCommandType, AttachmentBuilder } from "discord.js";
 import { filterChannelMessages, findChannelMessage } from "../index.js";
 import { getAverageColorFromUrl, getCronOptions, getLeastFrequentlyOccurringStrings, getPercentage, getVibrantColorFromUrl } from "../shared/helpers/utilities.js";
+import { PluginContextMenuItem, PluginSlashCommand } from "../shared/models/PluginHandler.js";
+import { PluginInteraction } from "../shared/models/PluginHandler.js";
 import Config from "../shared/config.js";
 import Logger from "../shared/logger.js";
 import randomItem from "random-item";
@@ -10,53 +12,48 @@ const config = new Config("caturday_scheduler_config.json");
 const logger = new Logger("caturday_scheduler_script.js");
 
 // ------------------------------------------------------------------------- //
-// >> INTERACTION DEFINITIONS                                             << //
+// >> PLUGIN DEFINITIONS                                                  << //
 // ------------------------------------------------------------------------- //
 
-export const PLUGIN_COMMANDS = [
-  {
-    name: "caturday",
-    description: "Privately shows a file selector to submit uploaded pictures for #caturday 🐱",
-    onInteractionCreate: ({ interaction }) => onCommandInteractionCaturday({ interaction }),
-    requiredRoleIds: () => [config.discord_admin_role_id],
-    type: ApplicationCommandType.ChatInput
-  },
-  {
-    name: "Collect cat taxes",
-    onInteractionCreate: ({ interaction }) => onCommandInteractionCatTax({ interaction }),
-    requiredRoleIds: () => [config.discord_admin_role_id],
-    type: ApplicationCommandType.User
-  },
-]
+const PLUGIN_CUSTOM_IDS = Object.freeze({
+  CATURDAY_BUTTON_COMPONENT_NEWER: "CATURDAY_BUTTON_COMPONENT_NEWER",
+  CATURDAY_BUTTON_COMPONENT_OLDER: "CATURDAY_BUTTON_COMPONENT_OLDER",
+  CATURDAY_BUTTON_COMPONENT_REMOVE: "CATURDAY_BUTTON_COMPONENT_REMOVE",
+  CATURDAY_BUTTON_COMPONENT_SELECT: "CATURDAY_BUTTON_COMPONENT_SELECT",
+});
 
-export const PLUGIN_CUSTOM_IDS = {
-  CATURDAY_BUTTON_NEWER: "CATURDAY_BUTTON_NEWER",
-  CATURDAY_BUTTON_OLDER: "CATURDAY_BUTTON_OLDER",
-  CATURDAY_BUTTON_REMOVE: "CATURDAY_BUTTON_REMOVE",
-  CATURDAY_BUTTON_SELECT: "CATURDAY_BUTTON_SELECT",
-}
-
-export const PLUGIN_INTERACTIONS = [
-  {
-    customId: PLUGIN_CUSTOM_IDS.CATURDAY_BUTTON_OLDER,
-    onInteractionCreate: ({ interaction }) => onButtonComponentOlder({ interaction }),
-    requiredRoleIds: [config.discord_admin_role_id]
-  },
-  {
-    customId: PLUGIN_CUSTOM_IDS.CATURDAY_BUTTON_NEWER,
-    onInteractionCreate: ({ interaction }) => onButtonComponentNewer({ interaction }),
-    requiredRoleIds: [config.discord_admin_role_id]
-  },
-  {
-    customId: PLUGIN_CUSTOM_IDS.CATURDAY_BUTTON_SELECT,
-    onInteractionCreate: ({ interaction }) => onButtonComponentSelect({ interaction }),
-    requiredRoleIds: [config.discord_admin_role_id]
-  },
-  {
-    customId: PLUGIN_CUSTOM_IDS.CATURDAY_BUTTON_REMOVE,
-    onInteractionCreate: ({ interaction }) => onButtonComponentRemove({ interaction }),
-    requiredRoleIds: [config.discord_admin_role_id]
-  }
+export const PLUGIN_HANDLERS = [
+  new PluginContextMenuItem({
+    commandName: "Collect cat taxes",
+    onInteractionCreate: ({ interaction }) => onCollectCatTaxContextMenuItem({ interaction }),
+    requiredRoleIds: () => [config.discord_admin_role_id]
+  }),
+  new PluginInteraction({
+    customId: PLUGIN_CUSTOM_IDS.CATURDAY_BUTTON_COMPONENT_OLDER,
+    onInteractionCreate: ({ interaction }) => onCaturdayButtonComponentOlder({ interaction }),
+    requiredRoleIds: () => [config.discord_admin_role_id]
+  }),
+  new PluginInteraction({
+    customId: PLUGIN_CUSTOM_IDS.CATURDAY_BUTTON_COMPONENT_NEWER,
+    onInteractionCreate: ({ interaction }) => onCaturdayButtonComponentNewer({ interaction }),
+    requiredRoleIds: () => [config.discord_admin_role_id]
+  }),
+  new PluginInteraction({
+    customId: PLUGIN_CUSTOM_IDS.CATURDAY_BUTTON_COMPONENT_SELECT,
+    onInteractionCreate: ({ interaction }) => onCaturdayButtonComponentSelect({ interaction }),
+    requiredRoleIds: () => [config.discord_admin_role_id]
+  }),
+  new PluginInteraction({
+    customId: PLUGIN_CUSTOM_IDS.CATURDAY_BUTTON_COMPONENT_REMOVE,
+    onInteractionCreate: ({ interaction }) => onCaturdayButtonComponentRemove({ interaction }),
+    requiredRoleIds: () => [config.discord_admin_role_id]
+  }),
+  new PluginSlashCommand({
+    commandName: "caturday",
+    description: "Privately shows a file selector to submit channel pictures for #caturday 🐱",
+    onInteractionCreate: ({ interaction }) => onCaturdaySlashCommand({ interaction }),
+    requiredRoleIds: () => [config.discord_admin_role_id]
+  })
 ]
 
 // ------------------------------------------------------------------------- //
@@ -145,10 +142,10 @@ async function cronJobAnnouncement(client) {
 
     const randomImageUrl = randomItem(potentialImageUrls);
     const randomImageData = configMessageData.find(({ attachmentImageUrl}) => attachmentImageUrl === randomImageUrl);
-    const { attachmentImageUrl, uploaderAvatarUrl, uploaderName } = randomImageData;
+    const { attachmentImageUrl, uploaderAvatarUrl, uploaderId, uploaderName } = randomImageData;
 
     const embed = new EmbedBuilder()
-      .setAuthor({ iconURL: uploaderAvatarUrl, name: uploaderName })
+      .setAuthor({ iconURL: uploaderAvatarUrl, name: uploaderName, url: `https://discordapp.com/users/${uploaderId}` })
       .setColor((await getVibrantColorFromUrl(uploaderAvatarUrl)))
       .setFooter({ text: "Happy Caturday! 🐱" })
       .setImage(attachmentImageUrl);
@@ -178,10 +175,10 @@ async function cronJobMaintenance() {
 
       // todo: fetch avatar from Discord do not rely on cache
       const find = ({ attachmentImageUrl }) => attachmentImageUrl === embedData.image.url;
-      const { uploaderAvatarUrl, uploaderName } = configMessageData.find(find) || {};
+      const { uploaderAvatarUrl, uploaderId, uploaderName } = configMessageData.find(find) || {};
       if (!uploaderAvatarUrl && !uploaderName) continue;
 
-      const isObsoleteAvatarUrl = true;//embedData.author.icon_url !== uploaderAvatarUrl;
+      const isObsoleteAvatarUrl = embedData.author.icon_url !== uploaderAvatarUrl;
       const isObsoleteName = embedData.author.name !== uploaderName;
       if (!isObsoleteAvatarUrl && !isObsoleteName) continue;
 
@@ -190,7 +187,7 @@ async function cronJobMaintenance() {
         : embedData.color;
 
       const embed = EmbedBuilder.from(message.embeds[0]);
-      embed.setAuthor({ iconURL: uploaderAvatarUrl, name: uploaderName });
+      embed.setAuthor({ iconURL: uploaderAvatarUrl, name: uploaderName, url: `https://discordapp.com/users/${uploaderId}` });
       embed.setColor(vibrantAvatarColor);
 
       await message.edit({ embeds: [embed] });
@@ -258,15 +255,15 @@ async function getCommandComponents({ interaction, imageIndex, sourceMessage }) 
 
     const components = [new ActionRowBuilder().addComponents(
       new ButtonBuilder().setCustomId("_").setLabel("_").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId("CATURDAY_BUTTON_OLDER").setLabel("← Older Picture").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId("CATURDAY_BUTTON_NEWER").setLabel("Newer Picture →").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId("CATURDAY_BUTTON_COMPONENT_OLDER").setLabel("← Older Picture").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId("CATURDAY_BUTTON_COMPONENT_NEWER").setLabel("Newer Picture →").setStyle(ButtonStyle.Secondary),
     )];
 
     const configString = getConfigString(sourceMessage, imageIndex);
     const imageUrlExists = config.discord_channel_message_ids_image_index.includes(configString);
 
     components[0].components[0]
-      .setCustomId(imageUrlExists ? PLUGIN_CUSTOM_IDS.CATURDAY_BUTTON_REMOVE : PLUGIN_CUSTOM_IDS.CATURDAY_BUTTON_SELECT)
+      .setCustomId(imageUrlExists ? PLUGIN_CUSTOM_IDS.CATURDAY_BUTTON_COMPONENT_REMOVE : PLUGIN_CUSTOM_IDS.CATURDAY_BUTTON_COMPONENT_SELECT)
       .setLabel(imageUrlExists ? "Remove Picture" : "Select Picture")
       .setStyle(imageUrlExists ? ButtonStyle.Danger : ButtonStyle.Success);
 
@@ -329,7 +326,7 @@ function getImageUrlsFromMessage({ attachments, embeds }) {
   }
 }
 
-async function onButtonComponentNewer({ interaction }) {
+async function onCaturdayButtonComponentNewer({ interaction }) {
   try {
     await interaction.deferUpdate();
 
@@ -393,7 +390,7 @@ async function onButtonComponentNewer({ interaction }) {
   }
 }
 
-async function onButtonComponentOlder({ interaction }) {
+async function onCaturdayButtonComponentOlder({ interaction }) {
   try {
     await interaction.deferUpdate();
 
@@ -449,7 +446,7 @@ async function onButtonComponentOlder({ interaction }) {
   }
 }
 
-async function onButtonComponentRemove({ interaction }) {
+async function onCaturdayButtonComponentRemove({ interaction }) {
   try {
     await interaction.deferUpdate();
 
@@ -497,7 +494,7 @@ async function onButtonComponentRemove({ interaction }) {
   }
 }
 
-async function onButtonComponentSelect({ interaction }) {
+async function onCaturdayButtonComponentSelect({ interaction }) {
   try {
     await interaction.deferUpdate();
 
@@ -544,7 +541,7 @@ async function onButtonComponentSelect({ interaction }) {
   }
 }
 
-async function onCommandInteractionCatTax({ interaction }) {
+async function onCollectCatTaxContextMenuItem({ interaction }) {
   try {
     await interaction.deferReply({ ephemeral: true });
 
@@ -580,14 +577,15 @@ async function onCommandInteractionCatTax({ interaction }) {
 
     const content =
       `### :coin: Hello ${member}! You've been asked to pay your cat tax.`
-      + `\n- __You can pay it by sending me pictures of your pets.__ :calling:`
+      + `\n- __You can pay just by sending me pictures of your pets.__ :calling:`
       + `\n- ${contributionString} :hand_with_index_finger_and_thumb_crossed:`
-      + `\nAll cat taxes queue for <#${config.discord_announcement_channel_id}> after a review by our pawditors.`
+      + `\nAll cat taxes queue for <#${config.discord_announcement_channel_id}> after review from our pawditors.`
 
     const files = [new AttachmentBuilder("assets\\cat_tax.jpg")];
 
     await member.user.send({ content, files });
-    await interaction.editReply({ content: `I sent the cat tax collection DM to ${member} :coin:`});
+    await interaction.editReply({ content: `I sent this message as a DM to ${member}:`});
+    await interaction.followUp({ content, ephemeral: true, files });
   }
   catch(e) {
     logger.error(e);
@@ -599,7 +597,7 @@ async function onCommandInteractionCatTax({ interaction }) {
  * @param {Object} param
  * @param {Interaction} param.interaction
  */
-async function onCommandInteractionCaturday({ interaction }) {
+async function onCaturdaySlashCommand({ interaction }) {
   try {
     await interaction.deferReply({ ephemeral: true });
 

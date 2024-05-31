@@ -15,6 +15,7 @@ import fs from "fs-extra";
 import Logger from "../shared/logger.js";
 import sanitize from "sanitize-filename";
 import youtubedl from "youtube-dl-exec";
+import { PluginInteraction } from "../shared/models/PluginHandler.js";
 
 const config = new Config("plex_music_downloader_config.json");
 const logger = new Logger("plex_music_downloader_script.js");
@@ -22,11 +23,11 @@ const logger = new Logger("plex_music_downloader_script.js");
 // todo: fetch cache on startup, loop cache in cron instead of channel messages
 
 // ------------------------------------------------------------------------- //
-// >> INTERACTION DEFINITIONS                                             << //
+// >> PLUGIN DEFINITIONS                                                  << //
 // ------------------------------------------------------------------------- //
 
-export const PLUGIN_CUSTOM_IDS = {
-  DELETE_FROM_PLEX_BUTTON: "DELETE_FROM_PLEX_BUTTON",
+export const PLUGIN_CUSTOM_IDS = Object.freeze({
+  DELETE_FROM_PLEX_BUTTON: "DELETE_FROM_PLEX_BUTTON", // PLEX_MUSIC_DOWNLOADER_BUTTON_COMPONENT_DELETE_FROM_PLEX
   DELETE_FROM_PLEX_MODAL: "DELETE_FROM_PLEX_MODAL",
   DOWNLOAD_MP3_BUTTON: "DOWNLOAD_MP3_BUTTON",
   DOWNLOAD_MP3_MODAL: "DOWNLOAD_MP3_MODAL",
@@ -34,44 +35,44 @@ export const PLUGIN_CUSTOM_IDS = {
   IMPORT_MUSIC_INTO_PLEX_MODAL: "IMPORT_MUSIC_INTO_PLEX_MODAL",
   SEARCHING_PLEX_BUTTON: "SEARCHING_PLEX_BUTTON",
   SHOW_BUTTON_DOCUMENTATION: "SHOW_BUTTON_DOCUMENTATION", // todo: move this to global
-}
+});
 
-export const PLUGIN_INTERACTIONS = [
-  {
+export const PLUGIN_HANDLERS = [
+  new PluginInteraction({
     customId: PLUGIN_CUSTOM_IDS.DOWNLOAD_MP3_BUTTON,
     description: "Extracts the audio from a link and uploads it to Discord as an MP3 file for users to stream or download.",
     onInteractionCreate: ({ interaction }) => showMetadataModal(interaction, PLUGIN_CUSTOM_IDS.DOWNLOAD_MP3_MODAL, "Download MP3")
-  },
-  {
+  }),
+  new PluginInteraction({
     customId: PLUGIN_CUSTOM_IDS.DOWNLOAD_MP3_MODAL,
     onInteractionCreate: ({ interaction }) => downloadLinkAndExecute(interaction, PLUGIN_CUSTOM_IDS.DOWNLOAD_MP3_MODAL, callbackUploadDiscordFile, "mp3")
-  },
-  {
+  }),
+  new PluginInteraction({
     customId: PLUGIN_CUSTOM_IDS.IMPORT_MUSIC_INTO_PLEX_BUTTON,
     description: "Extracts the audio from a link and imports it into the bot's Plex library for secured long-term storage.",
     onInteractionCreate: ({ interaction }) => showMetadataModal(interaction, PLUGIN_CUSTOM_IDS.IMPORT_MUSIC_INTO_PLEX_MODAL, "Import into Plex"),
-    requiredUserRoleIds: () => config.discord_admin_role_id
-  },
-  {
+    requiredRoleIds: () => [config.discord_admin_role_id]
+  }),
+  new PluginInteraction({
     customId: PLUGIN_CUSTOM_IDS.IMPORT_MUSIC_INTO_PLEX_MODAL,
     onInteractionCreate: ({ interaction }) => downloadLinkAndExecute(interaction, PLUGIN_CUSTOM_IDS.IMPORT_MUSIC_INTO_PLEX_MODAL, callbackImportPlexFile),
-    requiredUserRoleIds: () => config.discord_admin_role_id
-  },
-  {
+    requiredRoleIds: () => [config.discord_admin_role_id]
+  }),
+  new PluginInteraction({
     customId: PLUGIN_CUSTOM_IDS.DELETE_FROM_PLEX_BUTTON,
     description: "Removes the previously imported audio file from the bot's Plex library and deletes it from the filesystem.",
     onInteractionCreate: ({ interaction }) => showDeletionModal(interaction, PLUGIN_CUSTOM_IDS.DELETE_FROM_PLEX_MODAL, "Delete from Plex"),
-    requiredUserRoleIds: () => config.discord_admin_role_id
-  },
-  {
+    requiredRoleIds: () => [config.discord_admin_role_id]
+  }),
+  new PluginInteraction({
     customId: PLUGIN_CUSTOM_IDS.DELETE_FROM_PLEX_MODAL,
     onInteractionCreate: ({ interaction }) => deleteLinkFromPlex(interaction),
-    requiredUserRoleIds: () => config.discord_admin_role_id
-  },
-  {
+    requiredRoleIds: () => [config.discord_admin_role_id]
+  }),
+  new PluginInteraction({
     customId: PLUGIN_CUSTOM_IDS.SHOW_BUTTON_DOCUMENTATION,
     onInteractionCreate: ({ interaction }) => showButtonDocumentation(interaction)
-  }
+  }),
 ]
 
 // ------------------------------------------------------------------------- //

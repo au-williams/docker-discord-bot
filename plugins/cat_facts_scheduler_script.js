@@ -1,6 +1,7 @@
 import { Cron } from "croner";
 import { findChannelMessage, getChannelMessages } from "../index.js";
 import { getCronOptions, getLeastFrequentlyOccurringStrings } from "../shared/helpers/utilities.js"
+import { PluginSlashCommand } from "../shared/models/PluginHandler.js";
 import Config from "../shared/config.js";
 import Logger from "../shared/logger.js";
 import randomItem from 'random-item';
@@ -9,14 +10,16 @@ const config = new Config("cat_facts_scheduler_config.json");
 const logger = new Logger("cat_facts_scheduler_script.js");
 
 // ------------------------------------------------------------------------- //
-// >> INTERACTION DEFINITIONS                                             << //
+// >> PLUGIN DEFINITIONS                                                  << //
 // ------------------------------------------------------------------------- //
 
-export const PLUGIN_COMMANDS = [{
-  name: "catfact",
-  description: "Publicly sends a message with a random cat fact 🐱",
-  onInteractionCreate
-}];
+export const PLUGIN_HANDLERS = [
+  new PluginSlashCommand({
+    commandName: "catfact",
+    description: "Publicly sends a message with a random cat fact 🐱",
+    onInteractionCreate: ({ interaction }) => onCatfactSlashCommand({ interaction })
+  })
+]
 
 // ------------------------------------------------------------------------- //
 // >> DISCORD EVENT HANDLERS                                              << //
@@ -76,7 +79,7 @@ export const onClientReady = async ({ client }) => {
  * @param {Object} param
  * @param {Interaction} param.interaction
  */
-async function onInteractionCreate({ interaction }) {
+async function onCatfactSlashCommand({ interaction }) {
   try {
     await interaction.deferReply();
     await interaction.editReply(randomItem(config.sanitized_catfact_api_responses));

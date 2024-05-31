@@ -3,7 +3,7 @@
  */
 const BUSY_PLUGIN_INTERACTIONS = new Set();
 
-export default class ComponentOperation {
+export default class ComponentOperation { // todo: PluginOperation
   /**
    * Create a ComponentOperation
    * @param {Object} param

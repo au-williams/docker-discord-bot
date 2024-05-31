@@ -4,6 +4,8 @@ import { fetchRetryPolicy } from "../shared/helpers/constants.js"
 import { getChannelMessages, findChannelMessage, filterChannelMessages } from "../index.js";
 import { getCronOptions } from "../shared/helpers/utilities.js";
 import { tryDeleteMessageThread } from "../shared/helpers/discord.js";
+import { PluginSlashCommand } from "../shared/models/PluginHandler.js";
+import { PluginInteraction } from "../shared/models/PluginHandler.js";
 import Config from "../shared/config.js";
 import date from "date-and-time";
 import fetchRetry from 'fetch-retry';
@@ -18,24 +20,28 @@ const logger = new Logger("deep_rock_galactic_watcher_script.js");
 const fetch = fetchRetry(global.fetch, fetchRetryPolicy);
 
 // ------------------------------------------------------------------------- //
-// >> INTERACTION DEFINITIONS                                             << //
+// >> PLUGIN DEFINITIONS                                                  << //
 // ------------------------------------------------------------------------- //
 
-export const PLUGIN_COMMANDS = [{
-  name: "drg",
-  description: "Privately shows the weekly deep dive assignments in Deep Rock Galactic 🎮",
-  onInteractionCreate: ({ client, interaction }) => onCommandInteraction({ client, interaction })
-}];
+export const PLUGIN_CUSTOM_IDS = Object.freeze({
+  DRG_BUTTON_COMPONENT_DEEP_DIVE: "DRG_BUTTON_COMPONENT_DEEP_DIVE",
+  DRG_BUTTON_COMPONENT_ELITE_DEEP_DIVE: "DRG_BUTTON_COMPONENT_ELITE_DEEP_DIVE",
+});
 
-export const PLUGIN_INTERACTIONS = [
-  {
-    customId: "DEEP_DIVE_BUTTON",
-    onInteractionCreate: ({ client, interaction }) => onDeepDiveButtonInteraction({ client, interaction })
-  },
-  {
-    customId: "ELITE_DEEP_DIVE_BUTTON",
-    onInteractionCreate: ({ client, interaction }) => onEliteDeepDiveButtonInteraction({ client, interaction })
-  }
+export const PLUGIN_HANDLERS = [
+  new PluginInteraction({
+    customId: PLUGIN_CUSTOM_IDS.DRG_BUTTON_COMPONENT_DEEP_DIVE,
+    onInteractionCreate: ({ client, interaction }) => onDrgButtonComponentDeepDive({ client, interaction })
+  }),
+  new PluginInteraction({
+    customId: PLUGIN_CUSTOM_IDS.DRG_BUTTON_COMPONENT_ELITE_DEEP_DIVE,
+    onInteractionCreate: ({ client, interaction }) => onDrgButtonComponentEliteDeepDive({ client, interaction })
+  }),
+  new PluginSlashCommand({
+    commandName: "drg",
+    description: "Privately shows the weekly deep dive assignments in Deep Rock Galactic 🎮",
+    onInteractionCreate: ({ client, interaction }) => onDrgSlashCommand({ client, interaction })
+  })
 ]
 
 // ------------------------------------------------------------------------- //
@@ -139,7 +145,7 @@ function getIsPluginMessage(client, message) {
     && message.embeds?.[0]?.data?.author?.name.includes("Deep Rock Galactic");
 }
 
-async function onDeepDiveButtonInteraction({ client, interaction }) {
+async function onDrgButtonComponentDeepDive({ client, interaction }) {
   try {
     const { channel } = interaction;
     const { currentDive, currentEndTime, currentStartTime } = await getCurrentAndPreviousAssignments({ channel, client });
@@ -150,7 +156,7 @@ async function onDeepDiveButtonInteraction({ client, interaction }) {
   }
 }
 
-async function onEliteDeepDiveButtonInteraction({ client, interaction }) {
+async function onDrgButtonComponentEliteDeepDive({ client, interaction }) {
   try {
     const { channel } = interaction;
     const { currentEliteDive, currentEndTime, currentStartTime } = await getCurrentAndPreviousAssignments({ channel, client });
@@ -175,7 +181,7 @@ async function sendAssignmentDetailsReply({ assignment, currentEndTime, currentS
   }
 }
 
-async function onCommandInteraction({ client, interaction }) {
+async function onDrgSlashCommand({ client, interaction }) {
   try {
     await interaction.deferReply({ ephemeral: true });
 

@@ -247,6 +247,21 @@ export function tryParseStringToObject(jsonString){
   catch (e) { }
 }
 
+/**
+ * Get a pluralized string if the count is not 1
+ * @param {string} string The string to pluralize `(ex. "Apple")`
+ * @param {number} count The count to compare with `(ex. 6)`
+ * @returns {string} The pluralized string `(ex. "Apples")`
+ */
 export function getPluralizedString(string, count) {
   return count != 1 ? `${string}s` : string;
+}
+
+/**
+ * Format the role ids to display as clickable member roles in a Discord message
+ * @param {String[]} array An unformatted string array of member role ids
+ * @returns {any} A formatted string array of member role ids
+ */
+export function getFormattedRoles(array) {
+  return array.map(item => `<@&${item}>`);
 }
