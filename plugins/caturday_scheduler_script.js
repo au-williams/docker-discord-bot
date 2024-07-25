@@ -25,33 +25,33 @@ const PLUGIN_CUSTOM_IDS = Object.freeze({
 export const PLUGIN_HANDLERS = [
   new PluginContextMenuItem({
     commandName: "Collect cat taxes",
-    onInteractionCreate: ({ interaction }) => onCollectCatTaxContextMenuItem({ interaction }),
+    onInteractionCreate: ({ interaction }) => onCollectCatTaxContextMenuItem(interaction),
     requiredRoleIds: () => [config.discord_admin_role_id]
   }),
   new PluginInteraction({
     customId: PLUGIN_CUSTOM_IDS.CATURDAY_BUTTON_COMPONENT_OLDER,
-    onInteractionCreate: ({ interaction }) => onCaturdayButtonComponentOlder({ interaction }),
+    onInteractionCreate: ({ interaction }) => onCaturdayButtonComponentOlder(interaction),
     requiredRoleIds: () => [config.discord_admin_role_id]
   }),
   new PluginInteraction({
     customId: PLUGIN_CUSTOM_IDS.CATURDAY_BUTTON_COMPONENT_NEWER,
-    onInteractionCreate: ({ interaction }) => onCaturdayButtonComponentNewer({ interaction }),
+    onInteractionCreate: ({ interaction }) => onCaturdayButtonComponentNewer(interaction),
     requiredRoleIds: () => [config.discord_admin_role_id]
   }),
   new PluginInteraction({
     customId: PLUGIN_CUSTOM_IDS.CATURDAY_BUTTON_COMPONENT_SELECT,
-    onInteractionCreate: ({ interaction }) => onCaturdayButtonComponentSelect({ interaction }),
+    onInteractionCreate: ({ interaction }) => onCaturdayButtonComponentSelect(interaction),
     requiredRoleIds: () => [config.discord_admin_role_id]
   }),
   new PluginInteraction({
     customId: PLUGIN_CUSTOM_IDS.CATURDAY_BUTTON_COMPONENT_REMOVE,
-    onInteractionCreate: ({ interaction }) => onCaturdayButtonComponentRemove({ interaction }),
+    onInteractionCreate: ({ interaction }) => onCaturdayButtonComponentRemove(interaction),
     requiredRoleIds: () => [config.discord_admin_role_id]
   }),
   new PluginSlashCommand({
     commandName: "caturday",
     description: "Privately shows a file selector to submit channel pictures for #caturday 🐱",
-    onInteractionCreate: ({ interaction }) => onCaturdaySlashCommand({ interaction }),
+    onInteractionCreate: ({ interaction }) => onCaturdaySlashCommand(interaction),
     requiredRoleIds: () => [config.discord_admin_role_id]
   })
 ]
@@ -326,7 +326,7 @@ function getImageUrlsFromMessage({ attachments, embeds }) {
   }
 }
 
-async function onCaturdayButtonComponentNewer({ interaction }) {
+async function onCaturdayButtonComponentNewer(interaction) {
   try {
     await interaction.deferUpdate();
 
@@ -390,7 +390,7 @@ async function onCaturdayButtonComponentNewer({ interaction }) {
   }
 }
 
-async function onCaturdayButtonComponentOlder({ interaction }) {
+async function onCaturdayButtonComponentOlder(interaction) {
   try {
     await interaction.deferUpdate();
 
@@ -446,7 +446,7 @@ async function onCaturdayButtonComponentOlder({ interaction }) {
   }
 }
 
-async function onCaturdayButtonComponentRemove({ interaction }) {
+async function onCaturdayButtonComponentRemove(interaction) {
   try {
     await interaction.deferUpdate();
 
@@ -494,7 +494,7 @@ async function onCaturdayButtonComponentRemove({ interaction }) {
   }
 }
 
-async function onCaturdayButtonComponentSelect({ interaction }) {
+async function onCaturdayButtonComponentSelect(interaction) {
   try {
     await interaction.deferUpdate();
 
@@ -541,7 +541,7 @@ async function onCaturdayButtonComponentSelect({ interaction }) {
   }
 }
 
-async function onCollectCatTaxContextMenuItem({ interaction }) {
+async function onCollectCatTaxContextMenuItem(interaction) {
   try {
     await interaction.deferReply({ ephemeral: true });
 
@@ -597,7 +597,7 @@ async function onCollectCatTaxContextMenuItem({ interaction }) {
  * @param {Object} param
  * @param {Interaction} param.interaction
  */
-async function onCaturdaySlashCommand({ interaction }) {
+async function onCaturdaySlashCommand(interaction) {
   try {
     await interaction.deferReply({ ephemeral: true });
 

@@ -97,7 +97,7 @@ client.on(Events.InteractionCreate, async interaction => {
 
     for (const { filename, handler } of pluginHandlers) {
       if (handler.isLocked(interaction.member)) {
-        logger.warn(`${interaction.user.username} tried to use "${handler.identifier}"`, filename);
+        logger.warn(`${interaction.user.username} tried to use "${handler.name}"`, filename);
         const rolesLabel = getPluralizedString("role", handler.requiredRoleIds.length);
         const rolesValue = getFormattedRoles(handler.requiredRoleIds).join(" ");
         const content = `🔒 Sorry but this can only be used by the ${rolesValue} ${rolesLabel}.`;
@@ -105,7 +105,7 @@ client.on(Events.InteractionCreate, async interaction => {
         continue;
       }
 
-      logger.info(`${interaction.user.username} used "${handler.identifier}"`, filename);
+      logger.info(`${interaction.user.username} used "${handler.name}"`, filename);
       await handler.onInteractionCreate({ client, interaction });
     }
   }

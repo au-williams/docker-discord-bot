@@ -10,7 +10,7 @@ const config = new Config("cat_facts_scheduler_config.json");
 const logger = new Logger("cat_facts_scheduler_script.js");
 
 // ------------------------------------------------------------------------- //
-// >> PLUGIN DEFINITIONS                                                  << //
+// >> PLUGIN HANDLERS                                                     << //
 // ------------------------------------------------------------------------- //
 
 export const PLUGIN_HANDLERS = [
@@ -22,7 +22,7 @@ export const PLUGIN_HANDLERS = [
 ]
 
 // ------------------------------------------------------------------------- //
-// >> DISCORD EVENT HANDLERS                                              << //
+// >> DISCORD HANDLERS                                                    << //
 // ------------------------------------------------------------------------- //
 
 /**
@@ -35,7 +35,6 @@ export const onClientReady = async ({ client }) => {
   await logger.initialize(client);
 
   const cronJob = async () => {
-    const channel = await client.channels.fetch(config.discord_announcement_channel_id);
     const channelMessages = await getChannelMessages(config.discord_announcement_channel_id);
     const channelCatFacts = channelMessages.map(({ content }) => content);
 
@@ -46,17 +45,21 @@ export const onClientReady = async ({ client }) => {
     let potentialCatFacts = config.sanitized_catfact_api_responses.filter(fact => !channelCatFacts.includes(fact));
     if (!potentialCatFacts.length) potentialCatFacts = getLeastFrequentlyOccurringStrings(channelCatFacts);
 
-    // -------------------------------------------------------------------------- //
-    // get a random cat fact from the collection and send it to the guild channel //
-    // -------------------------------------------------------------------------- //
+    // -------------------------------------------------------------------- //
+    // get a random collection item and send it to the announcement channel //
+    // -------------------------------------------------------------------- //
 
     const randomCatFact = randomItem(potentialCatFacts);
+    const channel = await client.channels.fetch(config.discord_announcement_channel_id);
     await channel.send(randomCatFact);
 
     logger.info(`Sent a cat fact to ${channel.guild.name} #${channel.name}`);
   }
 
-  const cronEntrypoint = Cron(config.cron_job_announcement_pattern, getCronOptions(logger), cronJob);
+  const cronPattern = config.cron_job_announcement_pattern;
+  const cronOptions = getCronOptions(logger);
+  const cronEntrypoint = Cron(cronPattern, cronOptions, cronJob);
+
   logger.info(`Queued Cron job with pattern "${config.cron_job_announcement_pattern}"`);
 
   // ---------------------------------------------------------------------------- //

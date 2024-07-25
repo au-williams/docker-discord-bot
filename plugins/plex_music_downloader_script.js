@@ -9,7 +9,6 @@ import { setTimeout } from "timers/promises";
 import * as oembed from "@extractus/oembed-extractor";
 import AFHConvert from "ascii-fullwidth-halfwidth-convert";
 import CachedLinkData from "../shared/models/CachedLinkData.js"
-import ComponentOperation from "../shared/models/ComponentOperation.js"
 import Config from "../shared/config.js";
 import fs from "fs-extra";
 import Logger from "../shared/logger.js";
@@ -38,14 +37,14 @@ export const PLUGIN_CUSTOM_IDS = Object.freeze({
 });
 
 export const PLUGIN_HANDLERS = [
-  new PluginInteraction({
+  new PluginInteraction({ // new PluginInteractionDefinition({
     customId: PLUGIN_CUSTOM_IDS.DOWNLOAD_MP3_BUTTON,
     description: "Extracts the audio from a link and uploads it to Discord as an MP3 file for users to stream or download.",
     onInteractionCreate: ({ interaction }) => showMetadataModal(interaction, PLUGIN_CUSTOM_IDS.DOWNLOAD_MP3_MODAL, "Download MP3")
   }),
   new PluginInteraction({
     customId: PLUGIN_CUSTOM_IDS.DOWNLOAD_MP3_MODAL,
-    onInteractionCreate: ({ interaction }) => downloadLinkAndExecute(interaction, PLUGIN_CUSTOM_IDS.DOWNLOAD_MP3_MODAL, callbackUploadDiscordFile, "mp3")
+    onInteractionCreate: ({ interaction }) => downloadLinkAndExecute(interaction, callbackUploadDiscordFile, "mp3")
   }),
   new PluginInteraction({
     customId: PLUGIN_CUSTOM_IDS.IMPORT_MUSIC_INTO_PLEX_BUTTON,
@@ -55,7 +54,7 @@ export const PLUGIN_HANDLERS = [
   }),
   new PluginInteraction({
     customId: PLUGIN_CUSTOM_IDS.IMPORT_MUSIC_INTO_PLEX_MODAL,
-    onInteractionCreate: ({ interaction }) => downloadLinkAndExecute(interaction, PLUGIN_CUSTOM_IDS.IMPORT_MUSIC_INTO_PLEX_MODAL, callbackImportPlexFile),
+    onInteractionCreate: ({ interaction }) => downloadLinkAndExecute(interaction, callbackImportPlexFile),
     requiredRoleIds: () => [config.discord_admin_role_id]
   }),
   new PluginInteraction({
@@ -270,14 +269,8 @@ async function createThreadChannel(cachedLinkData, starterMessage) {
  * @param {Interaction} interaction
  */
 async function deleteLinkFromPlex(interaction) {
-  const operation = new ComponentOperation({
-    interactionId: PLUGIN_CUSTOM_IDS.DELETE_FROM_PLEX_MODAL,
-    messageId: interaction.message.id,
-    userId: interaction.user.id
-  });
-
-  if (operation.isBusy) return;
-  else operation.setBusy(true);
+  const handler = PLUGIN_HANDLERS.find(handler => handler.isInteraction(interaction));
+  handler.setInteractionBusy(interaction, true);
 
   try {
     await interaction.deferReply({ ephemeral: true });
@@ -285,7 +278,7 @@ async function deleteLinkFromPlex(interaction) {
     const cachedLinkData = await getOrCreateCachedLinkData(interaction.message);
 
     if (!cachedLinkData) {
-      logger.error("Attempted to import Plex file without cached data");
+      logger.error("Tried deleting file from Plex without cached data");
       return;
     }
 
@@ -306,22 +299,17 @@ async function deleteLinkFromPlex(interaction) {
   }
   catch(e) {
     logger.error(e);
-    await interaction.editReply({ content: getFormattedErrorMessage(e) });
+    const content = getFormattedErrorMessage(e);
+    await interaction.editReply({ content });
   }
   finally {
-    operation.setBusy(false);
+    handler.setInteractionBusy(interaction, false);
   }
 }
 
-async function downloadLinkAndExecute(interaction, modalCustomId, callback, audioFormat) {
-  const operation = new ComponentOperation({
-    interactionId: modalCustomId,
-    messageId: interaction.message.id,
-    userId: interaction.user.id
-  });
-
-  if (operation.isBusy) return;
-  else operation.setBusy(true);
+async function downloadLinkAndExecute(interaction, callback, audioFormat) {
+  const handler = PLUGIN_HANDLERS.find(handler => handler.isInteraction(interaction));
+  handler.setInteractionBusy(interaction, true);
 
   try {
     await interaction.deferReply({ ephemeral: true });
@@ -446,7 +434,7 @@ async function downloadLinkAndExecute(interaction, modalCustomId, callback, audi
     logger.error(e);
   }
   finally {
-    operation.setBusy(false);
+    handler.setInteractionBusy(interaction, false);
   }
 }
 
@@ -515,22 +503,26 @@ async function getOrCreateCachedLinkData(message) {
     // fetch youtubedl data //
     // -------------------- //
 
-    const youtubedlOptions = {
+    let errorMessage;
+
+    const youTubeDlOptions = {
       output: "%(duration>%H:%M:%S)s,%(id)s",
       print: "%(duration>%H:%M:%S)s,%(id)s",
       simulate: true,
       skipDownload: true
     }
 
-    let youtubedlError; // this library may return undefined with no error thrown ... nice, right?
-    const youtubedlPayload = await youtubedl(linkWithoutParameters, youtubedlOptions).catch(e => {
-      youtubedlError = e.message || "Couldn't get youtubedl payload";
-      if (youtubedlError.includes(linkWithoutParameters)) return;
-      youtubedlError += ` "${linkWithoutParameters}"`;
-    });
+    const youtubedlPayload =
+      await youtubedl(linkWithoutParameters, youTubeDlOptions).catch(e => { errorMessage = e.message });
+
+    if (!youtubedlPayload && errorMessage) {
+      logger.warn(`${errorMessage} "${linkWithoutParameters}"`)
+      return;
+    }
 
     if (!youtubedlPayload) {
-      logger.warn(youtubedlError)
+      // this library may return undefined with no error thrown ... nice, right?
+      logger.error(`Failed to execute YouTubeDL "${linkWithoutParameters}"`)
       return;
     }
 
@@ -601,14 +593,12 @@ async function getOrCreateCachedLinkData(message) {
  * @param {string} modalTitle
  */
 async function showDeletionModal(interaction, modalCustomId, modalTitle) {
-  const operation = new ComponentOperation({
-    interactionId: modalCustomId,
-    messageId: interaction.message.id,
-    userId: interaction.user.id
-  });
+  const modalInteraction = { ...Object.assign(interaction), customId: modalCustomId };
+  const modalHandler = PLUGIN_HANDLERS.find(handler => handler.isInteraction(modalInteraction));
 
-  if (operation.isBusy) {
-    await interaction.deferUpdate();
+  if (modalHandler.isInteractionBusy(modalInteraction)) {
+    const content = "Please wait for your file to finish processing.";
+    await interaction.reply({ content, ephemeral: true });
     return;
   }
 
@@ -639,14 +629,12 @@ async function showDeletionModal(interaction, modalCustomId, modalTitle) {
  * @param {string} modalTitle
  */
 async function showMetadataModal(interaction, modalCustomId, modalTitle) {
-  const operation = new ComponentOperation({
-    interactionId: modalCustomId,
-    messageId: interaction.message.id,
-    userId: interaction.user.id
-  });
+  const modalInteraction = { ...Object.assign(interaction), customId: modalCustomId };
+  const modalHandler = PLUGIN_HANDLERS.find(handler => handler.isInteraction(modalInteraction));
 
-  if (operation.isBusy) {
-    await interaction.deferUpdate();
+  if (modalHandler.isInteractionBusy(modalInteraction)) {
+    const content = "Please wait for your file to finish processing.";
+    await interaction.reply({ content, ephemeral: true });
     return;
   }
 
