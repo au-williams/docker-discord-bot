@@ -1,4 +1,4 @@
-import { getTruncatedString } from "../helpers/utilities.js";
+import { getTruncatedStringTerminatedByChar } from "../helpers/utilities.js";
 
 export default class CachedLinkData {
   constructor({
@@ -14,7 +14,7 @@ export default class CachedLinkData {
     this.id = id;
     this.linkWithoutParameters = linkWithoutParameters;
     this.segments = segments;
-    this.threadChannelName = getTruncatedString(`📲 ${title}`, 100);
+    this.threadChannelName = getTruncatedStringTerminatedByChar(`📲 ${title}`, 100);
     this.title = title;
   }
 }

@@ -1,5 +1,5 @@
 import { ButtonBuilder, ButtonStyle } from "discord.js";
-import { getTruncatedString } from "./utilities.js";
+import { getTruncatedStringTerminatedByChar } from "./utilities.js";
 
 /**
  * Get the "Delete from Plex" button component
@@ -44,7 +44,7 @@ export function getImportIntoPlexButton(componentCustomId, emojiId) {
 export async function getOrCreateThreadChannel({ starterMessage, clientOptions, threadOptions }) {
   if (starterMessage.hasThread) return starterMessage.thread;
 
-  threadOptions.name = getTruncatedString(threadOptions.name, 100); // maximum thread name size
+  threadOptions.name = getTruncatedStringTerminatedByChar(threadOptions.name, 100); // maximum thread name size
   const threadChannel = await starterMessage.startThread(threadOptions);
 
   if (clientOptions.removeMembers) {

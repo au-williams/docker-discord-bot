@@ -3,10 +3,11 @@ import { fileURLToPath } from "url";
 import { getAverageColor } from 'fast-average-color-node';
 import { nanoid } from 'nanoid'
 import { scheduledJobs } from "croner";
-import Vibrant from 'node-vibrant'
 import Downloader from "nodejs-file-downloader";
+import emojiRegex from "emoji-regex";
 import fs from "fs-extra";
 import sharp from "sharp";
+import Vibrant from 'node-vibrant'
 
 const { temp_directory } = fs.readJsonSync("config.json");
 
@@ -65,7 +66,7 @@ export const getCronOptions = (logger, appendedJobName = "") => {
   while (isDuplicateName) {
     const split = name.split(" ");
     const counter = split.pop().replace("(", "").replace(")", "");
-    name = getIsNumeric(counter) ? `${split.join(" ")} (${parseInt(counter) + 1})` : `${name} (1)`;
+    name = getIsNumericString(counter) ? `${split.join(" ")} (${parseInt(counter) + 1})` : `${name} (1)`;
     isDuplicateName = scheduledJobs.find(job => job.name === name);
   }
 
@@ -87,7 +88,7 @@ export function getIsEqualArrays(array1, array2) {
 }
 
 // https://stackoverflow.com/questions/175739/how-can-i-check-if-a-string-is-a-valid-number
-export function getIsNumeric(str) {
+export function getIsNumericString(str) {
   if (typeof str != "string") return false; // we only process strings!
   return !isNaN(str) && // use type coercion to parse the _entirety_ of the string (`parseFloat` alone does not do this)...
          !isNaN(parseFloat(str)); // ...and ensure strings of whitespace fail
@@ -158,14 +159,40 @@ export function getTimestampAsTotalSeconds(timestamp) {
 }
 
 /**
- * Truncate a string to the maximum allowed size
- * @param {*} string
- * @param {*} maxLength
- * @returns {*}
+ * Truncate a string to the maximum allowed size terminated on the char of that index.
+ * Example: `("the quick brown fox", 12)` => `"the quick br..."`
+ * @param {string} string
+ * @param {number} maxLength Defaults to `100` to align with Discord thread name restrictions
+ * @returns {string}
  */
-export function getTruncatedString(string, maxLength) {
-  if (string.length > maxLength) string = string.slice(0, maxLength - 3) + "...";
-  return string;
+export function getTruncatedStringTerminatedByChar(string, maxLength = 100) {
+  if (string.length <= maxLength) return string;
+  if (maxLength <= 3) return string.slice(0, maxLength);
+  if (maxLength <= 5) return string.slice(0, maxLength - 2) + "..";
+  return string.slice(0, maxLength - 3) + "...";
+}
+
+/**
+ * Truncate a string to the maximum allowed size terminated by a complete word.
+ * Example: `("the quick brown fox", 12)` => `"the quick [...]"`
+ * @param {string} string
+ * @param {number} maxLength Defaults to `100` to align with Discord thread name restrictions
+ * @returns {string}
+ */
+export function getTruncatedStringTerminatedByWord(string, maxLength = 100) {
+  if (string.length <= maxLength) return string;
+  const words = string.split(" ");
+  let result = words.shift();
+
+  for (const word of words) {
+    if ((`${result} ${word}`).length > maxLength - 6) {
+      result += ` [...]`;
+      break;
+    }
+    result += ` ${word}`;
+  }
+
+  return result;
 }
 
 /**
@@ -255,6 +282,17 @@ export function tryParseStringToObject(jsonString){
  */
 export function getPluralizedString(string, count) {
   return count != 1 ? `${string}s` : string;
+}
+
+export function getStringWithoutEmojis(string) {
+  const matches = string.matchAll(emojiRegex());
+  for (const match of matches) string = string.replace(match[0], '');
+  return string;
+}
+
+export function getIsPunctuatedString(string) {
+  const punctuations = [".", ".\"", ",", ";", ":", "!", "?", "-", "(", ")", "[", "]", "{", "}"];
+  return punctuations.some(punctuation => string.endsWith(punctuation));
 }
 
 /**

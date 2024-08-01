@@ -2,20 +2,20 @@ import { AttachmentBuilder, EmbedBuilder } from "discord.js";
 import { Cron } from "croner";
 import { fetchRetryPolicy } from "../shared/helpers/constants.js";
 import { findChannelMessage } from "../index.js";
-import { getCronOptions } from "../shared/helpers/utilities.js";
+import { getCronOptions, getStringWithoutEmojis, getTruncatedStringTerminatedByChar, getTruncatedStringTerminatedByWord } from "../shared/helpers/utilities.js";
 import { tryDeleteMessageThread } from "../shared/helpers/discord.js";
 import Config from "../shared/config.js";
 import date from 'date-and-time';
+import emojiRegex from "emoji-regex";
 import fetchRetry from 'fetch-retry';
 import Logger from "../shared/logger.js";
 import ordinal from 'date-and-time/plugin/ordinal';
 import probe from "probe-image-size";
 date.plugin(ordinal);
 
-const config = new Config("steam_community_watcher_config.json");
-const logger = new Logger("steam_community_watcher_script.js");
-
-const fetch = fetchRetry(global.fetch, fetchRetryPolicy);
+const config = new Config("steam_community_watcher_config.json"); // load the config data from this file
+const logger = new Logger("steam_community_watcher_script.js");   // send logs referencing this filename
+const fetch = fetchRetry(global.fetch, fetchRetryPolicy);         // extend fetch to bind a retry policy
 
 // ------------------------------------------------------------------------- //
 // >> DISCORD EVENT HANDLERS                                              << //
@@ -24,13 +24,13 @@ const fetch = fetchRetry(global.fetch, fetchRetryPolicy);
 /**
  * Delete the child thread when its message parent is deleted
  * @param {Object} param
- * @param {Client} param.client The Discord.js client
  * @param {Message} param.message The deleted message
  */
-export const onMessageDelete = ({ message }) => tryDeleteMessageThread({
-  allowedChannelIds: [config.discord_announcement_channel_id],
-  logger, starterMessage: message
-});
+export const onMessageDelete = ({ message }) => {
+  const allowedChannelIds = [config.discord_announcement_channel_id];
+  const starterMessage = message;
+  tryDeleteMessageThread({ allowedChannelIds, logger, starterMessage });
+}
 
 /**
  * Check for pending announcements on startup and a regular time interval
@@ -41,7 +41,8 @@ export const onClientReady = async ({ client }) => {
   await config.initialize(client);
   await logger.initialize(client);
 
-  const channel = await client.channels.fetch(config.discord_announcement_channel_id);
+  const channel =
+    await client.channels.fetch(config.discord_announcement_channel_id);
 
   const cronJob = async () => {
     for (const steam_app_id of config.announcement_steam_app_ids) {
@@ -97,8 +98,7 @@ export const onClientReady = async ({ client }) => {
         files: [new AttachmentBuilder('assets\\steam_logo.png')]
       });
 
-      let name = `💬 ${steamAppDetailsData.name} - ${steamAppAnnouncement.title}`;
-      if (name.length > 100) name = name.slice(0, 97) + "...";
+      const name = getTruncatedStringTerminatedByChar(`💬 ${steamAppDetailsData.name} - ${steamAppAnnouncement.title}`, 100); // maximum thread name size
       await message.startThread({ name });
 
       logger.info(`Sent announcement for "${steam_app_id}" to ${channel.guild.name} #${channel.name}`)
@@ -117,32 +117,25 @@ export const onClientReady = async ({ client }) => {
  * Convert Steam announcement description BBCode to markdown for Discord formatting
  * @param {Object} steamAnnouncement
  */
-function formatAnnouncementDescription(steamAnnouncement) {
-  const endsWithPunctuation = input => {
+export function formatAnnouncementDescription(steamAnnouncement) {
+  const contents = steamAnnouncement.contents.split('\n').map(content => {
+    content = content.replaceAll('“', '"') // replace non-standard quote characters
+    content = content.replaceAll('”', '"') // replace non-standard quote characters
+    content = content.replaceAll(/\[img\][^[]+\[\/img\]/g, '') // remove [img] tags
+    content = content.replaceAll(/\[\/?[^\]]+\]/g, '') // remove any formatted tags
+    content = content.trim();
+    const emojiMatches = content.match(emojiRegex());
     const punctuations = [".", ".\"", ",", ";", ":", "!", "?", "-", "(", ")", "[", "]", "{", "}"];
-    return punctuations.some(punctuation => input.endsWith(punctuation));
-  }
+    const isEndsWithEmoji = emojiMatches?.some(match => content.endsWith(match));
+    const isEndsWithPunctuation = punctuations.some(punctuation => content.endsWith(punctuation));
+    if (content && !isEndsWithEmoji && !isEndsWithPunctuation) content += ".";
+    return content;
+  }).filter(content => content);
 
-  const formattedContents = steamAnnouncement.contents.split('\n').map((textLine, index) => {
-    let result = textLine.trim();
-    if (result === steamAnnouncement.title && index === 0) return "";
-    if (result.startsWith("[*]") && !endsWithPunctuation(result)) result = `${result};`;
-    if (result.startsWith("-")) result = `${result.replace("-", "").trim()};`;
-    result = result.replaceAll('“', '"').replaceAll('”', '"'); // swap non-standard quote characters
-    result = result.replace(/\[img\][^[]+\[\/img\]/g, ''); // remove links nested between [img] tags
-    result = result.replace(/\[\/?[^\]]+\]/g, '') // remove any bracket tags - [b], [i], [list], etc
-    if (result && !endsWithPunctuation(result)) result += ".";
-    return result.trim();
-  }).filter(x => x).join(" ");
-
-  let formattedDescription = "";
-
-  for(const formattedContent of formattedContents.split(" ")) {
-    if ((`${formattedDescription} ${formattedContent}`).length > 133) break;
-    else formattedDescription += ` ${formattedContent}`;
-  }
-
-  return `_${formattedDescription} [...]_`;
+  // drop the duplicate title if it was included in Steams API response
+  const title = getStringWithoutEmojis(steamAnnouncement.title).trim();
+  if (contents.length && contents[0].startsWith(title)) contents.shift();
+  return `_${getTruncatedStringTerminatedByWord(contents.join(" "), 133)}_`;
 }
 
 /**

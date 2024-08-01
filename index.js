@@ -1,4 +1,4 @@
-import { Client, Events, GatewayIntentBits, Partials, REST, Routes, ContextMenuCommandBuilder, ApplicationCommandType, SlashCommandBuilder } from "discord.js";
+import { Client, Events, GatewayIntentBits, Partials, REST, Routes } from "discord.js";
 import { getFormattedRoles, getPluralizedString } from "./shared/helpers/utilities.js";
 import fs from "fs-extra";
 import Logger from "./shared/logger.js";
