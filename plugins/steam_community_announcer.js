@@ -125,7 +125,7 @@ export async function checkAndAnnounceUpdate({ client, listener }) {
     embed.setTitle(steamAppDetailsData.name);
 
     const embeds = [embed];
-    const files = [new AttachmentBuilder("assets\\steam_logo.png")];
+    const files = [new AttachmentBuilder("assets/steam_logo.png")];
     const message = await channel.send({ embeds, files });
 
     const name = Utilities.getTruncatedStringTerminatedByChar(`💬 ${steamAppDetailsData.name} - ${steamAppAnnouncement.title}`, 100); // maximum thread name size

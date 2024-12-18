@@ -290,7 +290,7 @@ export async function restoreBackupFile({ interaction }) {
     throw new Error("Invalid message attachments. Received zero but expected one or many.");
   }
 
-  const interactionDownloadDirectory = `${temp_directory}\\${nanoid()}`;
+  const interactionDownloadDirectory = `${temp_directory}/${nanoid()}`;
   const downloader = new Downloader({ url: attachments[0].url, directory: interactionDownloadDirectory });
   const { filePath: interactionDownloadFilepath } = await downloader.download();
   fs.renameSync(interactionDownloadFilepath, filepath);
@@ -414,7 +414,7 @@ export async function validateBackups({ client, listener }) {
       continue;
     }
 
-    const interactionDownloadDirectory = `${temp_directory}\\${nanoid()}`;
+    const interactionDownloadDirectory = `${temp_directory}/${nanoid()}`;
     const downloader = new Downloader({ url: attachments[0].url, directory: interactionDownloadDirectory });
     const { filePath: interactionDownloadFilepath } = await downloader.download();
 

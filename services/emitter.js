@@ -294,7 +294,7 @@ export function getImportableFilepaths(directory) {
     .filter(Utilities.checkExecutableFilename)
     .map(filename => {
       const relativePath = `${directory}/${filename}`;
-      const absolutePath = path.resolve(relativePath).replaceAll("\\", "/");
+      const absolutePath = path.resolve(relativePath).replaceAll("/", "/");
       return `file://${absolutePath}`; // https://github.com/nodejs/node/issues/31710
     });
 }

@@ -143,7 +143,7 @@ export async function checkAndAnnounceAssignments({ client, listener }) {
 
   const components = [new ActionRowBuilder().addComponents(deepDiveButton, eliteDeepDiveButton, Emitter.moreInfoButton)];
   const embeds = [await getAssignmentsMessageEmbed({ dive, eliteDive, embedName: "New weekly", formattedEndTime })];
-  const files = [new AttachmentBuilder("assets\\drg_deep_dive.png"), new AttachmentBuilder("assets\\drg_supporter.png")]
+  const files = [new AttachmentBuilder("assets/drg_deep_dive.png"), new AttachmentBuilder("assets/drg_supporter.png")]
 
   const channel = client.channels.cache.get(config.announcement_discord_channel_id);
   const message = await channel.send({ components, embeds, files });
@@ -272,7 +272,7 @@ export async function replyThisWeeksAssignments({ interaction, listener }) {
 
   const components = [new ActionRowBuilder().addComponents(deepDiveButton, eliteDeepDiveButton, Emitter.moreInfoButton)];
   const embeds = [await getAssignmentsMessageEmbed({ dive, eliteDive, embedName: "This weeks", formattedEndTime })];
-  const files = [new AttachmentBuilder("assets\\drg_deep_dive.png"), new AttachmentBuilder("assets\\drg_supporter.png")];
+  const files = [new AttachmentBuilder("assets/drg_deep_dive.png"), new AttachmentBuilder("assets/drg_supporter.png")];
 
   interaction
     .editReply({ components, embeds, files })
@@ -314,8 +314,8 @@ export async function replyAssignmentDetails({ assignment, color, endTime, inter
     .setTitle(`"${assignment.name}" in ${assignment.biome}`);
 
   const files = [
-    new AttachmentBuilder("assets\\drg_deep_dive.png"),
-    new AttachmentBuilder("assets\\drg_supporter.png")
+    new AttachmentBuilder("assets/drg_deep_dive.png"),
+    new AttachmentBuilder("assets/drg_supporter.png")
   ];
 
   interaction

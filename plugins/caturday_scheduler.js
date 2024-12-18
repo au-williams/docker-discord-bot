@@ -830,7 +830,7 @@ export async function onContextMenuCommandCollectCatTaxes({ client, interaction,
   const replyContent =
     `I sent this message as a DM to ${user}:`;
 
-  const files = [new AttachmentBuilder("assets\\cat_tax.jpg")];
+  const files = [new AttachmentBuilder("assets/cat_tax.jpg")];
 
   user
     .send({ content: messageContent, files })
@@ -992,7 +992,7 @@ export async function sendCatTaxDirectMessage({ member, listener }) {
     + `\n- You've contributed ${percent}% of the cat taxes we've collected. :hand_with_index_finger_and_thumb_crossed:`
     + `\nAll cat taxes queue for <#${config.announcement_discord_channel_id}> after review from our pawditors.`
 
-  const files = [new AttachmentBuilder("assets\\cat_tax.jpg")];
+  const files = [new AttachmentBuilder("assets/cat_tax.jpg")];
 
   member.user
     .send({ content: messageContent, files })

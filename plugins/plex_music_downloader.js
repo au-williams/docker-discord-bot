@@ -360,7 +360,7 @@ function getSelectMenuPlexFiles(contentType, customId, downloadCache, filenames,
     }
     case contentTypes.video: {
       aOrAnLabel = "a";
-      directory = `${config.plex_video_download_directory}\\${downloadCache.uploader}`; break;
+      directory = `${config.plex_video_download_directory}/${downloadCache.uploader}`; break;
     }
     default: {
       throw new Error(`Unexpected contentType "${contentType}"`);
@@ -369,7 +369,7 @@ function getSelectMenuPlexFiles(contentType, customId, downloadCache, filenames,
 
   // Discord needs a value even if the menu is disabled - pass "null" to avoid throwing
   const options = (filenames.length ? filenames : ["_"]).slice(0, 25).map((item, index) => {
-    const filepath = `${directory}\\${item}`;
+    const filepath = `${directory}/${item}`;
     let description = "NULL";
 
     if (fs.existsSync(filepath)) {
@@ -560,8 +560,8 @@ const selectedChapters = new Map();
  * @param {string} outputFilepath
  */
 export async function callbackImportPlexFileAudio(downloadCache, interaction, listener, outputFilename, outputFilepath) {
-  const destinationFilename = Utilities.getAvailableFilename(`${config.plex_audio_download_directory}\\${outputFilename}`);
-  const destinationFilepath = resolve(`${config.plex_audio_download_directory}\\${destinationFilename}`);
+  const destinationFilename = Utilities.getAvailableFilename(`${config.plex_audio_download_directory}/${outputFilename}`);
+  const destinationFilepath = resolve(`${config.plex_audio_download_directory}/${destinationFilename}`);
   await fs.move(outputFilepath, destinationFilepath);
   logger.info(`Imported "${outputFilename}" into Plex`);
   startPlexAudioLibraryScan().catch(error => logger.error(error, listener));
@@ -576,9 +576,9 @@ export async function callbackImportPlexFileAudio(downloadCache, interaction, li
  * @param {string} outputFilepath
  */
 export async function callbackImportPlexFileVideo(downloadCache, interaction, listener, outputFilename, outputFilepath) {
-  const destinationDirectory = `${config.plex_video_download_directory}\\${Utilities.getSanitizedFilename(downloadCache.uploader)}`;
-  const destinationFilename = Utilities.getAvailableFilename(`${destinationDirectory}\\${outputFilename}`);
-  const destinationFilepath = resolve(`${destinationDirectory}\\${destinationFilename}`);
+  const destinationDirectory = `${config.plex_video_download_directory}/${Utilities.getSanitizedFilename(downloadCache.uploader)}`;
+  const destinationFilename = Utilities.getAvailableFilename(`${destinationDirectory}/${outputFilename}`);
+  const destinationFilepath = resolve(`${destinationDirectory}/${destinationFilename}`);
   await fs.move(outputFilepath, destinationFilepath);
   logger.info(`Imported "${outputFilename}" into Plex`);
   // TODO: startPlexVideoLibraryScan().catch(error => logger.error(error, listener));
@@ -641,7 +641,7 @@ export async function downloadLinkAndExecuteCallback({ callback, contentType, in
   // compile the options consumed by YoutubeDL with optional parameters //
   // ------------------------------------------------------------------ //
 
-  const tempDownloadDirectory = `${config.temp_directory}\\${nanoid()}`;
+  const tempDownloadDirectory = `${config.temp_directory}/${nanoid()}`;
 
   const outputArtistTitle = Utilities.getSanitizedFilename(`${inputArtist} - ${inputTitle}`);
   const outputId = " [%(id)s]";
@@ -653,7 +653,7 @@ export async function downloadLinkAndExecuteCallback({ callback, contentType, in
     embedMetadata: true,
     extractorArgs: "youtube:player_client=android,web",
     noPlaylist: true,
-    output: `${tempDownloadDirectory}\\${outputFilename}.%(ext)s`,
+    output: `${tempDownloadDirectory}/${outputFilename}.%(ext)s`,
     postprocessorArgs: "ffmpeg:"
       + " -metadata album='Downloads'"
       + " -metadata album_artist='Various Artists'"
@@ -699,7 +699,7 @@ export async function downloadLinkAndExecuteCallback({ callback, contentType, in
     const execAudioFilters = []; // exec command sourced from https://redd.it/whqfl6/
     if (isStartTimeUpdate) execAudioFilters.push(`afade=t=in:st=0:d=${fadeTotalSeconds}`);
     if (isEndTimeUpdate) execAudioFilters.push(`afade=t=out:st=${outputTotalSeconds - fadeTotalSeconds}:d=${fadeTotalSeconds}`);
-    if (execAudioFilters.length) options["exec"] = `move {} "${tempDownloadDirectory}\\tempfile" & ffmpeg -i "${tempDownloadDirectory}\\tempfile" -af "${execAudioFilters.join(",")}" {} & del "${tempDownloadDirectory}\\tempfile"`;
+    if (execAudioFilters.length) options["exec"] = `move {} "${tempDownloadDirectory}/tempfile" & ffmpeg -i "${tempDownloadDirectory}/tempfile" -af "${execAudioFilters.join(",")}" {} & del "${tempDownloadDirectory}/tempfile"`;
   }
 
   // -------------------------------------------------------------- //
@@ -738,7 +738,7 @@ export function getExistingPlexFilenames(contentType, downloadCache) {
 
   switch(contentType) {
     case contentTypes.audio: directory = config.plex_audio_download_directory; break;
-    case contentTypes.video: directory = `${config.plex_video_download_directory}\\${downloadCache.uploader}`; break;
+    case contentTypes.video: directory = `${config.plex_video_download_directory}/${downloadCache.uploader}`; break;
     default: throw new Error(`Unexpected contentType "${contentType}"`);
   }
 

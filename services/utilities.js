@@ -266,7 +266,7 @@ export class Utilities {
    * @returns {FastAverageColorResult}
    */
   static async getAverageColorFromUrl(url) {
-    const tempDownloadDirectory = `${this.tempDirectory}\\${nanoid()}`;
+    const tempDownloadDirectory = `${this.tempDirectory}/${nanoid()}`;
     const downloader = new Downloader({ url, directory: tempDownloadDirectory });
     const { filePath: tempDownloadFilePath } = await downloader.download();
     const averageColor = await getAverageColor(tempDownloadFilePath);
@@ -730,7 +730,7 @@ export class Utilities {
    *
    */
   static getSanitizedFfmpeg(str) {
-    return str.trim().replaceAll("'", "'\\''");
+    return str.trim().replaceAll("'", "'/''");
   }
 
  /**
@@ -739,12 +739,12 @@ export class Utilities {
   * @returns {string}
   */
   static getSanitizedFilename(str) {
-    return sanitize(str.replace(/[/\\]/g, " ").replace(/  +/g, " "));
+    return sanitize(str.replace(/[//]/g, " ").replace(/  +/g, " "));
   }
 
   static getVibrantColorFromUrl = async url => {
     // download the file
-    const tempDownloadDirectory = `${this.tempDirectory}\\${nanoid()}`;
+    const tempDownloadDirectory = `${this.tempDirectory}/${nanoid()}`;
     const downloader = new Downloader({ url, directory: tempDownloadDirectory });
     let { filePath: tempDownloadFilePath } = await downloader.download();
 
@@ -753,7 +753,7 @@ export class Utilities {
       const ext = extname(tempDownloadFilePath);
       const base = basename(tempDownloadFilePath, ext);
       const webpTempDownloadFilePath = tempDownloadFilePath;
-      tempDownloadFilePath = `${tempDownloadDirectory}\\${base}.png`;
+      tempDownloadFilePath = `${tempDownloadDirectory}/${base}.png`;
       await sharp(webpTempDownloadFilePath).toFormat("png").toFile(tempDownloadFilePath);
     }
 
