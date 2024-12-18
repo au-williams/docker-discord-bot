@@ -110,6 +110,8 @@ const updateBackupButton = new ButtonBuilder()
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ //
 ///////////////////////////////////////////////////////////////////////////////
 
+let _rootConfig;
+
 /**
  * The Config service backs up plugin config files to Discord. Obsolete plugins
  * will be logged as a warning during startup.
@@ -128,13 +130,16 @@ export class Config {
    * @param {string?} filepath `"./plugins/example.js"` or `"./plugins/example.json"`
    */
   constructor(filepath = null) {
-    if (!fs.existsSync("config.json")) {
-      throw new Error("Could not find the root \"config.json\" file.");
+    if (!_rootConfig) {
+      if (!fs.existsSync("config.json")) {
+        throw new Error("Could not find the root \"config.json\" file.");
+      }
+      _rootConfig = fs.readJsonSync("config.json");
+      validateContents(_rootConfig, "config.json", "./config.json");
     }
 
     // map the root config.json to the config object
-    const contents = fs.readJsonSync("config.json");
-    Object.assign(this, contents);
+    Object.assign(this, _rootConfig);
 
     if (typeof filepath === "string") {
       // infer the config filename by the filepath
@@ -433,19 +438,11 @@ function validateContents(contents, filename, filepath) {
   const size = Utilities.getSizeInKilobytes(filepath);
   logger.debug(`Read ${count} key-value ${Utilities.getPluralizedString("pair", count)} from "${filename}" file. (${size})`);
 
-  for (const [key, value] of Object.entries(contents)) {
-    const isEmptyValue = typeof value === "string" && value === "";
-    if (isEmptyValue) {
-      logger.debug(`⚠️ No value was set for "${key}" key!`);
-      continue;
-    }
-    const isEmptyItem = Array.isArray(value) && value.some(item => typeof item === "string" && item === "");
-    if (isEmptyItem) {
-      logger.debug(`⚠️ No value was set for item in "${key}" key!`);
-      continue;
-    }
+  for (const [index, [key, value]] of Object.entries(contents).entries()) {
+    logger.debug(`[${index}] { "${key}" : "${typeof value === "string" && value === "" ? "\"\"" : value.toString()}" }`);
   }
 }
+
 ///////////////////////////////////////////////////////////////////////////////
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ //
 // #endregion SERVICE LOGIC                                                  //
