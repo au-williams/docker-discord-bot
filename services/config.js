@@ -136,6 +136,10 @@ export class Config {
     const contents = fs.readJsonSync("config.json");
     Object.assign(this, contents);
 
+    const count = Object.keys(contents).length;
+    const size = Utilities.getSizeInKilobytes(this.configFilepath);
+    logger.debug(`Read ${count} key-value ${Utilities.getPluralizedString("pair", count)} from root "config.json" file. (${size})`);
+
     if (typeof filepath === "string") {
       // infer the config filename by the filepath
       const parsed = path.parse(filepath.filename || filepath);
