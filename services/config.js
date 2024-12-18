@@ -136,14 +136,6 @@ export class Config {
     const contents = fs.readJsonSync("config.json");
     Object.assign(this, contents);
 
-    if (!contents.discord_bot_login_token) {
-      throw new Error("Could not read the root \"config.json\" file.");
-    }
-
-    const count = Object.keys(contents).length;
-    const size = Utilities.getSizeInKilobytes(this.configFilepath);
-    logger.debug(`Read ${count} key-value ${Utilities.getPluralizedString("pair", count)} from root "config.json" file. (${size})`);
-
     if (typeof filepath === "string") {
       // infer the config filename by the filepath
       const parsed = path.parse(filepath.filename || filepath);
@@ -155,12 +147,9 @@ export class Config {
       }
 
       const contents = fs.readJsonSync(this.configFilepath);
+      validateContents(contents, this.configFilename, this.configFilepath);
       Config.filepaths.add(this.configFilepath);
       Object.assign(this, contents);
-
-      const count = Object.keys(contents).length;
-      const size = Utilities.getSizeInKilobytes(this.configFilepath);
-      logger.debug(`Read ${count} key-value ${Utilities.getPluralizedString("pair", count)} from "${this.configFilename}" file. (${size})`);
     }
   }
 
@@ -436,6 +425,27 @@ export async function validateBackups({ client, listener }) {
   }
 }
 
+/**
+ *
+ */
+function validateContents(contents, filename, filepath) {
+  const count = Object.keys(contents).length;
+  const size = Utilities.getSizeInKilobytes(filepath);
+  logger.debug(`Read ${count} key-value ${Utilities.getPluralizedString("pair", count)} from "${filename}" file. (${size})`);
+
+  for (const [key, value] of Object.entries(contents)) {
+    const isEmptyValue = typeof value === "string" && value === "";
+    if (isEmptyValue) {
+      logger.debug(`⚠️ No value was set for "${key}" key!`);
+      continue;
+    }
+    const isEmptyItem = Array.isArray(value) && value.some(item => typeof item === "string" && item === "");
+    if (isEmptyItem) {
+      logger.debug(`⚠️ No value was set for item in "${key}" key!`);
+      continue;
+    }
+  }
+}
 ///////////////////////////////////////////////////////////////////////////////
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ //
 // #endregion SERVICE LOGIC                                                  //
