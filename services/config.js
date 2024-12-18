@@ -136,6 +136,10 @@ export class Config {
     const contents = fs.readJsonSync("config.json");
     Object.assign(this, contents);
 
+    if (!contents.discord_bot_login_token) {
+      throw new Error("Could not read the root \"config.json\" file.");
+    }
+
     const count = Object.keys(contents).length;
     const size = Utilities.getSizeInKilobytes(this.configFilepath);
     logger.debug(`Read ${count} key-value ${Utilities.getPluralizedString("pair", count)} from root "config.json" file. (${size})`);
