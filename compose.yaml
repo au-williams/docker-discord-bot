@@ -1,0 +1,5 @@
+services:
+  web:
+    build: .
+  redis:
+    image: "ghcr.io/au-williams/discord-bot:master"
