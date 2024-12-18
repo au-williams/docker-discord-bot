@@ -1,5 +1,0 @@
-{
-  "announcement_steam_app_ids": [],
-  "cron_job_announcement_pattern": "*/5 * * * *",
-  "discord_announcement_channel_id": ""
-}

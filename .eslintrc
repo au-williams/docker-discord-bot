@@ -1,16 +1,37 @@
 {
-  "extends": "eslint:recommended",
+  "extends": ["eslint:recommended", "plugin:jsdoc/recommended"],
   "parserOptions": {
     "sourceType": "module",
-    "ecmaVersion": 12
+    "ecmaVersion": "latest"
   },
   "env": {
     "browser": true,
     "es6": true,
-    "jest/globals": true,
     "node": true
   },
+  "plugins": ["jsdoc"],
   "rules": {
-    "no-inner-declarations": "off"
+    "jsdoc/no-defaults": 0,
+    "jsdoc/no-undefined-types": 0,
+    "jsdoc/require-throws": 1,
+    "jsdoc/require-returns-description": 0, // Recommended
+    "jsdoc/require-description": 0,
+    "jsdoc/require-param-description": 0, // Recommended
+    "quotes": "error",
+    "no-duplicate-imports": "error",
+    "no-inner-declarations": "off",
+    "no-multiple-empty-lines": "error",
+    "no-unused-vars": "warn",
+    "require-jsdoc": [
+      "warn",
+      {
+        "require": {
+          "FunctionDeclaration": true,
+          "MethodDefinition": true,
+          "ClassDeclaration": true,
+          "FunctionExpression": true
+        }
+      }
+    ]
   }
 }

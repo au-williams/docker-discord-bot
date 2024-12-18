@@ -1,0 +1,13 @@
+{
+  "cron_job_announcement_pattern": "0 */8 * * *",
+  "discord_admin_role_id": [""],
+  "discord_allowed_channel_ids": [""],
+  "discord_plex_emoji": "",
+  "discord_youtube_emoji": "",
+  "plex_authentication_token": "",
+  "plex_audio_download_directory": "",
+  "plex_video_download_directory": "",
+  "plex_example_genres": ["Rock", "Metal", "EDM", "Country", "Hip-Hop", "Folk", "Phonk", "Synthwave", "Soundtrack", "Rap", "Lo-Fi", "Commentary", "Alternative", "Dubstep", "Trance", "House"],
+  "plex_library_section_id": "",
+  "plex_server_ip_address": "127.0.0.1"
+}

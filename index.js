@@ -1,23 +1,17 @@
-import { Client, Events, GatewayIntentBits, Partials, REST, Routes } from "discord.js";
-import { getFormattedRoles, getPluralizedString } from "./shared/helpers/utilities.js";
+import { Client, Events, GatewayIntentBits, Options, Partials, REST, Routes } from "discord.js";
+import { Config } from "./services/config.js";
+import { Emitter } from "./services/emitter.js";
+import { Logger } from "./services/logger.js";
+import { Utilities } from "./services/utilities.js";
 import fs from "fs-extra";
-import Logger from "./shared/logger.js";
 
-const {
-  discord_bot_login_token,
-  discord_prefetch_channel_ids,
-  temp_directory
-} = fs.readJsonSync("./config.json");
+///////////////////////////////////////////////////////////////////////////////
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ //
+// >> CLIENT DEPENDENCIES                                                 << //
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ //
+///////////////////////////////////////////////////////////////////////////////
 
-const INITIALIZED_PLUGINS = [];
-
-const logger = new Logger("index.js");
-
-// ------------------------------------------------------------------------- //
-// >> DISCORD.JS CLIENT                                                   << //
-// ------------------------------------------------------------------------- //
-
-const client = new Client({
+export const client = new Client({
   intents: [
     GatewayIntentBits.DirectMessages,
     GatewayIntentBits.Guilds,
@@ -25,303 +19,129 @@ const client = new Client({
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent
   ],
-  partials: [
-    Partials.Channel,
-    Partials.Message
-  ],
-  rest: {
-    timeout: 60000
-  }
+  makeCache: Options.cacheWithLimits({
+    ...Options.DefaultMakeCacheSettings,
+    GuildMemberManager: {
+      maxSize: 200,
+      keepOverLimit: member => member.id === member.client.user.id,
+    },
+  }),
+  partials: [Partials.Channel, Partials.Message],
+  rest: { timeout: 60000 }
 });
 
-// ------------------------------------------------------------------------- //
-// >> DISCORD EVENT HANDLERS                                              << //
-// ------------------------------------------------------------------------- //
+const config = new Config();
+const logger = new Logger(import.meta.filename);
 
-client.on(Events.ClientReady, async () => {
-  try {
-    // clear last sessions temp folder
-    await fs.emptyDir(temp_directory);
-  }
-  catch(e) {
-    // temp may be locked on Windows 💩
-    logger.error(e);
-  }
+try {
+  // clear last sessions temp folder
+  await fs.emptyDir(config.temp_directory);
+}
+catch(e) {
+  // temp folder may be locked on Windows 💩
+  logger.error(e);
+}
 
-  try {
-    // initialize client dependencies
-    await initializeMessages();
-    await initializePlugins();
+///////////////////////////////////////////////////////////////////////////////
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ //
+// >> CLIENT EVENT EMITTERS                                               << //
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ //
+///////////////////////////////////////////////////////////////////////////////
 
-    // compile and send console log
-    const messageCount = Object.keys(CHANNEL_MESSAGES).reduce((total, current) => total += CHANNEL_MESSAGES[current].length, 0);
-    logger.info(`${client.user.username} started with ${INITIALIZED_PLUGINS.length} plugins and ${messageCount} prefetched messages`);
+client.on(Events.ClientReady, () => Emitter.initialize(client).then(({ emit }) => emit({
+  event: Events.ClientReady,
+  params: { client }
+})));
 
-    invokePluginsFunction("onClientReady", { client });
-  }
-  catch(e) {
-    logger.error(e);
-  }
-});
+client.on(Events.GuildMemberAdd, (member) => Emitter.emit({
+  event: Events.GuildMemberAdd,
+  params: { client, member }
+}));
 
-client.on(Events.GuildMemberAdd, member => {
-  try {
-    invokePluginsFunction("onGuildMemberAdd", { client, member });
-  }
-  catch(e) {
-    logger.error(e);
-  }
-});
+client.on(Events.GuildMemberUpdate, (oldMember, newMember) => Emitter.emit({
+  event: Events.GuildMemberUpdate,
+  params: { client, oldMember, newMember }
+}));
 
-client.on(Events.GuildMemberUpdate, (oldMember, newMember) => {
-  try {
-    invokePluginsFunction("onGuildMemberUpdate", { client, oldMember, newMember });
-  }
-  catch(e) {
-    logger.error(e);
-  }
-});
+client.on(Events.InteractionCreate, (interaction) => Emitter.emit({
+  event: Events.InteractionCreate,
+  interaction: interaction,
+  params: { client, interaction }
+}));
 
-client.on(Events.InteractionCreate, async interaction => {
-  try {
-    const isInteractionHandler = handler => handler.isInteraction(interaction);
+client.on(Events.MessageCreate, (message) => Emitter.emit({
+  event: Events.MessageCreate,
+  params: { client, message }
+}));
 
-    const pluginHandlers = INITIALIZED_PLUGINS
-      .filter(({ instance }) => instance.PLUGIN_HANDLERS?.some(isInteractionHandler))
-      .map(({ filename, instance }) => ({ filename, handler: instance.PLUGIN_HANDLERS.find(isInteractionHandler) }))
+client.on(Events.MessageDelete, (message) => Emitter.emit({
+  event: Events.MessageDelete,
+  params: { client, message }
+}));
 
-    if (!pluginHandlers.length) {
-      logger.warn(`An unhandled command was received: "${interaction.commandName}"`);
-      return;
-    }
+client.on(Events.MessageUpdate, (oldMessage, newMessage) => Emitter.emit({
+  event: Events.MessageUpdate,
+  params: { client, oldMessage, newMessage }
+}));
 
-    for (const { filename, handler } of pluginHandlers) {
-      if (handler.isLocked(interaction.member)) {
-        logger.warn(`${interaction.user.username} tried to use "${handler.name}"`, filename);
-        const rolesLabel = getPluralizedString("role", handler.requiredRoleIds.length);
-        const rolesValue = getFormattedRoles(handler.requiredRoleIds).join(" ");
-        const content = `🔒 Sorry but this can only be used by the ${rolesValue} ${rolesLabel}.`;
-        await interaction.reply({ content, ephemeral: true });
-        continue;
-      }
+client.on(Events.ThreadDelete, (threadChannel) => Emitter.emit({
+  event: Events.ThreadDelete,
+  params: { client, threadChannel }
+}));
 
-      logger.info(`${interaction.user.username} used "${handler.name}"`, filename);
-      await handler.onInteractionCreate({ client, interaction });
-    }
-  }
-  catch(e) {
-    logger.error(e);
-  }
-});
+client.on(Events.UserUpdate, (oldUser, newUser) => Emitter.emit({
+  event: Events.UserUpdate,
+  params: { client, oldUser, newUser }
+}));
 
-client.on(Events.MessageCreate, message => {
-  try {
-    CHANNEL_MESSAGES[message.channel.id]?.unshift(message); // add message to lazy-loaded message history
-    invokePluginsFunction("onMessageCreate", { client, message });
-  }
-  catch(e) {
-    logger.error(e);
-  }
-});
-
-client.on(Events.MessageDelete, async message => {
-  try {
-    await invokePluginsFunction("onMessageDelete", { client, message });
-    // remove from lazy-loaded message history
-    // todo: instead of deleting message from memory, we should just flag it as deleted instead
-    const index = CHANNEL_MESSAGES[message.channel.id]?.map(({ id }) => id).indexOf(message.id);
-    if (index != null && index > -1) CHANNEL_MESSAGES[message.channel.id].splice(index, 1);
-  }
-  catch(e) {
-    logger.error(e);
-  }
-});
-
-client.on(Events.MessageUpdate, (oldMessage, newMessage) => {
-  try {
-    invokePluginsFunction("onMessageUpdate", { client, newMessage, oldMessage });
-  }
-  catch(e) {
-    logger.error(e);
-  }
-});
+///////////////////////////////////////////////////////////////////////////////
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ //
+// >> DEPLOYMENT DEFINITIONS                                              << //
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ //
+///////////////////////////////////////////////////////////////////////////////
 
 /**
- * Refetch the starter message of a created thread so its readonly .hasThread property is up to date
+ * Launch after deployment when the deploy parameter is provided on startup.
  */
-client.on(Events.ThreadCreate, async threadChannel => {
-  try {
-    const starterMessage = await threadChannel.fetchStarterMessage();
-    const { channel } = starterMessage;
-
-    const index = CHANNEL_MESSAGES[channel.id].findIndex(({ id }) => id === starterMessage.id);
-    const response = await channel.messages.fetch(starterMessage.id);
-    CHANNEL_MESSAGES[channel.id][index] = response
-  }
-  catch(e) {
-    logger.error(e);
-  }
-});
-
-/**
- * Refetch the starter message of a deleted thread so its readonly .hasThread property is up to date
- */
-client.on(Events.ThreadDelete, async threadChannel => {
-  try {
-    const starterMessage = await threadChannel.fetchStarterMessage().catch(() => null);
-    if (!starterMessage) return; // starterMessage is deleted so we don't care about it
-    const { channel } = starterMessage;
-
-    const index = CHANNEL_MESSAGES[channel.id]?.findIndex(({ id }) => id === starterMessage.id);
-    if (!index) return; // message isn't cached so we don't care about it either
-
-    const response = await channel.messages.fetch(starterMessage.id);
-    CHANNEL_MESSAGES[channel.id][index] = response
-  }
-  catch(e) {
-    logger.error(e);
-  }
-});
-
-client.on(Events.UserUpdate, (oldUser, newUser) => {
-  try {
-    invokePluginsFunction("onUserUpdate", { client, oldUser, newUser });
-  }
-  catch(e) {
-    logger.error(e);
-  }
-});
-
-// ------------------------------------------------------------------------- //
-// >> CHANNEL MESSAGE HANDLERS                                            << //
-// ------------------------------------------------------------------------- //
-
-const CHANNEL_MESSAGES = {};
-
-export const getChannelMessages = async channelId => {
-  try {
-    if (!CHANNEL_MESSAGES[channelId]) {
-      const channel = await client.channels.fetch(channelId);
-      let fetchedMessages = await channel.messages.fetch({ limit: 1 }).catch(() => []);
-      CHANNEL_MESSAGES[channelId] = Array.from(fetchedMessages.values());
-      if (!fetchedMessages.size) return CHANNEL_MESSAGES[channelId];
-
-      do {
-        const before = fetchedMessages.last().id;
-        fetchedMessages = await channel.messages.fetch({ before, limit: 100 });
-        CHANNEL_MESSAGES[channelId].push(...Array.from(fetchedMessages.values()));
-        if (fetchedMessages.size < 100) fetchedMessages = null;
-      } while (fetchedMessages);
-    }
-
-    return CHANNEL_MESSAGES[channelId];
-  }
-  catch(e) {
-    logger.error(e);
-  }
-}
-
-export const filterChannelMessages = async (channelId, filter) => {
-  try {
-    const channelMessages = CHANNEL_MESSAGES[channelId] ?? await getChannelMessages(channelId);
-    return channelMessages.filter(filter);
-  }
-  catch(e) {
-    logger.error(e);
-  }
-}
-
-export const findChannelMessage = async (channelId, find) => {
-  try {
-    const channelMessages = CHANNEL_MESSAGES[channelId] ?? await getChannelMessages(channelId);
-    return channelMessages.find(find);
-  }
-  catch(e) {
-    logger.error(e);
-  }
-}
-
-// ------------------------------------------------------------------------- //
-// >> PLUGIN FUNCTIONS                                                    << //
-// ------------------------------------------------------------------------- //
-
-/**
- * Send a PUT request to Discord with the current slash commands
- */
-async function deploy() {
-  try {
-    logger.info(`Starting command deployment ...`);
-
-    // load all plugins into memory
-    await initializePlugins();
-
-    const body = INITIALIZED_PLUGINS
-      .filter(({ instance }) => instance.PLUGIN_HANDLERS)
-      .map(({ instance }) => instance.PLUGIN_HANDLERS)
-      .flat()
-      .filter(handler => handler.builder)
-      .map(handler => handler.builder);
-
-    // load credentials from config to push the payload to Discord
-    const { discord_bot_client_id, discord_bot_login_token } = fs.readJsonSync("config.json");
-    const rest = new REST({ version: "10" }).setToken(discord_bot_login_token);
-    const data = await rest.put(Routes.applicationCommands(discord_bot_client_id), { body });
-    logger.info(`Successfully reloaded ${data.length} (/) commands [${data.map(x => x.name).join(", ")}]`);
-  }
-  catch(e) {
-    logger.error(e);
-  }
-}
-
-/**
- * Load all messages from prefetched Discord channels
- */
-async function initializeMessages() {
-  try {
-    const channelIds = discord_prefetch_channel_ids.filter(channel_id => channel_id);
-    for (const channel_id of channelIds) await getChannelMessages(channel_id);
-  }
-  catch(e) {
-    logger.error(e);
-  }
-}
-
-/**
- * Load all plugins into memory so they can execute during discord events
- */
-async function initializePlugins() {
-  if (INITIALIZED_PLUGINS.length) return;
-
-  for (const filename of fs.readdirSync(`./plugins/`).filter(fn => fn.endsWith("_script.js"))) {
-    try {
-      // todo: allow disabling of plugins - should this run OnClientReady() and not import any that throw?
-      await import(`./plugins/${filename}`).then(instance => INITIALIZED_PLUGINS.push({ filename, instance }));
-    }
-    catch(e) {
-      logger.error(`"${filename}" ${e}`);
-    }
-  }
-
-  await import(`./shared/config.js`).then(instance => INITIALIZED_PLUGINS.push({ filename: "config.js", instance }))
-}
-
-/**
- * Invoke the function of the provided name in every plugin script that has it
- * @param {string} functionName The function name to invoke `"onMessageCreate"`
- * @param {Object} params The params to pass to the invoked function
- */
-async function invokePluginsFunction(functionName, params) {
-  for (const { filename, instance } of INITIALIZED_PLUGINS.filter(({ instance }) => instance[functionName])) {
-    try {
-      await instance[functionName](params);
-    }
-    catch (e) {
-      logger.error(`"${filename}" "${functionName}" threw an uncaught error`);
-      logger.error(e);
-    }
-  }
-}
-
 process.argv.includes("deploy")
-  ? deploy().then(() => client.login(discord_bot_login_token))
-  : client.login(discord_bot_login_token);
+  ? invokeDeploy().then(() => client.login(config.discord_bot_login_token))
+  : client.login(config.discord_bot_login_token);
+
+/**
+ * Send a PUT request to Discord with the current slash commands.
+ */
+async function invokeDeploy() {
+  // ----------------------------------------------------------------------- //
+  // Initialize Emitter to populate the command listeners                    //
+  // ----------------------------------------------------------------------- //
+
+  logger.info("Starting command deployment ...");
+
+  await Emitter.initialize(client);
+
+  // ----------------------------------------------------------------------- //
+  // Populate the request body with command builders                         //
+  // ----------------------------------------------------------------------- //
+
+  const body = [];
+
+  Emitter.commandListeners.forEach(listener => {
+    if (listener.isDeployable) {
+      body.push(listener.builder);
+    }
+    else {
+      logger.warn(`Invalid command listener "${listener.id}" in "${listener.filename}" will not be deployed.`)
+    }
+  });
+
+  // ----------------------------------------------------------------------- //
+  // Submit the request to the Discord API                                   //
+  // ----------------------------------------------------------------------- //
+
+  const rest = new REST({ version: "10" }).setToken(config.discord_bot_login_token);
+  const data = await rest.put(Routes.applicationCommands(config.discord_bot_client_user_id), { body });
+  const plural = Utilities.getPluralizedString("command", data.length);
+  const names = data.map(({ name }) => name).join(", ")
+
+  logger.info(`Successfully deployed ${data.length} ${plural} [${names}]`);
+}

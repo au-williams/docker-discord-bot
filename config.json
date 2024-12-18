@@ -1,7 +1,9 @@
 {
-  "discord_bot_client_id": "",
+  "discord_bot_admin_role_id": "",
+  "discord_bot_client_user_id": "",
   "discord_bot_login_token": "",
-  "discord_prefetch_channel_ids": [""],
-  "discord_state_channel_id": "",
-  "temp_directory": ".\\temp\\"
+  "discord_config_channel_id": "",
+  "enable_debug_logs": true,
+  "enable_message_fetch": true,
+  "temp_directory": ""
 }
