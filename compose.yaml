@@ -1,4 +1,5 @@
 services:
   client:
-    build: .
     # image: "ghcr.io/au-williams/discord-bot:master"
+    build: .
+    restart: unless-stopped
