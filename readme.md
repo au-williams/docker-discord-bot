@@ -21,13 +21,13 @@ My Discord bot made with [discord.js](https://discord.js.org/) for the scalable 
 
 </details>
 
-This project can start from CLI with [Node.js](https://nodejs.org/en) ...
+This project can be started from CLI with [Node.js](https://nodejs.org/en) ...
 
 ```bash
 $ node index.js
 ```
 
-Or start with [Docker](https://www.docker.com/) using the [Docker image](https://github.com/au-williams/docker-discord-bot/pkgs/container/discord-bot) ...
+Or be started with [Docker](https://www.docker.com/) using the [Docker image](https://github.com/au-williams/docker-discord-bot/pkgs/container/discord-bot) ...
 
 ```
 ghcr.io/au-williams/discord-bot:master
@@ -124,20 +124,21 @@ These are the JavaScript files in the `plugins` folder. JSON files of the same n
 
 ---
 
-_This script sends a new cat fact from the [catfact.ninja API](https://catfact.ninja/) every morning at 9 AM. If the schedule was missed when the bot was offline then a new cat fact will be sent on startup if the current time is determined to be close enough._
+📜 [_plugins/cat_facts_scheduler.js_](https://github.com/au-williams/docker-discord-bot/blob/master/plugins/cat_facts_scheduler.js)
 
-_Note: The [catfact.ninja API](https://catfact.ninja/) has awful data sanitization. API responses can have spelling and grammar mistakes or many duplicate entries. The API has been dumped and fed through ChatGPT to fix most of the problems in bulk._ 🤖
+_This JavaScript file sends a new cat fact from the [catfact.ninja API](https://catfact.ninja/) to the announcement channel every morning at 9 AM. If the jobs schedule was missed while the bot was offline then a new cat fact will be sent on startup if the current time is determined to be close enough._
 
-  <details>
-    <summary>🛠️ plugins/cat_facts_scheduler.json</summary>
+_Note: The [catfact.ninja API](https://catfact.ninja/) has awful data sanitization practices... API responses have spelling or grammar mistakes and duplicate entries. I dumped the API responses and fed them through ChatGPT to fix most of them in bulk._ 🤖
 
-| Key                               | Required | Description     |
+🛠️ [_plugins/cat_facts_scheduler.json_](https://github.com/au-williams/docker-discord-bot/blob/master/plugins/cat_facts_scheduler.json)
+
+| Config key                        | Required | Description     |
 | --------------------------------- | -------- | --------------- |
-| "announcement_cron_job_pattern"   | `true`   | "0 9 \* \* \*", |
-| "announcement_discord_channel_id" | `true`   | "",             |
-| "sanitized_catfact_api_responses" | `true`   | [],             |
+| "announcement_cron_job_pattern"   | `true`   |                 |
+| "announcement_discord_channel_id" | `true`   |                 |
+| "sanitized_catfact_api_responses" | `true`   |                 |
 
-  </details>
+<!-- (TODO: Rename sanitized_catfact_api_responses to "cat_facts") -->
 
 ---
 
@@ -148,20 +149,23 @@ _Note: The [catfact.ninja API](https://catfact.ninja/) has awful data sanitizati
 
 ---
 
-_This script sends a new image of a members pet every Saturday morning at 9 AM to the configured channel. If today is Saturday and the schedule was missed when the bot was offline then a new message is sent on startup. `/caturday` will show a file picker dialog to add or remove a channel image in the image pool. New members will be sent a DM on join asking them to send the bot pet images. DM images are forwarded to the bot admins for approval._
+<img src="assets/caturday.png" style="height: 375px;"></img>
 
-  <details>
-    <summary>🛠️ plugins/cat_facts_scheduler.json</summary>
+📜 [_plugins/caturday_scheduler.js_](https://github.com/au-williams/docker-discord-bot/blob/master/plugins/caturday_scheduler.js)
 
-| Key                               | Required | Description |
-| --------------------------------- | -------- | ----------- |
-| "announcement_cron_job_pattern"   | `true`   |             |
-| "announcement_discord_channel_id" | `true`   |             |
-| "maintenance_cron_job_pattern"    | `true`   |             |
-| "discord_admin_role_ids"          | `true`   |             |
-| "discord_caturday_ids"            | `true`   |             |
+_This JavaScript file sends a picture of someones pet to the announcement channel every Saturday morning at 9 AM. If the jobs schedule was missed while the bot was offline then a new picture will be sent on startup if the day is Saturday. `/caturday` shows a file picker to update channel images in the image pool. New members are sent a DM asking them to reply with their pets pictures. DM pictures are forwarded to the bot admins for approval._
 
-  </details>
+🛠️ [_plugins/caturday_scheduler.json_](https://github.com/au-williams/docker-discord-bot/blob/master/plugins/caturday_scheduler.json)
+
+| _Config key_                        | _Required_ | _Description_ |
+| ----------------------------------- | ---------- | ------------- |
+| _"announcement_cron_job_pattern"_   | _`true`_   |               |
+| _"announcement_discord_channel_id"_ | _`true`_   |               |
+| _"maintenance_cron_job_pattern"_    | _`true`_   |               |
+| _"discord_admin_role_ids"_          | _`true`_   |               |
+| _"discord_caturday_ids"_            | _`true`_   |               |
+
+<!-- (TODO: Rename plugin admin roles and use bot admins) -->
 
 ---
 
@@ -172,20 +176,19 @@ _This script sends a new image of a members pet every Saturday morning at 9 AM t
 
 ---
 
-<img src="assets/deep_rock_galactic_announcer.png" style="height: 200px;"></img>
+<img src="assets/deep_rock_galactic_announcer.png" style="height: 200px; pointer-events:none;"></img>
 
-_This script sends assignment updates for the game [Deep Rock Galactic](https://store.steampowered.com/app/548430/Deep_Rock_Galactic/) by running a Cron job that fetches the [DRG API](https://drgapi.com/) and sends changes to each configured Discord channel. `/drg` privately sends the last message to the current channel. Clicking `Deep Dive` privately sends the current in-game deep dive assignments. Clicking `Elite Deep Dive` privately sends the current in-game elite deep dive assignments._
+📜 [_plugins/deep_rock_galactic_announcer.js_](https://github.com/au-williams/docker-discord-bot/blob/master/plugins/deep_rock_galactic_announcer.js)
 
-  <details>
-    <summary>🛠️ plugins/deep_rock_galactic_announcer.json</summary>
+_This JavaScript file sends assignment updates for the video game [Deep Rock Galactic](https://store.steampowered.com/app/548430/Deep_Rock_Galactic/) to the announcement channel by running a Cron job that fetches the [DRG API](https://drgapi.com/). `/drg` privately sends the announcement message to the current channel. Clicking `Deep Dive` privately sends the in-game deep dive assignments. Clicking `Elite Deep Dive` privately sends the in-game elite deep dive assignments._
 
-| Key                                | Required | Description |
-| ---------------------------------- | -------- | ----------- |
-| "announcement_cron_job_pattern"    | `true`   |             |
-| "announcement_discord_channel_id"  | `true`   |             |
-| "discord_emoji_deep_rock_galactic" | `true`   |             |
+🛠️ [_plugins/deep_rock_galactic_announcer.json_](https://github.com/au-williams/docker-discord-bot/blob/master/plugins/deep_rock_galactic_announcer.json)
 
-  </details>
+| _Config key_                         | _Required_ | _Description_ |
+| ------------------------------------ | ---------- | ------------- |
+| _"announcement_cron_job_pattern"_    | _`true`_   |               |
+| _"announcement_discord_channel_id"_  | _`true`_   |               |
+| _"discord_emoji_deep_rock_galactic"_ | _`true`_   |               |
 
 ---
 
@@ -196,21 +199,20 @@ _This script sends assignment updates for the game [Deep Rock Galactic](https://
 </details>
 
 <details>
-  <summary>🧩 plugins/discord_guild_role_color_manager.js</summary>
+<summary>🧩 plugins/discord_guild_role_color_manager.js</summary>
 
 ---
 
-_This script creates a guild role for each members average profile picture color and assigns it to them. When their profile picture is updated a new role will be made and the old role unassigned. The old role will be deleted if it has no members._
+📜 [_plugins/discord_guild_role_color_manager.js_](https://github.com/au-williams/docker-discord-bot/blob/master/plugins/discord_guild_role_color_manager.js)
 
-  <details>
-    <summary>🛠️ plugins/discord_guild_role_color_manager.json</summary>
+_This JavaScript file creates a guild role for each member based on their profile pictures average color and assigns it to them. When their profile picture is changed a new role will be made and the old role unassigned. The old role will be deleted if it has no members. Role names are in hexadecimal format._
 
-| Key                          | Required | Description |
-| ---------------------------- | -------- | ----------- |
-| "discord_excluded_guild_ids" | `false`  |             |
-| "discord_excluded_user_ids"  | `false`  |             |
+🛠️ [_plugins/discord_guild_role_color_manager.json_](https://github.com/au-williams/docker-discord-bot/blob/master/plugins/discord_guild_role_color_manager.json)
 
-  </details>
+| _Config key_                   | _Required_ | _Description_ |
+| ------------------------------ | ---------- | ------------- |
+| _"discord_excluded_guild_ids"_ | _`false`_  |               |
+| _"discord_excluded_user_ids"_  | _`false`_  |               |
 
 ---
 
@@ -223,26 +225,25 @@ _This script creates a guild role for each members average profile picture color
 
 <img src="assets/plex_music_downloader.png" style="height: 375px;"></img>
 
-_This script downloads music and video using [yt-dlp](https://github.com/yt-dlp/yt-dlp) and post-processes it with [ffmpeg](https://github.com/FFmpeg/FFmpeg). Any guild member can download the audio or video file, and authorized guild members can import the file in source quality to the Plex media library on the host machine._
+📜 [_plugins/plex_music_downloader.js_](https://github.com/au-williams/docker-discord-bot/blob/master/plugins/plex_music_downloader.js)
 
-  <details>
-    <summary>🛠️ plugins/plex_music_downloader.json</summary>
+_This JavaScript file sends a message reply in response to a media link with its oembed data. Clicking `Download audio` or `Download video` will download its content using [yt-dlp](https://github.com/yt-dlp/yt-dlp) and post-process it with [ffmpeg](https://github.com/FFmpeg/FFmpeg) before reuploading it to Discord for the user to download. Any guild member can download the resulting files and authorized guild members can import them in source quality to the Plex media library on the host machine._
 
-| Key                             | Required | Description |
-| ------------------------------- | -------- | ----------- |
-| "cron_job_announcement_pattern" | `true`   |             |
-| "discord_admin_role_id"         | `true`   |             |
-| "discord_allowed_channel_ids"   | `true`   |             |
-| "discord_plex_emoji"            | `true`   |             |
-| "discord_youtube_emoji"         | `true`   |             |
-| "plex_authentication_token"     | `true`   |             |
-| "plex_audio_download_directory" | `true`   |             |
-| "plex_video_download_directory" | `true`   |             |
-| "plex_example_genres"           | `true`   |             |
-| "plex_library_section_id"       | `true`   |             |
-| "plex_server_ip_address"        | `true`   |             |
+🛠️ [_plugins/plex_music_downloader.json_](https://github.com/au-williams/docker-discord-bot/blob/master/plugins/plex_music_downloader.json)
 
-  </details>
+| _Config key_                      | _Required_ | _Description_ |
+| --------------------------------- | ---------- | ------------- |
+| _"cron_job_announcement_pattern"_ | _`true`_   |               |
+| _"discord_admin_role_id"_         | _`true`_   |               |
+| _"discord_allowed_channel_ids"_   | _`true`_   |               |
+| _"discord_plex_emoji"_            | _`true`_   |               |
+| _"discord_youtube_emoji"_         | _`true`_   |               |
+| _"plex_authentication_token"_     | _`true`_   |               |
+| _"plex_audio_download_directory"_ | _`true`_   |               |
+| _"plex_video_download_directory"_ | _`true`_   |               |
+| _"plex_example_genres"_           | _`true`_   |               |
+| _"plex_library_section_id"_       | _`true`_   |               |
+| _"plex_server_ip_address"_        | _`true`_   |               |
 
 ---
 
@@ -255,18 +256,17 @@ _This script downloads music and video using [yt-dlp](https://github.com/yt-dlp/
 
 <img src="assets/steam_community_announcer.png" style="height: 450px;"></img>
 
-_This script runs a Cron job and fetches the [Steamworks Web API](https://partner.steamgames.com/doc/webapi_overview) to send new game announcements to each configured Discord channel._
+📜 [_plugins/steam_community_announcer.js_](https://github.com/au-williams/docker-discord-bot/blob/master/plugins/steam_community_announcer.js)
 
-  <details>
-    <summary>🛠️ plugins/steam_community_announcer.json</summary>
+_This JavaScript file sends [Steam](https://store.steampowered.com/) game news and updates to the announcement channel by running a Cron job that fetches the [Steamworks Web API](https://partner.steamgames.com/doc/webapi_overview)._
 
-| Key                               | Required | Description |
-| --------------------------------- | -------- | ----------- |
-| "announcement_steam_app_ids"      |          |             |
-| "announcement_cron_job_pattern"   |          |             |
-| "announcement_discord_channel_id" |          |             |
+🛠️ [_plugins/steam_community_announcer.json_](https://github.com/au-williams/docker-discord-bot/blob/master/plugins/steam_community_announcer.json)
 
-  </details>
+| _Config key_                        | _Required_ | _Description_ |
+| ----------------------------------- | ---------- | ------------- |
+| _"announcement_steam_app_ids"_      |            |               |
+| _"announcement_cron_job_pattern"_   |            |               |
+| _"announcement_discord_channel_id"_ |            |               |
 
 ---
 
