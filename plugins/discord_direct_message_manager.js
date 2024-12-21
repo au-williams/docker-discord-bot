@@ -9,6 +9,9 @@ import Listener from "../entities/Listener.js";
 import meridiem from "date-and-time/plugin/meridiem";
 date.plugin(meridiem);
 
+// TODO: Lowest priority, send if no message was sent (obj to json, check if contains?)
+// TODO: Context menu command
+
 // TODO: This should send messages received while offline
 
 const config = new Config(import.meta.filename);

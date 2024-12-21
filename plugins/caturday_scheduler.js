@@ -861,7 +861,7 @@ export async function onDirectMessageCreate({ client, listener, message }) {
   const isImage = Utilities.checkImageAttachment(message);
   if (isClient || !isImage) return;
 
-  const content = `${message.author} sent a cat tax for review. `;
+  const content = `${message.author} [**sent a cat tax for review.**]`;
   const items = Array.from(message.attachments.values());
   const messages = [];
 
@@ -869,7 +869,7 @@ export async function onDirectMessageCreate({ client, listener, message }) {
     const attachmentUrl = items[i].url;
     const buttons = [selectImageButton, hideMessageButton.setDisabled(false), Emitter.moreInfoButton];
     const components = [new ActionRowBuilder().addComponents(...buttons)];
-    messages.push({ content: content + attachmentUrl, components });
+    messages.push({ content: `${content}(${attachmentUrl})`, components });
   }
 
   for(const roleId of config.discord_admin_role_ids) {

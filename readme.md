@@ -11,13 +11,27 @@ My Discord bot made with [discord.js](https://discord.js.org/) for the scalable 
 <details>
   <summary>🛠️ config.json</summary>
 
-| Key                              | Value                                                                                                                     | Required |
-| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------- | -------- |
+---
+
+| _Config key_                   | _Required_ | Description |
+| ------------------------------ | ---------- | ----------- |
+| _"discord_bot_admin_role_id"_  | _`true`_   |             |
+| _"discord_bot_client_user_id"_ | _`true`_   |             |
+| _"discord_bot_login_token"_    | _`true`_   |             |
+| _"discord_config_channel_id"_  | _`true`_   |             |
+| _"enable_debug_logs"_          | _`true`_   |             |
+| _"enable_message_fetch"_       | _`true`_   |             |
+| _"temp_directory"_             | _`true`_   |             |
+
+<!--
 | `"discord_bot_client_user_id"`   | The Discord bot client ID [(how to find this)](https://support.heateor.com/discord-client-id-discord-client-secret/)      | ✔        |
 | `"discord_bot_login_token"`      | The Discord bot login token [(how to find this)](https://docs.discordbotstudio.org/setting-up-dbs/finding-your-bot-token) | ✔        |
 | `"discord_prefetch_channel_ids"` | The Discord channel IDs to prefetch messages for                                                                          | ✖        |
 | `"discord_config_channel_id"`    | The Discord channel ID where state will be stored                                                                         | ✔        |
 | `"temp_directory"`               | The directory where temporary files will be stored                                                                        | ✔        |
+-->
+
+---
 
 </details>
 
@@ -132,11 +146,11 @@ _Note: The [catfact.ninja API](https://catfact.ninja/) has awful data sanitizati
 
 🛠️ [_plugins/cat_facts_scheduler.json_](https://github.com/au-williams/docker-discord-bot/blob/master/plugins/cat_facts_scheduler.json)
 
-| Config key                        | Required | Description     |
-| --------------------------------- | -------- | --------------- |
-| "announcement_cron_job_pattern"   | `true`   |                 |
-| "announcement_discord_channel_id" | `true`   |                 |
-| "sanitized_catfact_api_responses" | `true`   |                 |
+| Config key                        | Required | Description |
+| --------------------------------- | -------- | ----------- |
+| "announcement_cron_job_pattern"   | `true`   |             |
+| "announcement_discord_channel_id" | `true`   |             |
+| "sanitized_catfact_api_responses" | `true`   |             |
 
 <!-- (TODO: Rename sanitized_catfact_api_responses to "cat_facts") -->
 
@@ -258,7 +272,7 @@ _This JavaScript file sends a message reply in response to a media link with its
 
 📜 [_plugins/steam_community_announcer.js_](https://github.com/au-williams/docker-discord-bot/blob/master/plugins/steam_community_announcer.js)
 
-_This JavaScript file sends [Steam](https://store.steampowered.com/) game news and updates to the announcement channel by running a Cron job that fetches the [Steamworks Web API](https://partner.steamgames.com/doc/webapi_overview)._
+_This JavaScript file sends [Steam](https://store.steampowered.com/) game news and updates to the announcement channel by running a Cron job that fetches the [Steamworks Web API](https://partner.steamgames.com/doc/webapi_overview). Descriptions and images of the announcement are sourced from its content body._
 
 🛠️ [_plugins/steam_community_announcer.json_](https://github.com/au-williams/docker-discord-bot/blob/master/plugins/steam_community_announcer.json)
 
@@ -276,18 +290,62 @@ JavaScript files in the `services` folder operate the same as plugins but are de
 
 <details>
   <summary>⚙️ services/config.js</summary>
+
+---
+
+```js
+import { Config } from "../services/config.js";
+
+const config = new Config(import.meta.filename);
+```
+
+---
+
 </details>
 
 <details>
   <summary>⚙️ services/emitter.js</summary>
+
+---
+
+```js
+import { Emitter } from "./services/emitter.js";
+
+Emitter.emit({ event });
+```
+
+---
+
 </details>
 
 <details>
   <summary>⚙️ services/logger.js</summary>
+
+---
+
+```js
+import { Logger } from "../services/logger.js";
+
+const logger = new Logger(import.meta.filename);
+```
+
+---
+
 </details>
 
 <details>
   <summary>⚙️ services/messages.js</summary>
+
+---
+
+```js
+import { Messages } from "../services/messages.js";
+
+const messages = Messages.get({ channelId });
+```
+
+---
+
 </details>
 
 ## Deploying the bot
