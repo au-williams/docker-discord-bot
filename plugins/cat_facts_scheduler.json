@@ -1,7 +1,7 @@
 {
-  "announcement_cron_job_pattern": "0 9 * * *",
+  "announcement_cron_job_expression": "0 9 * * *",
   "announcement_discord_channel_id": "",
-  "sanitized_catfact_api_responses": [
+  "catfact_responses": [
     "A cat can jump 5 times its height in a single bound.",
     "A cat can travel at a top speed of about 31 mph (49 km/h) over a short distance.",
     "A cat has two vocal chords and can make over 100 sounds.",

@@ -329,9 +329,9 @@ async function handleListenerError({ interaction, listener, error }) {
 }
 
 /**
- * Wrap the CronJobScheduler in an Listener before pushing to the listener
- * stack. This is executed for each CronJobScheduler at Emitter initialization.
- * @param {CronJobScheduler} cronJob
+ * Wrap the CronJob in an Listener before pushing to the listener stack.
+ * This is executed for each CronJob at Emitter initialization.
+ * @param {CronJob} cronJob
  * @param {string} filepath
  * @param {boolean} isService
  */

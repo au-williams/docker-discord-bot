@@ -6,7 +6,7 @@ import { Logger } from "../services/logger.js";
 import { Messages } from "../services/messages.js";
 import { Utilities } from "../services/utilities.js";
 import CaturdayImageCache from "../entities/CaturdayImageCache.js";
-import CronJobScheduler from "../entities/CronJobScheduler.js";
+import CronJob from "../entities/CronJob.js";
 import date from "date-and-time";
 import Listener from "../entities/Listener.js";
 import ordinal from "date-and-time/plugin/ordinal";
@@ -28,16 +28,16 @@ const logger = new Logger(import.meta.filename);
  * automatically scheduled by the framework to run based on their patterns.
  */
 export const CronJobs = new Set([
-  new CronJobScheduler()
+  new CronJob()
     .setEnabled(Messages.isInitialized)
+    .setExpression(config.announcement_cron_job_expression)
     .setFunction(cronJobAnnouncement)
-    .setPattern(config.announcement_cron_job_pattern)
     .setRunOrder(1) // Run after Event.ClientReady!
     .setTriggered(checkMissingAnnouncement),
-  new CronJobScheduler()
+  new CronJob()
     .setEnabled(Messages.isInitialized)
+    .setExpression(config.maintenance_cron_job_expression)
     .setFunction(cronJobMaintenance)
-    .setPattern(config.maintenance_cron_job_pattern)
     .setRunOrder(1) // Run after Event.ClientReady!
     .setTriggered(true),
 ]);

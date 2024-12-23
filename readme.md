@@ -51,29 +51,24 @@ The bot is a framework meant to automate many code-heavy tasks working with the 
 ---
 
 ```js
-import CronJobScheduler from "../entities/CronJobScheduler.js";
+import CronJob from "../entities/CronJob.js";
 
 export const CronJobs = new Set([
-  new CronJobScheduler()
+  new CronJob()
+    .setExpression("* * * * *")
     .setFunction(myFunction)
-    .setPattern("* * * * *")
 ]);
 ```
 
 _[Cron](https://en.wikipedia.org/wiki/Cron#CRON_expression) is a job scheduler that runs functions on an [expression](https://devhints.io/cron), like every 20 minutes or every Saturday at 9 AM. The bot framework will automatically schedule the Cron jobs you create here. You can extend the Cron jobs with the following setters ..._
 
-| Name         | Description                                                         | Required |
-| :----------- | :------------------------------------------------------------------ | :------- |
-| setEnabled   | Sets the enabled state of the Cron job (used for debugging).        | `false`  |
-| setFunction  | Sets the function to execute when the Cron job is running.          | `true`   |
-| setPattern   | Sets the Cron expression used when scheduling the Cron job.         | `true`   |
-| setRunOrder  | Sets the order this Cron job runs with others to avoid race issues. | `false`  |
-| setTriggered | Sets if the Cron job should run on startup and before the pattern.  | `false`  |
-
-<!-- TODO:
-rename CronJob
-rename setExpression
--->
+| Name          | Description                                                         | Required |
+| :------------ | :------------------------------------------------------------------ | :------- |
+| setEnabled    | Sets the enabled state of the Cron job (used for debugging).        | `false`  |
+| setExpression | Sets the Cron expression used when scheduling the Cron job.         | `true`   |
+| setFunction   | Sets the function to execute when the Cron job is running.          | `true`   |
+| setRunOrder   | Sets the order this Cron job runs with others to avoid race issues. | `false`  |
+| setTriggered  | Sets if the Cron job should run on startup and before the pattern.  | `false`  |
 
 ---
 
@@ -145,13 +140,11 @@ _Note: The [catfact.ninja API](https://catfact.ninja/) has awful data sanitizati
 
 🛠️ [plugins/cat_facts_scheduler.json](https://github.com/au-williams/docker-discord-bot/blob/master/plugins/cat_facts_scheduler.json)
 
-| Key                               | Description | Required |
-| :-------------------------------- | :---------- | :------- |
-| "announcement_cron_job_pattern"   |             | `true`   |
-| "announcement_discord_channel_id" |             | `true`   |
-| "sanitized_catfact_api_responses" |             | `true`   |
-
-<!-- (TODO: Rename sanitized_catfact_api_responses to "cat_facts") -->
+| Key                                | Description | Required |
+| :--------------------------------- | :---------- | :------- |
+| "announcement_cron_job_expression" |             | `true`   |
+| "announcement_discord_channel_id"  |             | `true`   |
+| "catfact_responses"                |             | `true`   |
 
 ---
 
@@ -170,13 +163,13 @@ _This JavaScript file sends a picture of someones pet to the announcement channe
 
 🛠️ [plugins/caturday_scheduler.json](https://github.com/au-williams/docker-discord-bot/blob/master/plugins/caturday_scheduler.json)
 
-| Key                               | Description | Required |
-| :-------------------------------- | :---------- | :------- |
-| "announcement_cron_job_pattern"   |             | `true`   |
-| "announcement_discord_channel_id" |             | `true`   |
-| "maintenance_cron_job_pattern"    |             | `true`   |
-| "discord_admin_role_ids"          |             | `true`   |
-| "discord_caturday_ids"            |             | `true`   |
+| Key                                | Description | Required |
+| :--------------------------------- | :---------- | :------- |
+| "announcement_cron_job_expression" |             | `true`   |
+| "announcement_discord_channel_id"  |             | `true`   |
+| "maintenance_cron_job_expression"  |             | `true`   |
+| "discord_admin_role_ids"           |             | `true`   |
+| "discord_caturday_ids"             |             | `true`   |
 
 <!-- (TODO: Rename plugin admin roles and use bot admins) -->
 
@@ -199,7 +192,7 @@ _This JavaScript file sends assignment updates for the video game [Deep Rock Gal
 
 | Key                                | Description | Required |
 | :--------------------------------- | :---------- | :------- |
-| "announcement_cron_job_pattern"    |             | `true`   |
+| "announcement_cron_job_expression" |             | `true`   |
 | "announcement_discord_channel_id"  |             | `true`   |
 | "discord_emoji_deep_rock_galactic" |             | `true`   |
 
@@ -244,19 +237,19 @@ _This JavaScript file sends a message reply in response to a media link with its
 
 🛠️ [plugins/plex_music_downloader.json](https://github.com/au-williams/docker-discord-bot/blob/master/plugins/plex_music_downloader.json)
 
-| Key                             | Description | Required |
-| :------------------------------ | :---------- | :------- |
-| "cron_job_announcement_pattern" |             | `true`   |
-| "discord_admin_role_id"         |             | `true`   |
-| "discord_allowed_channel_ids"   |             | `true`   |
-| "discord_plex_emoji"            |             | `true`   |
-| "discord_youtube_emoji"         |             | `true`   |
-| "plex_authentication_token"     |             | `true`   |
-| "plex_audio_download_directory" |             | `true`   |
-| "plex_video_download_directory" |             | `true`   |
-| "plex_example_genres"           |             | `true`   |
-| "plex_library_section_id"       |             | `true`   |
-| "plex_server_ip_address"        |             | `true`   |
+| Key                                | Description | Required |
+| :--------------------------------- | :---------- | :------- |
+| "cron_job_announcement_expression" |             | `true`   |
+| "discord_admin_role_id"            |             | `true`   |
+| "discord_allowed_channel_ids"      |             | `true`   |
+| "discord_plex_emoji"               |             | `true`   |
+| "discord_youtube_emoji"            |             | `true`   |
+| "plex_authentication_token"        |             | `true`   |
+| "plex_audio_download_directory"    |             | `true`   |
+| "plex_video_download_directory"    |             | `true`   |
+| "plex_example_genres"              |             | `true`   |
+| "plex_library_section_id"          |             | `true`   |
+| "plex_server_ip_address"           |             | `true`   |
 
 ---
 
@@ -275,11 +268,11 @@ _This JavaScript file sends [Steam](https://store.steampowered.com/) game news a
 
 🛠️ [plugins/steam_community_announcer.json](https://github.com/au-williams/docker-discord-bot/blob/master/plugins/steam_community_announcer.json)
 
-| Key                               | Description | Required |
-| :-------------------------------- | :---------- | :------- |
-| "announcement_steam_app_ids"      |             |          |
-| "announcement_cron_job_pattern"   |             |          |
-| "announcement_discord_channel_id" |             |          |
+| Key                                | Description | Required |
+| :--------------------------------- | :---------- | :------- |
+| "announcement_steam_app_ids"       |             |          |
+| "announcement_cron_job_expression" |             |          |
+| "announcement_discord_channel_id"  |             |          |
 
 ---
 
@@ -359,72 +352,10 @@ _This JavaScript file manages the message history. If `enable_message_fetch` is 
 
 ## Deploying the bot
 
-Discord updates context menus and slash commands using a POST request. This typically requires each command to create a [builder](https://discordjs.guide/slash-commands/advanced-creation.html#adding-options) before submitting the POST request but most of this has been automated. Your commands must use the `setDeploymentType` setter on their `Listener` objects. Starting the bot with the `deploy` argument will deploy the commands to Discord. Discord requires this to be done when creating or making changes to commands ...
+Discord updates context menus and slash commands using a POST request. This typically requires each command to create a [builder](https://discordjs.guide/slash-commands/advanced-creation.html#adding-options) before submitting the POST request but most of this has been automated. Your commands must use the `setDeploymentType` setter on their `Listener` objects. Starting the bot with the `deploy` argument will deploy the commands to Discord ...
 
 ```cmd
 $ node index.js deploy
 ```
 
-<!-- ## Creating plugins
-
-The `index.js` file handles [discord.js events](https://old.discordjs.dev/#/docs/discord.js/14.9.0/typedef/Events) and invokes the corresponding function names in `./plugins/` JavaScript files. Simply creating a new JavaScript file with an appropriately named function is enough for it to execute - but you **_should_** add the config and readme files for optimal code quality.
-
-```
-./plugins/
-↳ example_plugin_config.json
-↳ example_plugin_readme.md
-↳ example_plugin_script.js
-```
-
-### Querying message history
-
-The `index.js` file maintains the message history of guild channels to reduce the overall number of API requests sent to Discord. A channels message history is lazy-loaded on the first invocation and automatically kept up-to-date after.
-
-```js
-import { getChannelMessages } from "../index.js";
-
-const predicate = ({ author, content }) => author === "foo" || content === "bar";
-const messages = getChannelMessages("YOUR_DISCORD_CHANNEL_ID").filter(predicate);
-```
-
-_**Note:** You can load channels on startup with the `"discord_prefetch_channel_ids"` config value! This is useful when there's noticeable delay lazy-loading a channel with a large number of messages._
-
-### Registering slash commands
-
-You can register slash commands for a plugin by exporting the `PLUGIN_COMMANDS` array.
-
-```js
-// define "/hello-world" slash command
-export const PLUGIN_COMMANDS = [
-  {
-    name: "hello-world",
-    description: `Prints "Hello World" to the console`,
-    onInteractionCreate: () => console.log("Hello World!")
-  }
-];
-```
-
-**You must start the bot with the `deploy` arg for any slash command changes to take effect:**
-
-```bash
-$ node index.js deploy
-```
-
-This sends a PUT request to Discord containing the updated slash commands during startup.
-
-## Configuration [(config.json)](config.json)
-
-| Key                                   | Value                                                                                                                     | Required |
-| :------------------------------- | :------------------------------------------------------------------------------------------------------------------------ | :------- |
-| `"discord_bot_client_user_id"`   | The Discord bot client ID [(how to find this)](https://support.heateor.com/discord-client-id-discord-client-secret/)      | ✔        |
-| `"discord_bot_login_token"`      | The Discord bot login token [(how to find this)](https://docs.discordbotstudio.org/setting-up-dbs/finding-your-bot-token) | ✔        |
-| `"discord_prefetch_channel_ids"` | The Discord channel IDs to prefetch messages for                                                                          | ✖        |
-| `"discord_config_channel_id"`    | The Discord channel ID where state will be stored                                                                         | ✔        |
-| `"temp_directory"`               | The directory where temporary files will be stored                                                                        | ✔        | :->
-
-<!--
-TODO:
-# managing state
-# managing logs
-# add config value ... discord_logs_channel_id
--->
+⚠️ **Discord API requires a deployment each time a command is created or changed for it to update!** ⚠️

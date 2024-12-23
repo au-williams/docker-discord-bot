@@ -4,7 +4,7 @@ import { Logger } from "../services/logger.js";
 import { Messages } from "../services/messages.js";
 import { MessageType } from "discord.js";
 import { Utilities } from "../services/utilities.js";
-import CronJobScheduler from "../entities/CronJobScheduler.js";
+import CronJob from "../entities/CronJob.js";
 import Listener from "../entities/Listener.js";
 import randomItem from "random-item";
 
@@ -22,10 +22,10 @@ const logger = new Logger(import.meta.filename);
  * automatically scheduled by the framework to run based on their patterns.
  */
 export const CronJobs = new Set([
-  new CronJobScheduler()
+  new CronJob()
     .setEnabled(Messages.isInitialized)
+    .setExpression(config.announcement_cron_job_expression)
     .setFunction(sendAnnouncementMessage)
-    .setPattern(config.announcement_cron_job_pattern)
     .setTriggered(checkTodayMissingAnnouncement)
 ]);
 
@@ -78,7 +78,7 @@ export function checkTodayMissingAnnouncement() {
 
   const lastAnnouncementCreatedAt = Messages
     .get({ channelId: config.announcement_discord_channel_id })
-    .find(({ content, type }) => type === MessageType.Default && config.sanitized_catfact_api_responses.includes(content))
+    .find(({ content, type }) => type === MessageType.Default && config.catfact_responses.includes(content))
     ?.createdAt;
 
   if (!lastAnnouncementCreatedAt) return true;
@@ -93,7 +93,7 @@ export function checkTodayMissingAnnouncement() {
  */
 export function sendAnnouncementMessage({ client, listener }) {
   const channelMessages = Messages.get({ channelId: config.announcement_discord_channel_id });
-  const checkCatFact = content => config.sanitized_catfact_api_responses.includes(content);
+  const checkCatFact = content => config.catfact_responses.includes(content);
   const channelCatFacts = channelMessages.map(item => item.content).filter(checkCatFact);
 
   const plural = Utilities.getPluralizedString("message", channelCatFacts);
@@ -105,7 +105,7 @@ export function sendAnnouncementMessage({ client, listener }) {
   // ------------------------------------------------------------- //
 
   let potentialCatFacts =
-    config.sanitized_catfact_api_responses.filter(content => !channelCatFacts.includes(content));
+    config.catfact_responses.filter(content => !channelCatFacts.includes(content));
 
   if (!potentialCatFacts.length) {
     potentialCatFacts = Utilities.getLeastFrequentlyOccurringStrings(channelCatFacts);
@@ -131,7 +131,7 @@ export async function sendSlashCommandReply({ interaction, listener }) {
   await interaction.deferReply();
 
   interaction
-    .editReply(randomItem(config.sanitized_catfact_api_responses))
+    .editReply(randomItem(config.catfact_responses))
     .then(result => Utilities.LogPresets.EditedReply(result, listener))
     .catch(error => logger.error(error, listener));
 }

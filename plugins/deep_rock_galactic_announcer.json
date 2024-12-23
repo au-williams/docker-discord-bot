@@ -1,5 +1,5 @@
 {
-  "announcement_cron_job_pattern": "0 0 * * *",
+  "announcement_cron_job_expression": "0 0 * * *",
   "announcement_discord_channel_id": "",
   "discord_emoji_deep_rock_galactic": ""
 }

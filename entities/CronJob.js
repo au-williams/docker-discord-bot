@@ -3,7 +3,7 @@ import { Utilities } from "../services/utilities.js";
 /**
  * Schedules a new Cron job managed by `Emitter.js`.
  */
-export default class CronJobScheduler {
+export default class CronJob {
   date = null;
   isEnabled = true;
   isTriggered = false;
@@ -17,7 +17,7 @@ export default class CronJobScheduler {
   /**
    * Set the date that the Cron job will execute. (Not implemented yet!)
    * @param {Date} date
-   * @returns {CronJobScheduler}
+   * @returns {CronJob}
    */
   setDate(date) {
     Utilities.throwType(Date, date);
@@ -28,7 +28,7 @@ export default class CronJobScheduler {
   /**
    * Set if the CronJob should be enabled. This is typically for debug / dependency purposes.
    * @param {boolean|Function|Promise<boolean>} isEnabled
-   * @returns {CronJobScheduler}
+   * @returns {CronJob}
    */
   setEnabled(isEnabled = true) {
     Utilities.throwTypes(["boolean", "Function", "AsyncFunction"], isEnabled);
@@ -37,24 +37,24 @@ export default class CronJobScheduler {
   }
 
   /**
-   * Set the function to be executed by the Cron job.
-   * @param {Function} func
-   * @returns {CronJobScheduler}
+   * Set the pattern for this Cron job to execute on.
+   * @param {string} pattern
+   * @returns {CronJob}
    */
-  setFunction(func) {
-    Utilities.throwTypes(["Function", "AsyncFunction"], func);
-    this.func = func;
+  setExpression(pattern) {
+    Utilities.throwType("string", pattern);
+    this.pattern = pattern;
     return this;
   }
 
   /**
-   * Set the pattern for this Cron job to execute on.
-   * @param {string} pattern
-   * @returns {CronJobScheduler}
+   * Set the function to be executed by the Cron job.
+   * @param {Function} func
+   * @returns {CronJob}
    */
-  setPattern(pattern) {
-    Utilities.throwType("string", pattern);
-    this.pattern = pattern;
+  setFunction(func) {
+    Utilities.throwTypes(["Function", "AsyncFunction"], func);
+    this.func = func;
     return this;
   }
 
@@ -76,7 +76,7 @@ export default class CronJobScheduler {
   /**
    * Set if the Cron job is triggered on create.
    * @param {boolean|Function|Promise<boolean>} isTriggered
-   * @returns {CronJobScheduler}
+   * @returns {CronJob}
    */
   setTriggered(isTriggered = true) {
     Utilities.throwTypes(["boolean", "Function", "AsyncFunction"], isTriggered);

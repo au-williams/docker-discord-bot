@@ -1,5 +1,5 @@
 {
-  "cron_job_announcement_pattern": "0 */8 * * *",
+  "cron_job_announcement_expression": "0 */8 * * *",
   "discord_admin_role_id": [""],
   "discord_allowed_channel_ids": [""],
   "discord_plex_emoji": "",

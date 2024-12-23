@@ -5,7 +5,7 @@ import { Emitter } from "../services/emitter.js";
 import { Logger } from "../services/logger.js";
 import { Messages } from "../services/messages.js";
 import { Utilities } from "../services/utilities.js";
-import CronJobScheduler from "../entities/CronJobScheduler.js";
+import CronJob from "../entities/CronJob.js";
 import date from "date-and-time";
 import fetchRetry from "fetch-retry";
 import Listener from "../entities/Listener.js";
@@ -29,10 +29,10 @@ const fetch = fetchRetry(global.fetch, Utilities.fetchRetryPolicy);
  * automatically scheduled by the framework to run based on their patterns.
  */
 export const CronJobs = new Set([
-  new CronJobScheduler()
+  new CronJob()
     .setEnabled(Messages.isInitialized)
+    .setExpression(config.announcement_cron_job_expression)
     .setFunction(checkAndAnnounceAssignments)
-    .setPattern(config.announcement_cron_job_pattern)
     .setTriggered()
 ]);
 
