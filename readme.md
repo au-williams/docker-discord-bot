@@ -365,7 +365,7 @@ Discord updates context menus and slash commands using a POST request. This typi
 $ node index.js deploy
 ```
 
-⚠️ **Discord requires a deployment every time a command is created or modified for changes to be visible!** ⚠️
+⚠️ **Discord requires a deployment each time a command is created or modified for changes to be visible!** ⚠️
 
 <!-- ## Creating plugins
 
