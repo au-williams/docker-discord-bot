@@ -365,6 +365,8 @@ Discord updates context menus and slash commands using a POST request. This typi
 $ node index.js deploy
 ```
 
+⚠️ **Discord requires a deployment every time a command is created or modified for changes to be visible!** ⚠️
+
 <!-- ## Creating plugins
 
 The `index.js` file handles [discord.js events](https://old.discordjs.dev/#/docs/discord.js/14.9.0/typedef/Events) and invokes the corresponding function names in `./plugins/` JavaScript files. Simply creating a new JavaScript file with an appropriately named function is enough for it to execute - but you **_should_** add the config and readme files for optimal code quality.
