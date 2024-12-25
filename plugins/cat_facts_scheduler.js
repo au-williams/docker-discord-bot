@@ -23,7 +23,7 @@ const logger = new Logger(import.meta.filename);
  */
 export const CronJobs = new Set([
   new CronJob()
-    .setEnabled(Messages.isInitialized)
+    .setEnabled(Messages.isServiceEnabled)
     .setExpression(config.announcement_cron_job_expression)
     .setFunction(sendAnnouncementMessage)
     .setTriggered(checkTodayMissingAnnouncement)

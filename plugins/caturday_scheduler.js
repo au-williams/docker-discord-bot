@@ -29,13 +29,13 @@ const logger = new Logger(import.meta.filename);
  */
 export const CronJobs = new Set([
   new CronJob()
-    .setEnabled(Messages.isInitialized)
+    .setEnabled(Messages.isServiceEnabled)
     .setExpression(config.announcement_cron_job_expression)
     .setFunction(cronJobAnnouncement)
     .setRunOrder(1) // Run after Event.ClientReady!
     .setTriggered(checkMissingAnnouncement),
   new CronJob()
-    .setEnabled(Messages.isInitialized)
+    .setEnabled(Messages.isServiceEnabled)
     .setExpression(config.maintenance_cron_job_expression)
     .setFunction(cronJobMaintenance)
     .setRunOrder(1) // Run after Event.ClientReady!
@@ -70,7 +70,7 @@ export const Interactions = Object.freeze({
  */
 export const Listeners = Object.freeze({
   [Events.ClientReady]: new Listener()
-    .setEnabled(Messages.isInitialized)
+    .setEnabled(Messages.isServiceEnabled)
     .setFunction(initializeCaturdayImageCaches),
   [Events.GuildMemberAdd]:
     sendCatTaxDirectMessage,

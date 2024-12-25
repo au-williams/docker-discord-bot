@@ -6,7 +6,7 @@ import Listener from "../entities/Listener.js";
 
 const logger = new Logger(import.meta.filename);
 
-const { enable_message_fetch } = fs.readJsonSync("config.json");
+const { enable_message_service } = fs.readJsonSync("config.json");
 
 ///////////////////////////////////////////////////////////////////////////////
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ //
@@ -25,7 +25,7 @@ const { enable_message_fetch } = fs.readJsonSync("config.json");
  */
 export const Listeners = Object.freeze({
   [Events.ClientReady]: new Listener()
-    .setEnabled(enable_message_fetch)
+    .setEnabled(enable_message_service)
     .setFunction(initializeMessages)
     .setRunOrder(-100), // Run before all plugins and services!
   [Events.MessageCreate]: new Listener()
@@ -160,8 +160,8 @@ export class Messages {
    * Get if the Message service has been initialized.
    * @returns {boolean}
    */
-  static get isInitialized() {
-    return enable_message_fetch;
+  static get isServiceEnabled() {
+    return enable_message_service;
   }
 
   /**

@@ -30,7 +30,7 @@ const fetch = fetchRetry(global.fetch, Utilities.fetchRetryPolicy);
  */
 export const CronJobs = new Set([
   new CronJob()
-    .setEnabled(Messages.isInitialized)
+    .setEnabled(Messages.isServiceEnabled)
     .setExpression(config.announcement_cron_job_expression)
     .setFunction(checkAndAnnounceAssignments)
     .setTriggered()

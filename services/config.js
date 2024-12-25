@@ -45,7 +45,7 @@ export const Interactions = Object.freeze({
  */
 export const Listeners = Object.freeze({
   [Events.ClientReady]: new Listener()
-    .setEnabled(Messages.isInitialized)
+    .setEnabled(Messages.isServiceEnabled)
     .setFunction(async params => await validateBackups(params))
     .setRunOrder(-99), // run after Message.js service is complete
   [Interactions.ButtonComponentBackup]: new Listener()

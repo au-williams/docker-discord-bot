@@ -4,6 +4,6 @@
   "discord_bot_login_token": "",
   "discord_config_channel_id": "",
   "enable_debug_logs": true,
-  "enable_message_fetch": true,
+  "enable_message_service": true,
   "temp_directory": ""
 }

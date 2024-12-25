@@ -53,7 +53,7 @@ export const Listeners = Object.freeze({
     .setRequiredChannelType(ChannelType.DM),
   [Interactions.ButtonComponentSendReply]: new Listener()
     .setDescription("Sends a reply as the bot to the message author.")
-    .setEnabled(Messages.isInitialized)
+    .setEnabled(Messages.isServiceEnabled)
     .setFunction(onButtonComponentSendReply)
     .setRequiredChannelType(ChannelType.DM),
   [Interactions.ModalSubmitSendReply]: new Listener()
