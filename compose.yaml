@@ -1,5 +1,11 @@
 services:
   client:
-    # image: "ghcr.io/au-williams/discord-bot:master"
-    build: .
+    image: "ghcr.io/au-williams/docker-discord-bot:master"
     restart: unless-stopped
+    volumes:
+      - type: bind
+        source: ./config.json
+        target: /usr/src/app/config.json
+      - type: bind
+        source: ./plugins
+        target: /usr/src/app/plugins
