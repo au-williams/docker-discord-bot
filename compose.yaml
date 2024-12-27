@@ -1,5 +1,7 @@
 services:
   client:
+    environment:
+      - FORCE_COLOR=1
     image: "ghcr.io/au-williams/docker-discord-bot:master"
     restart: unless-stopped
     volumes:
