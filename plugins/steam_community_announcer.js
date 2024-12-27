@@ -73,7 +73,7 @@ export const Listeners = Object.freeze({
  * @param {Listener} param.listener
  */
 export async function checkAndAnnounceUpdate({ client, listener }) {
-  const channel = await client.channels.fetch(config.announcement_discord_channel_id);
+  const channel = client.channels.cache.get(config.announcement_discord_channel_id);
 
   for (const steam_app_id of config.announcement_steam_app_ids) {
     // validate steam app id or skip code execution
@@ -94,7 +94,11 @@ export async function checkAndAnnounceUpdate({ client, listener }) {
     const channelMessage = Messages
       .get({ channelId: config.announcement_discord_channel_id})
       .find(({ embeds }) => embeds?.[0]?.data?.description?.includes(steamAppAnnouncement.url));
-    if (channelMessage) continue;
+
+    if (channelMessage) {
+      logger.debug(`Announcement message exists for app_id "${steam_app_id}"`);
+      continue;
+    }
 
     // format the steam announcement date into a user-readable string
     // (multiply by 1000 to convert Unix timestamps to milliseconds)
@@ -115,23 +119,26 @@ export async function checkAndAnnounceUpdate({ client, listener }) {
       if (isValidSize) break;
     }
 
-    const embed = new EmbedBuilder();
-    embed.setAuthor({ name: "New Steam Community announcement", iconURL: "attachment://steam_logo.png" });
-    embed.setColor(0x1A9FFF);
-    embed.setDescription(`- [**${steamAppAnnouncement.title}**](${steamAppAnnouncement.url})\n${formatAnnouncementDescription(steamAppAnnouncement)}`);
-    embed.setFooter({ text: `Posted on ${formattedDate}. Click the link to read the full announcement.` });
-    embed.setImage(announcementImageUrl);
-    embed.setThumbnail(steamAppDetailsData.capsule_image);
-    embed.setTitle(steamAppDetailsData.name);
+    const embeds = [new EmbedBuilder()
+      .setAuthor({ name: "New Steam Community announcement", iconURL: "attachment://steam_logo.png" })
+      .setColor(0x1A9FFF)
+      .setDescription(`- [**${steamAppAnnouncement.title}**](${steamAppAnnouncement.url})\n${formatAnnouncementDescription(steamAppAnnouncement)}`)
+      .setFooter({ text: `Posted on ${formattedDate}. Click the link to read the full announcement.` })
+      .setImage(announcementImageUrl)
+      .setThumbnail(steamAppDetailsData.capsule_image)
+      .setTitle(steamAppDetailsData.name)];
 
-    const embeds = [embed];
     const files = [new AttachmentBuilder("assets/steam_logo.png")];
     const message = await channel.send({ embeds, files });
+    Utilities.LogPresets.SentMessage(message, listener);
 
-    const name = Utilities.getTruncatedStringTerminatedByChar(`💬 ${steamAppDetailsData.name} - ${steamAppAnnouncement.title}`, 100); // maximum thread name size
-    await message.startThread({ name });
+    const name =
+      Utilities.getTruncatedStringTerminatedByChar(`💬 ${steamAppDetailsData.name} - ${steamAppAnnouncement.title}`, 100); // maximum thread name size
 
-    logger.info(`Sent a message for ${steamAppDetailsData.name} to ${Utilities.getFormattedGuildAndChannelString(message)}.`, listener);
+    message
+      .startThread({ name })
+      .then(result => Utilities.LogPresets.CreatedThread(result, listener))
+      .catch(error => logger.error(error, listener));
   }
 }
 
