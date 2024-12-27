@@ -61,13 +61,13 @@ export const CronJobs = new Set([
 
 [Cron](https://en.wikipedia.org/wiki/Cron#CRON_expression) is a job scheduler that runs functions on an [expression](https://devhints.io/cron), like every 20 minutes or every Saturday at 9 AM. The bot framework will automatically schedule the Cron jobs you create here. You can extend the Cron jobs with the following setters ...
 
-| Name          | Description                                                         | Required |
-| :------------ | :------------------------------------------------------------------ | :------- |
-| setEnabled    | Sets the enabled state of the Cron job (used for debugging).        | `false`  |
-| setExpression | Sets the Cron expression used when scheduling the Cron job.         | `true`   |
-| setFunction   | Sets the function to execute when the Cron job is running.          | `true`   |
-| setRunOrder   | Sets the order this Cron job runs with others to avoid race issues. | `false`  |
-| setTriggered  | Sets if the Cron job should run on startup and before the pattern.  | `false`  |
+| Name          | Description                                                           | Required |
+| :------------ | :-------------------------------------------------------------------- | :------- |
+| setEnabled    | Sets the enabled state of the Cron job (used for debugging).          | `false`  |
+| setExpression | Sets the Cron expression used when scheduling the Cron job.           | `true`   |
+| setFunction   | Sets the function to execute when the Cron job is running.            | `true`   |
+| setRunOrder   | Sets the order this Cron job runs with others to avoid race issues.   | `false`  |
+| setTriggered  | Sets if the Cron job should run on startup and before the expression. | `false`  |
 
 </details>
 
@@ -335,7 +335,7 @@ import { Messages } from "../services/messages.js";
 const messages = Messages.get({ channelId });
 ```
 
-This JavaScript file manages the enumerable message history. If `enable_message_service` is set as `true` in [config.json](config.json) then on bot startup a collection of all messages it can access will be created. This lets us quickly and easily sort them using [ES6 array functions](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array#instance_methods). If `enable_message_service` is set as false then the collection won't be created. This saves a significant amount of time on bot startup at the expense of disabling all plugins that rely on the message history to function. Setting this value as `false` is used during local development of plugins and <ins>not</ins> server deployments.
+This JavaScript file manages the enumerable message history. If `enable_message_service` is set as `true` in [config.json](config.json) then on bot startup a collection of all messages it can access will be created. This lets us quickly and easily sort them using [ES6 array functions](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array#instance_methods). If `enable_message_service` is set as `false` then the collection won't be created. This saves a significant amount of time on bot startup at the expense of disabling all plugins that rely on the message history to function. Setting this value as `false` is used during local development of plugins and <ins>not</ins> server deployments.
 
 </details>
 

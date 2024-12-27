@@ -94,11 +94,7 @@ export async function checkAndAnnounceUpdate({ client, listener }) {
     const channelMessage = Messages
       .get({ channelId: config.announcement_discord_channel_id})
       .find(({ embeds }) => embeds?.[0]?.data?.description?.includes(steamAppAnnouncement.url));
-
-    if (channelMessage) {
-      logger.debug(`Announcement message exists for app_id "${steam_app_id}"`);
-      continue;
-    }
+    if (channelMessage) continue;
 
     // format the steam announcement date into a user-readable string
     // (multiply by 1000 to convert Unix timestamps to milliseconds)

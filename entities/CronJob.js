@@ -5,9 +5,9 @@ import { Utilities } from "../services/utilities.js";
  */
 export default class CronJob {
   date = null;
+  expression = "* * * * *";
   isEnabled = true;
   isTriggered = false;
-  pattern = "* * * * *";
   runOrder = -90; // run after services and before plugins
 
   func = () => {
@@ -37,13 +37,13 @@ export default class CronJob {
   }
 
   /**
-   * Set the pattern for this Cron job to execute on.
-   * @param {string} pattern
+   * Set the expression for this Cron job to execute on.
+   * @param {string} expression
    * @returns {CronJob}
    */
-  setExpression(pattern) {
-    Utilities.throwType("string", pattern);
-    this.pattern = pattern;
+  setExpression(expression) {
+    Utilities.throwType("string", expression);
+    this.expression = expression;
     return this;
   }
 

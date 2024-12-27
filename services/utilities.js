@@ -220,7 +220,7 @@ export class Utilities {
    * @async
    * @throws
    * @param {boolean|Function} param
-   * @returns {boolean}
+   * @returns {Promise<boolean>}
    */
   static async evalAsBoolean(param) {
     if (Utilities.checkType("AsyncFunction", param)) {

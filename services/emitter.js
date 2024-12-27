@@ -395,14 +395,17 @@ export async function scheduleCronJob(params) {
   const { cronJob, listener } = params;
 
   const cronOptions = {
-    catch: error => logger.error(error, listener), // TODO: isService!
     paused: true,
     protect: true
   };
 
+  cronOptions.catch = listener.isService
+    ? error => { throw new Error(error) }
+    : error => { logger.error(error, listener) };
+
   // Update the listener include "cron" for display in the logs.
   params = { ...params, listener: { ...listener, id: "cron" } };
-  const cron = Cron(cronJob.pattern, cronOptions, () => cronJob.func(params));
+  const cron = Cron(cronJob.expression, cronOptions, () => cronJob.func(params));
 
   const isEnabled = await Utilities.evalAsBoolean(cronJob.isEnabled);
   const isTriggered = await Utilities.evalAsBoolean(cronJob.isTriggered);
@@ -412,11 +415,11 @@ export async function scheduleCronJob(params) {
     cron.stop();
   }
   else if (isTriggered) {
-    logger.debug(`CronJob "${cronJob.func.name}" triggered for "${cron.getPattern()}" pattern.`, listener);
-    cron.trigger();
+    logger.debug(`CronJob "${cronJob.func.name}" triggered for "${cron.getPattern()}" expression.`, listener);
+    cron.trigger().then(() => cron.resume());
   }
   else {
-    logger.debug(`CronJob "${cronJob.func.name}" scheduled for "${cron.getPattern()}" pattern.`, listener);
+    logger.debug(`CronJob "${cronJob.func.name}" scheduled for "${cron.getPattern()}" expression.`, listener);
     cron.resume();
   }
 }
