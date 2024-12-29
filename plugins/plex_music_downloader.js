@@ -716,7 +716,11 @@ export async function downloadLinkAndExecuteCallback({ callback, contentType, in
   const tempDownloadFilepath = resolve(`${tempDownloadDirectory}/${tempDownloadFilename}`);
 
   await callback(downloadCache, interaction, listener, tempDownloadFilename, tempDownloadFilepath);
-  await fs.remove(tempDownloadDirectory);
+
+  if (config.delete_temporary_files) {
+    // todo: make this async w/ then catch
+    await fs.remove(tempDownloadDirectory);
+  }
 }
 
 /**
