@@ -11,3 +11,8 @@ services:
       - type: bind
         source: ./plugins
         target: /usr/src/app/plugins
+
+# steps to deploy new build to server:
+# https://stackoverflow.com/a/66539675
+# $ docker compose pull
+# $ docker compose up -d
