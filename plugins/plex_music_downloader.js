@@ -706,6 +706,9 @@ export async function downloadLinkAndExecuteCallback({ callback, contentType, in
   // download, execute the callback function, remove temporary file //
   // -------------------------------------------------------------- //
 
+  logger.debug(tempDownloadDirectory);
+  logger.debug(resolve(tempDownloadDirectory));
+
   logger.debug(options);
   logger.debug(await youtubedl(downloadCache.cleanLink, options));
 
@@ -1672,7 +1675,7 @@ export async function showMetadataModal({ contentType, customId, interaction, li
 
   interaction
     .showModal(modal)
-    .then(result => Utilities.LogPresets.ShowedModal(result, listener))
+    .then(() => Utilities.LogPresets.ShowedModal(interaction, listener))
     .catch(error => logger.error(error, listener));
 }
 
