@@ -1,6 +1,9 @@
 FROM node:alpine
 
+ENV DEBUG=youtube-dl-exec*
 ENV TZ="America/Los_Angeles"
+ENV YOUTUBE_DL_SKIP_PYTHON_CHECK=1
+
 WORKDIR /usr/src/app
 COPY package*.json ./
 
@@ -12,8 +15,5 @@ RUN apk add --no-cache yt-dlp
 RUN npm install npm@latest
 
 COPY . .
-
-ENV DEBUG=youtube-dl-exec*
-ENV YOUTUBE_DL_SKIP_PYTHON_CHECK=1
 
 CMD ["node", "--no-deprecation", "index.js"]
