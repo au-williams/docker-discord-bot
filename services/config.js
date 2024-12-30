@@ -399,9 +399,9 @@ export async function validateBackups({ client, listener }) {
     return;
   }
 
-  for(const filepath of Config.filepaths) {
+  for(const configFilepath of Config.filepaths) {
     const starterMessage =
-      await getOrCreateStarterMessage(filepath, channel, listener);
+      await getOrCreateStarterMessage(configFilepath, channel, listener);
 
     const attachments = Array
       .from(starterMessage.attachments.values())
@@ -416,10 +416,10 @@ export async function validateBackups({ client, listener }) {
 
     const interactionDownloadDirectory = `${temp_directory}/${nanoid()}`;
     const downloader = new Downloader({ url: attachments[0].url, directory: interactionDownloadDirectory });
-    const { filePath: interactionDownloadFilepath } = await downloader.download();
+    const { filePath: tempDownloadFilepath } = await downloader.download();
 
-    const interactionFile = fs.readFileSync(interactionDownloadFilepath);
-    const localFile = fs.readFileSync(filepath);
+    const interactionFile = fs.readFileSync(tempDownloadFilepath);
+    const localFile = fs.readFileSync(configFilepath);
 
     if (!interactionFile.equals(localFile)) {
       logger.warn(`Obsolete ${name} backup should be updated.`, listener);
@@ -430,7 +430,7 @@ export async function validateBackups({ client, listener }) {
 
     if (fs.readJsonSync("config.json").delete_temporary_files) {
       fs
-        .remove(filepath)
+        .remove(tempDownloadFilepath)
         .then(() => null) // TODO: log this
         .catch(error => logger.error(error))
     }
