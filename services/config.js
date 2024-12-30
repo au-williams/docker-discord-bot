@@ -427,6 +427,13 @@ export async function validateBackups({ client, listener }) {
     else {
       logger.debug(`Validated ${name} backup.`, listener);
     }
+
+    if (fs.readJsonSync("config.json").delete_temporary_files) {
+      fs
+        .remove(filepath)
+        .then(() => null) // TODO: log this
+        .catch(error => logger.error(error))
+    }
   }
 }
 
