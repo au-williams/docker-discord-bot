@@ -760,9 +760,15 @@ export class Utilities {
     // extract the vibrant color
     const vibrantColor = await new Vibrant(tempDownloadFilePath).getPalette();
     const { LightVibrant, LightMuted, DarkVibrant, DarkMuted } = vibrantColor;
-    // TODO: has issues with file locking that need resolving
-    // https://stackoverflow.com/questions/20796902/deleting-file-in-node-js
-    // fs.removeSync(tempDownloadDirectory);
+
+    if (fs.readJsonSync("config.json").delete_temporary_files) {
+      // TODO: has issues with file locking that need resolving
+      // https://stackoverflow.com/questions/20796902/deleting-file-in-node-js
+      fs
+        .remove(tempDownloadDirectory)
+        .then(() => null) // TODO: log this
+        .catch(error => logger.error(error))
+    }
 
     return LightMuted?.hex || LightVibrant?.hex || DarkVibrant?.hex || DarkMuted?.hex;
   };
