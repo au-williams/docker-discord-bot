@@ -414,8 +414,8 @@ export async function validateBackups({ client, listener }) {
       continue;
     }
 
-    const interactionDownloadDirectory = `${temp_directory}/${nanoid()}`;
-    const downloader = new Downloader({ url: attachments[0].url, directory: interactionDownloadDirectory });
+    const tempDownloadDirectory = `${temp_directory}/${nanoid()}`;
+    const downloader = new Downloader({ url: attachments[0].url, directory: tempDownloadDirectory });
     const { filePath: tempDownloadFilepath } = await downloader.download();
 
     const interactionFile = fs.readFileSync(tempDownloadFilepath);
@@ -430,7 +430,7 @@ export async function validateBackups({ client, listener }) {
 
     if (fs.readJsonSync("config.json").delete_temporary_files) {
       fs
-        .remove(tempDownloadFilepath)
+        .remove(tempDownloadDirectory)
         .then(() => null) // TODO: log this
         .catch(error => logger.error(error))
     }
