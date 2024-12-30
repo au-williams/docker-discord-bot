@@ -13,5 +13,6 @@ RUN apk add --no-cache yt-dlp
 COPY . .
 
 ENV DEBUG=youtube-dl-exec*
+ENV YOUTUBE_DL_SKIP_PYTHON_CHECK=1
 
 CMD ["node", "--no-deprecation", "index.js"]
