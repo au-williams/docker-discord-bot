@@ -12,4 +12,6 @@ RUN apk add --no-cache python3 py3-pip
 RUN apk add --no-cache yt-dlp
 COPY . .
 
-CMD ["DEBUG="youtube-dl-exec*"", "node", "--no-deprecation", "index.js"]
+ENV DEBUG=youtube-dl-exec*
+
+CMD ["node", "--no-deprecation", "index.js"]
