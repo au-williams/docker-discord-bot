@@ -651,7 +651,8 @@ export async function downloadLinkAndExecuteCallback({ callback, contentType, in
 
   const options = {
     embedMetadata: true,
-    extractorArgs: "youtube:player_client=android,web",
+    // todo: web client https formats require a PO Token which was not provided
+    // extractorArgs: "youtube:player_client=android,web",
     noPlaylist: true,
     output: `${tempDownloadDirectory}/${outputFilename}.%(ext)s`,
     postprocessorArgs: "ffmpeg:"
