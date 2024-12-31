@@ -125,15 +125,15 @@ async function invokeDeploy() {
 
   const body = [];
 
-  Emitter.commandListeners.forEach(listener => {
-    if (listener.isDeployable) {
-      body.push(listener.builder);
-    }
-    else {
-      logger.warn(`Invalid command listener "${listener.id}" in "${listener.filename}" will not be deployed.`)
+  Emitter.listeners.forEach(listener => {
+    if (listener.deploymentType != null) {
+      const { builder } = listener;
+      if (builder) body.push(builder);
+      else throw new Error("Unexpected deployment type.");
     }
   });
 
+  console.log(body)
   // ----------------------------------------------------------------------- //
   // Submit the request to the Discord API                                   //
   // ----------------------------------------------------------------------- //

@@ -1,6 +1,6 @@
-import { BaseChannel, ChannelType, User } from "discord.js";
+import { ApplicationCommandType, BaseChannel, ChannelType, ContextMenuCommandBuilder, InteractionContextType, SlashCommandBuilder, User } from "discord.js";
 import { client as Client } from "../index.js";
-import { IsDeploymentType } from "./DeploymentTypes.js";
+import { DeploymentTypes, IsDeploymentType } from "./DeploymentTypes.js";
 import { Utilities } from "../services/utilities.js"
 import fs from "fs-extra";
 
@@ -60,6 +60,27 @@ export default class Listener {
   // ----------------------------------------------------------------------- //
   // >> HANDLER GETTERS                                                   << //
   // ----------------------------------------------------------------------- //
+
+  /**
+   *
+   */
+  get builder() {
+    switch(this.deploymentType) {
+      case DeploymentTypes.ChatInputCommand:
+        return new SlashCommandBuilder()
+          .setContexts(InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel)
+          .setDescription(this.description)
+          .setName(this.id)
+          .setNSFW(false);
+      case DeploymentTypes.UserContextMenuCommand:
+        return new ContextMenuCommandBuilder()
+          .setContexts(InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel)
+          .setName(this.id)
+          .setType(ApplicationCommandType.User); // TODO: https://discordjs.guide/interactions/context-menus.html#registering-context-menu-commands
+      default:
+        return null;
+    }
+  }
 
   /**
    * Get the RequiredChannelIds formatted as clickable channels in Discord.
@@ -175,7 +196,7 @@ export default class Listener {
    */
   setDeploymentType(deploymentType) {
     if (!IsDeploymentType(deploymentType)) throw new Error("Unexpected deployment type.");
-    this.applicationCommandType = deploymentType;
+    this.deploymentType = deploymentType;
     return this;
   }
 

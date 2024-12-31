@@ -76,6 +76,13 @@ export class Emitter {
   static _importedListeners = new Map();
 
   /**
+   *
+   */
+  static get listeners() {
+    return Array.from(Emitter._importedListeners.values()).flat();
+  }
+
+  /**
    * The Button that displays information about adjacent buttons when its clicked.
    * Importing scripts just add `Emitter.moreInfoButton` to their components row
    * and then everything else from getting button data to updating the interaction
