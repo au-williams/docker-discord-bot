@@ -132,7 +132,7 @@ function getSelectMenuSpeedLimitDuration(selectedValue, isSpeedLimitEnabled) {
 
   for (let i = 1; i < 7; i++) {
     const value = date.addHours(new Date(), i);
-    const label = date.format(value, "M/DD @ h:mm A").replace("@", "at");
+    const label = date.format(value, "M/D @ h:mm A").replace("@", "at");
     options.push(new StringSelectMenuOptionBuilder()
       .setDefault(selectedValue === i.toString())
       .setLabel(`⏱️ Limit speed for ${i} ${Utilities.getPluralizedString("hour", i)} until ${label}`)
