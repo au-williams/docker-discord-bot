@@ -1,4 +1,4 @@
-import { ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, Events, MessageType, StringSelectMenuBuilder, StringSelectMenuOptionBuilder } from "discord.js";
+import { ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle, ChatInputCommandInteraction, EmbedBuilder, Events, StringSelectMenuBuilder, StringSelectMenuOptionBuilder } from "discord.js";
 import { Config } from "../services/config.js";
 import { DeploymentTypes } from "../entities/DeploymentTypes.js";
 import { Emitter } from "../services/emitter.js";
@@ -11,10 +11,22 @@ import Listener from "../entities/Listener.js";
 const config = new Config(import.meta.filename);
 const logger = new Logger(import.meta.filename);
 
+/**
+ * The selected throttle duration list item.
+ * @type {Map<string, string>} <messageId, selectedValue>
+ */
 const selectedThrottleDurations = new Map();
 
+/**
+ * The starter message interaction (for editing).
+ * @type {Map<string, ChatInputCommandInteraction>} <messageId, interaction>
+ */
 const starterMessageInteractions = new Map();
 
+/**
+ * The authentication cookie for the qBittorrent WebAPI.
+ * @type {string}
+ */
 let cookie;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -50,15 +62,15 @@ export const Listeners = Object.freeze({
   [Events.ClientReady]: new Listener()
     .setFunction(onClientReady),
   [Interactions.ButtonAddMagnet]: new Listener()
-    .setDescription("")
+    .setDescription("Displays a popup to paste a new magnet link for the qBittorrent download queue.")
     .setFunction(() => { throw new Error("Not implemented") })
     .setRequiredRoles(config.discord_required_role_ids),
   [Interactions.ButtonManageSpeedLimit]: new Listener()
-    .setDescription("")
+    .setDescription("Displays a select menu to create, update, or remove the qBittorrent speed limit.")
     .setFunction(onButtonSpeedLimit)
     .setRequiredRoles(config.discord_required_role_ids),
   [Interactions.ButtonSaveChanges]: new Listener()
-    .setDescription("")
+    .setDescription("Save the select menu changes.")
     .setFunction(onButtonSaveChanges)
     .setRequiredRoles(config.discord_required_role_ids),
   [Interactions.ChatInputCommandQbittorrent]: new Listener()
@@ -67,7 +79,7 @@ export const Listeners = Object.freeze({
     .setFunction(sendSlashCommandReply)
     .setRequiredRoles(config.discord_required_role_ids),
   [Interactions.SelectMenuThrottleDuration]: new Listener()
-    .setDescription("Chooses an imported audio file to edit or delete after pressing the modify file button.")
+    .setDescription("Chooses an action to perform to the qBittorrent speed limit.")
     .setFunction(onSelectMenuThrottleDuration),
 });
 

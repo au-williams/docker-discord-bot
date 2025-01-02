@@ -52,7 +52,7 @@ export default class Listener {
 
     this.lockedUserFunc = async ({ interaction, listener }) => {
       const joinedAdmins = Utilities.getJoinedArrayWithOr(discord_bot_admin_user_ids.map(item => `<@${item}>`));
-      const content = `\`🔐 Locked\` Sorry but you're not authorized to use this! Please contact ${joinedAdmins} if you think this was in error. 🧑‍🔧`;
+      const content = `\`🔐 Locked\` Sorry but you're not allowed to use this! Please contact ${joinedAdmins} if you think this was in error. 🧑‍🔧`;
       const reply = await interaction.reply({ content, ephemeral: true, fetchReply: true });
       Utilities.LogPresets.SentReply(reply, listener);
     };
@@ -120,7 +120,7 @@ export default class Listener {
     let isRequiredUser = !this.requiredUserIds.length;
     let isRequiredRole = !this.requiredRoleIds.length;
 
-    if (isRequiredRole && isRequiredRole) {
+    if (isRequiredUser && isRequiredRole) {
       return false;
     }
 
@@ -128,7 +128,7 @@ export default class Listener {
       for (const guild of Client.guilds.cache.values()) {
         const member = await guild.members.fetch({ user });
         const some = this.requiredRoleIds.some(id => member.roles.cache.has(id));
-        if (!some) isRequiredRole = true;
+        if (some) isRequiredRole = true;
         if (some) break;
       }
     }
