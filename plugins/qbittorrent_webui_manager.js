@@ -323,8 +323,6 @@ export async function onButtonSaveChanges({ client, interaction, listener }) {
     .then(result => Utilities.LogPresets.DeletedReply(result, listener))
     .catch(error => logger.error(error, listener));
 
-  await Utilities.delay(250);
-
   const { embeds } = await buildEmbeddedMessage();
 
   starterMessageInteractions
@@ -332,6 +330,7 @@ export async function onButtonSaveChanges({ client, interaction, listener }) {
     .editReply({ embeds, fetchReply: true })
     .then(result => Utilities.LogPresets.EditedReply(result, listener))
     .catch(error => logger.error(error, listener));
+
 
   Emitter.setBusy(interaction, false);
 }
@@ -345,9 +344,23 @@ export async function buildEmbeddedMessage() {
   let footer = "";
 
   const isSpeedLimitEnabled = await getQbittorrentSpeedLimitEnabled(cookie);
-  const info = await getQbittorrentInfo(cookie);
+
+  let info = await getQbittorrentInfo(cookie);
   const version = await getQbittorrentVersion(cookie);
   const webApiVersion = await getQbittorrentWebApiVersion(cookie);
+
+  const downloadSpeeds = [info.dl_info_speed];
+  const uploadSpeeds = [info.up_info_speed];
+
+  for(let i = 0; i < 5; i++) {
+    await Utilities.delay(200);
+    info = await getQbittorrentInfo(cookie);
+    downloadSpeeds.push(info.dl_info_speed);
+    uploadSpeeds.push(info.up_info_speed);
+  }
+
+  const averageDownloadSpeed = downloadSpeeds.reduce((a, b) => a + b) / downloadSpeeds.length;
+  const averageUploadSpeed = uploadSpeeds.reduce((a, b) => a + b) / uploadSpeeds.length;
 
   if (isSpeedLimitEnabled) {
     footer = "🔴 Speed limit is being enforced until ";
@@ -363,17 +376,17 @@ export async function buildEmbeddedMessage() {
       footer += "it's been removed."
     }
 
-    downloadLineItem = `- Downloading at ${formatSpeed(info.dl_info_speed)} \`[${formatSpeed(info.dl_rate_limit)}]\``;
-    uploadLineItem = `- Uploading at ${formatSpeed(info.up_info_speed)} \`[${formatSpeed(info.up_rate_limit)}]\``;
+    downloadLineItem = `- Downloading at ${formatSpeed(averageDownloadSpeed)} \`[${formatSpeed(info.dl_rate_limit)}]\``;
+    uploadLineItem = `- Uploading at ${formatSpeed(averageUploadSpeed)} \`[${formatSpeed(info.up_rate_limit)}]\``;
   }
   else {
-    downloadLineItem = `- Downloading at ${formatSpeed(info.dl_info_speed)}`;
-    uploadLineItem = `- Uploading at ${formatSpeed(info.up_info_speed)}`;
-    footer = "🟢 No speed limit set! This may slow down other services.";
+    downloadLineItem = `- Downloading at ${formatSpeed(averageDownloadSpeed)}`;
+    uploadLineItem = `- Uploading at ${formatSpeed(averageUploadSpeed)}`;
+    footer = "🟢 No speed limit is set! This could slow down other services.";
   }
 
-  if (info.dl_info_speed > 4194304) downloadLineItem += " 🔥";
-  if (info.up_info_speed > 2097152) uploadLineItem += " 🔥";
+  if (averageDownloadSpeed > 4194304) downloadLineItem += " 🔥";
+  if (averageUploadSpeed > 2097152) uploadLineItem += " 🔥";
 
   embeds[0].setAuthor({ iconURL: "attachment://qbittorrent_logo.png", name: `qBittorrent ${version} • API v${webApiVersion}` });
   embeds[0].setColor(0x5a82b0);
