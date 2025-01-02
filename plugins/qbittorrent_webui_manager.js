@@ -12,10 +12,10 @@ const config = new Config(import.meta.filename);
 const logger = new Logger(import.meta.filename);
 
 /**
- * The selected throttle duration list item.
+ * The selected speed limit duration list item.
  * @type {Map<string, string>} <messageId, selectedValue>
  */
-const selectedThrottleDurations = new Map();
+const selectedSpeedLimitDurations = new Map();
 
 /**
  * The starter message interaction (for editing).
@@ -46,7 +46,7 @@ export const Interactions = Object.freeze({
   ButtonManageSpeedLimit: "QB_BUTTON_MANAGE_SPEED_LIMIT",
   ButtonRemoveSpeedLimit: "QB_BUTTON_REMOVE_SPEED_LIMIT",
   ChatInputCommandQbittorrent: "qbittorrent",
-  SelectMenuThrottleDuration: "QB_SELECT_MENU_THROTTLE_DURATION"
+  SelectMenuSpeedLimitDuration: "QB_SELECT_MENU_SPEED_LIMIT_DURATION"
 });
 
 /**
@@ -70,17 +70,17 @@ export const Listeners = Object.freeze({
     .setFunction(onButtonSpeedLimit)
     .setRequiredRoles(config.discord_required_role_ids),
   [Interactions.ButtonSaveChanges]: new Listener()
-    .setDescription("Save the select menu changes.")
+    .setDescription("Saves the selected speed limit duration. This button is disabled when no menu item has been selected.")
     .setFunction(onButtonSaveChanges)
     .setRequiredRoles(config.discord_required_role_ids),
   [Interactions.ChatInputCommandQbittorrent]: new Listener()
     .setDeploymentType(DeploymentTypes.ChatInputCommand)
-    .setDescription("Privately sends a message to the channel with the qBittorrent WebUI status. 🌐")
+    .setDescription("Sends you a message to manage the qBittorrent WebUI. 🌐")
     .setFunction(sendSlashCommandReply)
     .setRequiredRoles(config.discord_required_role_ids),
-  [Interactions.SelectMenuThrottleDuration]: new Listener()
-    .setDescription("Chooses an action to perform to the qBittorrent speed limit.")
-    .setFunction(onSelectMenuThrottleDuration),
+  [Interactions.SelectMenuSpeedLimitDuration]: new Listener()
+    .setDescription("Chooses a duration to use the qBittorrent speed limit for. The speed limit will be removed once the duration has been reached.")
+    .setFunction(onSelectMenuSpeedLimitDuration),
 });
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -146,7 +146,7 @@ function getSelectMenuSpeedLimitDuration(selectedValue, isSpeedLimitEnabled) {
   )
 
   return new StringSelectMenuBuilder()
-    .setCustomId(Interactions.SelectMenuThrottleDuration)
+    .setCustomId(Interactions.SelectMenuSpeedLimitDuration)
     .addOptions(...options)
     .setPlaceholder("Select the speed limit duration");
 }
@@ -287,26 +287,22 @@ export async function onButtonSaveChanges({ client, interaction, listener }) {
   Emitter.setBusy(interaction, true);
 
   const isSpeedLimitEnabled = await getQbittorrentSpeedLimitEnabled(cookie);
-  const duration = selectedThrottleDurations.get(interaction.message.id);
-  let selectMenuThrottleDuration;
+  const duration = selectedSpeedLimitDurations.get(interaction.message.id);
 
   switch(duration) {
     case "remove": {
       if (isSpeedLimitEnabled) await postQbittorrentToggleSpeedLimitsMode(cookie);
       config.cron_job_date = ""; // Speed limit is removed. Remove disable date.
-      selectMenuThrottleDuration = getSelectMenuSpeedLimitDuration(null, false);
       break;
     }
     case "indefinite": {
       if (!isSpeedLimitEnabled) await postQbittorrentToggleSpeedLimitsMode(cookie);
       config.cron_job_date = ""; // Speed limit is indefinite. Remove disable date.
-      selectMenuThrottleDuration = getSelectMenuSpeedLimitDuration(null, true);
       break;
     }
     default: {
       // Update the Qbittorrent speed limit mode.
       if (!isSpeedLimitEnabled) await postQbittorrentToggleSpeedLimitsMode(cookie);
-      selectMenuThrottleDuration = getSelectMenuSpeedLimitDuration(null, true);
 
       // Save date to config in case the client is restarted.
       const cronJobDate = date.addHours(new Date(), duration);
@@ -433,24 +429,26 @@ export async function onClientReady({ client, interaction, listener }) {
 /**
  *
  */
-export async function onSelectMenuThrottleDuration({ listener, interaction }) {
+export async function onSelectMenuSpeedLimitDuration({ listener, interaction }) {
   await interaction.deferUpdate();
-  selectedThrottleDurations.set(interaction.message.id, interaction.values[0]);
+
+  selectedSpeedLimitDurations.set(interaction.message.id, interaction.values[0]);
 
   // Get the speed limit enabled state from the message to skip an API call.
   const selectMenuOptions = interaction.message.components[0].components[0].data.options;
   const isSpeedLimitEnabled = selectMenuOptions.some(item => item.value === "remove");
 
-  const actionRow1 = new ActionRowBuilder().addComponents(getSelectMenuSpeedLimitDuration(interaction.values[0], isSpeedLimitEnabled));
-  const actionRow2 = ActionRowBuilder.from(interaction.message.components[1]);
-  actionRow2.components[0].setDisabled(false);
+  const menu = getSelectMenuSpeedLimitDuration(interaction.values[0], isSpeedLimitEnabled);
+  const row1 = new ActionRowBuilder().addComponents(menu);
+  const row2 = ActionRowBuilder.from(interaction.message.components[1]);
+  row2.components[0].setDisabled(false);
 
   interaction
-    .editReply({ components: [actionRow1, actionRow2], fetchReply: true })
+    .editReply({ components: [row1, row2], fetchReply: true })
     .then(result => Utilities.LogPresets.EditedReply(result, listener))
     .catch(error => logger.error(error, listener));
 
-  Utilities.LogPresets.DebugSetValue("selectedThrottleDurations", interaction.values[0], listener);
+  Utilities.LogPresets.DebugSetValue("selectedSpeedLimitDurations", interaction.values[0], listener);
 }
 
 /**

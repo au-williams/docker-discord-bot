@@ -537,7 +537,7 @@ export async function sendButtonInfoReply({ listener, interaction }) {
   const reply = await interaction.editReply({ content:
     "Here's what I know about this form. 📚 You're allowed to use unlocked " +
     "components, but locked components may need you to have more permissions " +
-    "before their use.\n\n" + `${responseBody.join("\n")}\n${responseFooter}`
+    "before their usage.\n\n" + `${responseBody.join("\n")}\n${responseFooter}`
   });
 
   Utilities.LogPresets.SentReply(reply, listener);
