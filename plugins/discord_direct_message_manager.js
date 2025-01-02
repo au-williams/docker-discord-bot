@@ -110,18 +110,9 @@ const replyTextInput = new TextInputBuilder()
  * @param {Message} param.message
  */
 async function onDirectMessageCreate({ client, listener, message }) {
-  if (message.attachments.size) return; // Handled by Caturday.
-
-  const users = new Map();
-
-  // TODO: make this an array!
-  for(const roleId of [config.discord_bot_admin_role_id]) {
-    const guilds = client.guilds.cache.filter(guild => guild.roles.cache.some(role => role.id === roleId));
-    const members = guilds.map(guild => [...guild.roles.cache.get(roleId).members.values()]).flat();
-    members.forEach(member => users.set(member.id, member.user));
-  }
-
-  if ([client.user.id, ...users.keys()].includes(message.author.id)) return;
+  if (message.attachments.size) return; // Image DMs are handled by Caturday
+  if (config.discord_bot_admin_user_ids.includes(message.author.id)) return;
+  if (client.user.id === message.author.id) return;
 
   const iconURL = message.author.displayAvatarURL();
   const id = message.author.id;
@@ -137,10 +128,11 @@ async function onDirectMessageCreate({ client, listener, message }) {
   const components = [new ActionRowBuilder().addComponents(sendReplyButton, hideMessageButton, Emitter.moreInfoButton)];
   const content = `${message.author} [**sent a direct message.**](${message.url})`;
 
-  Array.from(users.values()).forEach(user => user
-    .send({ components, content, embeds })
-    .then(result => Utilities.LogPresets.SentMessage(result, listener))
-    .catch(error => logger.error(error, listener))
+  config.discord_bot_admin_user_ids.forEach(userId =>
+    client.users.cache.get(userId)
+      .send({ components, content, embeds })
+      .then(result => Utilities.LogPresets.SentMessage(result, listener))
+      .catch(error => logger.error(error, listener))
   );
 }
 

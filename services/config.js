@@ -10,7 +10,7 @@ import fs from "fs-extra";
 import Listener from "../entities/Listener.js";
 import path from "path";
 
-const { discord_bot_admin_role_id, discord_config_channel_id, temp_directory } = fs.readJsonSync("config.json");
+const { discord_bot_admin_user_ids, discord_config_channel_id, enable_config_service, temp_directory } = fs.readJsonSync("config.json");
 
 const logger = new Logger(import.meta.filename);
 
@@ -45,21 +45,21 @@ export const Interactions = Object.freeze({
  */
 export const Listeners = Object.freeze({
   [Events.ClientReady]: new Listener()
-    .setEnabled(Messages.isServiceEnabled)
+    .setEnabled(enable_config_service && Messages.isServiceEnabled)
     .setFunction(async params => await validateBackups(params))
     .setRunOrder(-99), // run after Message.js service is complete
   [Interactions.ButtonComponentBackup]: new Listener()
     .setDescription("Uploads the client file as a new backup file.")
     .setFunction(showModalBackup)
-    .setRequiredRoles(discord_bot_admin_role_id),
+    .setRequiredUsers(discord_bot_admin_user_ids),
   [Interactions.ButtonComponentDelete]: new Listener()
     .setDescription("Deletes the backup file from the backup history.")
     .setFunction(showModalDelete)
-    .setRequiredRoles(discord_bot_admin_role_id),
+    .setRequiredUsers(discord_bot_admin_user_ids),
   [Interactions.ButtonComponentRestore]: new Listener()
     .setDescription("Overwrites the client file with the backup file.")
     .setFunction(showModalRestore)
-    .setRequiredRoles(discord_bot_admin_role_id),
+    .setRequiredUsers(discord_bot_admin_user_ids),
   [Interactions.ModalSubmitBackup]: new Listener()
     .setFunction(uploadBackupFile),
   [Interactions.ModalSubmitDelete]: new Listener()

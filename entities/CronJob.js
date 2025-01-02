@@ -4,7 +4,6 @@ import { Utilities } from "../services/utilities.js";
  * Schedules a new Cron job managed by `Emitter.js`.
  */
 export default class CronJob {
-  date = null;
   expression = "* * * * *";
   isEnabled = true;
   isTriggered = false;
@@ -13,17 +12,6 @@ export default class CronJob {
   func = () => {
     throw new Error("Function is not implemented.");
   };
-
-  /**
-   * Set the date that the Cron job will execute. (Not implemented yet!)
-   * @param {Date} date
-   * @returns {CronJob}
-   */
-  setDate(date) {
-    Utilities.throwType(Date, date);
-    this.date = date;
-    return this;
-  }
 
   /**
    * Set if the CronJob should be enabled. This is typically for debug / dependency purposes.
@@ -38,11 +26,11 @@ export default class CronJob {
 
   /**
    * Set the expression for this Cron job to execute on.
-   * @param {string} expression
+   * @param {string|Date} expression
    * @returns {CronJob}
    */
   setExpression(expression) {
-    Utilities.throwType("string", expression);
+    Utilities.throwTypes(["string", Date], expression);
     this.expression = expression;
     return this;
   }

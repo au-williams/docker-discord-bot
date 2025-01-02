@@ -175,6 +175,58 @@ export class Emitter {
     const loggerLabel = value ? "busy" : "not busy";
     logger.debug(`Set ${compositeKey} as ${loggerLabel} (${value}).`);
   }
+
+  /**
+   * @throws Expects CronJob
+   * @param {object} params
+   */
+  static async scheduleCronJob(params) {
+    const { cronJob, listener } = params;
+
+    const cronOptions = {
+      name: cronJob.func.name,
+      paused: true,
+      protect: true
+    };
+
+    cronOptions.catch = listener.isService
+      ? error => { throw new Error(error) }
+      : error => { logger.error(error, listener) };
+
+    // Update the listener include "cron" for display in the logs.
+    params = { ...params, listener: { ...listener, id: "cron" } };
+    const cron = Cron(cronJob.expression, cronOptions, () => cronJob.func(params));
+    const isEnabled = await Utilities.evalAsBoolean(cronJob.isEnabled);
+    const isTriggered = await Utilities.evalAsBoolean(cronJob.isTriggered);
+
+    if (!isEnabled) {
+      logger.warn(`CronJob "${cronJob.func.name}" is not enabled. Skipping scheduling.`, listener);
+      cron.stop();
+    }
+    else if (isTriggered) {
+      // TODO: parse Cron date, not supported by the library... must do manually using private fields... yikes
+      logger.debug(`CronJob "${cronOptions.name}" triggered for "${cron.getPattern()}" expression.`, listener);
+      cron.trigger().then(() => cron.resume());
+    }
+    else {
+      // TODO: parse Cron date, not supported by the library... must do manually using private fields... yikes
+      logger.debug(`CronJob "${cronJob.func.name}" scheduled for "${cron.getPattern()}" expression.`, listener);
+      cron.resume();
+    }
+  }
+
+  /**
+   * @static
+   * @async
+   * @param {*} functionOrName
+   * @returns {*}
+   */
+  static async stopCronJobs(functionOrName) {
+    functionOrName = functionOrName.name || functionOrName;
+    const scheduledJobs = Cron.scheduledJobs.filter(item => item.name === functionOrName && !item.isStopped());
+    scheduledJobs.forEach(item => item.stop());
+    logger.debug(`Stopped ${scheduledJobs.length} scheduled ${Utilities.getPluralizedString("job", scheduledJobs)} named ${functionOrName}`);
+  }
 }
 
 /**
@@ -228,7 +280,7 @@ async function executeListener(params) {
   // Handle locked user //
   // ------------------ //
 
-  else if (await listener.checkLockedUser(instance?.user)) {
+  else if (instance?.user && await listener.checkLockedUser(instance.user)) {
     const log = "Listener is locked for user.";
 
     if (!interaction) {
@@ -344,7 +396,7 @@ async function handleListenerError({ interaction, listener, error }) {
  */
 function importCronJob(cronJob, filepath, isService) {
   const listener = new Listener()
-    .setFunction(params => scheduleCronJob({ cronJob, ...params }));
+    .setFunction(params => Emitter.scheduleCronJob({ cronJob, ...params }));
 
   listener.filename = path.basename(filepath);
   listener.filepath = filepath;
@@ -391,43 +443,6 @@ function importListener(value, key, filepath, isService) {
     // listener.logger = new Logger(filepath);
 
     Emitter._importedListeners.get(key).push(listener);
-  }
-}
-
-/**
- * @throws Expects CronJob
- * @param {object} params
- */
-export async function scheduleCronJob(params) {
-  const { cronJob, listener } = params;
-
-  const cronOptions = {
-    paused: true,
-    protect: true
-  };
-
-  cronOptions.catch = listener.isService
-    ? error => { throw new Error(error) }
-    : error => { logger.error(error, listener) };
-
-  // Update the listener include "cron" for display in the logs.
-  params = { ...params, listener: { ...listener, id: "cron" } };
-  const cron = Cron(cronJob.expression, cronOptions, () => cronJob.func(params));
-
-  const isEnabled = await Utilities.evalAsBoolean(cronJob.isEnabled);
-  const isTriggered = await Utilities.evalAsBoolean(cronJob.isTriggered);
-
-  if (!isEnabled) {
-    logger.warn(`CronJob "${cronJob.func.name}" is not enabled. Skipping scheduling.`, listener);
-    cron.stop();
-  }
-  else if (isTriggered) {
-    logger.debug(`CronJob "${cronJob.func.name}" triggered for "${cron.getPattern()}" expression.`, listener);
-    cron.trigger().then(() => cron.resume());
-  }
-  else {
-    logger.debug(`CronJob "${cronJob.func.name}" scheduled for "${cron.getPattern()}" expression.`, listener);
-    cron.resume();
   }
 }
 

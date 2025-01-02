@@ -629,6 +629,12 @@ export class Utilities {
     return null; // No word found if the string is empty or only contains spaces
   }
 
+  static delay(milliseconds) {
+    return new Promise(resolve => {
+        setTimeout(resolve, milliseconds);
+    });
+  }
+
   static async fetchStarterMessageThenReferenceMessage(message) {
     let starterMessage = message.channel instanceof ThreadChannel
       ? await message.channel.fetchStarterMessage()
@@ -777,6 +783,7 @@ export class Utilities {
     CreatedThread: (thread, listener) => logger.info(`Created thread channel "${thread.name}"`, listener),
     DebugSetValue: (property, value, listener) => logger.debug(`Set "${property}" key as "${Utilities.getValueAsString(value)}" ${Utilities.getValueAsType(value)} value.`, listener),
     DeletedMessage: (message, listener) => logger.info(`Deleted a${Utilities.checkEphemeralMessage(message) ? "n ephemeral" : ""} message in ${Utilities.getFormattedGuildAndChannelString(message)} sent by ${message.author.displayName}.`, listener),
+    DeletedReply: (message, listener) => logger.info(`Deleted a${Utilities.checkEphemeralMessage(message) ? "n ephemeral" : ""} message reply in ${Utilities.getFormattedGuildAndChannelString(message)}.`, listener),
     EditedMessage: (message, listener) => logger.info(`Edited a${Utilities.checkEphemeralMessage(message) ? "n ephemeral" : ""} message in ${Utilities.getFormattedGuildAndChannelString(message)}.`, listener),
     EditedMessageFile: (message, filename, listener) => logger.info(`Edited a${Utilities.checkEphemeralMessage(message) ? "n ephemeral" : ""} message reply with "${filename}" file in ${Utilities.getFormattedGuildAndChannelString(message)}.`, listener),
     EditedReply: (message, listener) => logger.info(`Edited a${Utilities.checkEphemeralMessage(message) ? "n ephemeral" : ""} message reply in ${Utilities.getFormattedGuildAndChannelString(message)}.`, listener),
