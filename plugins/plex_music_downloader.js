@@ -1654,7 +1654,7 @@ export async function showMetadataModal({ contentType, customId, interaction, li
     : Utilities.getShortTimestamp(downloadCache.endTime);
 
   const [titleValue, artistValue] = downloadCache.trackTitleArtistValues;
-  const genre = downloadCache.genre ?? randomItem(config.plex_example_genres);
+  const genre = downloadCache.genre ?? randomItem(config.discord_example_genres);
 
   let fileFormat;
 
@@ -1688,7 +1688,7 @@ export async function showMetadataModal({ contentType, customId, interaction, li
  * TODO: Library is for audio, should add a video library too...
  */
 async function startPlexAudioLibraryScan() {
-  const address = `http://${config.plex_server_ip_address}:32400/library/sections/${config.plex_library_section_id}/refresh`;
+  const address = `http://${config.plex_server_ip_address}:32400/library/sections/${config.plex_audio_library_section_id}/refresh`;
   const options = { headers: { "X-Plex-Token": config.plex_authentication_token }, method: "GET" };
   await fetch(address, options);
   logger.info("Started Plex library scan");

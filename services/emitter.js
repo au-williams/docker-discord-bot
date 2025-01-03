@@ -24,24 +24,10 @@ const logger = new Logger(import.meta.filename);
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ //
 ///////////////////////////////////////////////////////////////////////////////
 
-/**
- * The interactions created by this script. We use these unique IDs to define
- * buttons, commands, and components and so Discord can emit the interactions
- * that we handle in the `Listeners<object>` variable.
- */
 export const Interactions = Object.freeze({
   ButtonComponentInfo: "EMITTER_BUTTON_COMPONENT_INFO"
 });
 
-/**
- * The event listeners handled by this script. The key is a Discord event or an
- * interaction property from the `Interactions<object>` variable. The value is
- * a `Listener` object and requires a function to be set. Listeners that only
- * set a function can use the function as the value and it will be wrapped in
- * a Listener by the framework for you automatically. When the key is emitted
- * by Discord then the value will be executed. You may use an array to define
- * multiple Listeners for a single key.
- */
 export const Listeners = Object.freeze({
   [Interactions.ButtonComponentInfo]: sendButtonInfoReply
 });
