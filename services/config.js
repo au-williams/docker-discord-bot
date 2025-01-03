@@ -10,7 +10,7 @@ import fs from "fs-extra";
 import Listener from "../entities/Listener.js";
 import path from "path";
 
-const { discord_bot_admin_user_ids, discord_config_channel_id, enable_config_service, temp_directory } = fs.readJsonSync("config.json");
+const { discord_bot_admin_user_ids, discord_config_channel_id, temp_directory } = fs.readJsonSync("config.json");
 
 const logger = new Logger(import.meta.filename);
 
@@ -45,18 +45,21 @@ export const Interactions = Object.freeze({
  */
 export const Listeners = Object.freeze({
   [Events.ClientReady]: new Listener()
-    .setEnabled(enable_config_service && Messages.isServiceEnabled)
+    .setEnabled(discord_config_channel_id && Messages.isServiceEnabled)
     .setFunction(async params => await validateBackups(params))
     .setRunOrder(-99), // run after Message.js service is complete
   [Interactions.ButtonComponentBackup]: new Listener()
+    .setEnabled(discord_config_channel_id && Messages.isServiceEnabled)
     .setDescription("Uploads the client file as a new backup file.")
     .setFunction(showModalBackup)
     .setRequiredUsers(discord_bot_admin_user_ids),
   [Interactions.ButtonComponentDelete]: new Listener()
+    .setEnabled(discord_config_channel_id && Messages.isServiceEnabled)
     .setDescription("Deletes the backup file from the backup history.")
     .setFunction(showModalDelete)
     .setRequiredUsers(discord_bot_admin_user_ids),
   [Interactions.ButtonComponentRestore]: new Listener()
+    .setEnabled(discord_config_channel_id && Messages.isServiceEnabled)
     .setDescription("Overwrites the client file with the backup file.")
     .setFunction(showModalRestore)
     .setRequiredUsers(discord_bot_admin_user_ids),

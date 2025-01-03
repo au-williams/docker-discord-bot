@@ -3,7 +3,6 @@
   "discord_bot_admin_user_ids": [""],
   "discord_bot_login_token": "",
   "discord_config_channel_id": "",
-  "enable_config_service": true,
   "enable_logger_debug": true,
   "enable_logger_timestamps": true,
   "enable_messages_service": true,
