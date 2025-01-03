@@ -78,6 +78,20 @@ export class Emitter {
   /**
    *
    */
+  static get builders() {
+    return Emitter.listeners.reduce((total, current) => {
+      if (current.deploymentType != null) {
+        const { builder } = current;
+        if (builder) total.push(builder);
+        else throw new Error("Unexpected deployment type.");
+      }
+      return total;
+    }, []);
+  }
+
+  /**
+   *
+   */
   static get listeners() {
     return Array.from(Emitter._importedListeners.values()).flat();
   }

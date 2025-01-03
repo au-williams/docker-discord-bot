@@ -58,7 +58,7 @@ async function checkAndUpdateMemberRoles({ client, listener }) {
 
     for (const member of [...(await guild.members.fetch()).values()]) {
       // verify the user is not excluded
-      if (member.user.id === config.discord_bot_client_user_id) continue;
+      if (member.user.id === client.user.id) continue;
       validatedMemberCount += 1;
 
       // execute updating the members guild roles
@@ -87,7 +87,7 @@ export async function onGuildMemberAdd({ client, member }) {
   if (config.discord_excluded_guild_ids.includes(member.guild.id)) return;
 
   // verify the user is not excluded
-  if (member.user.id === config.discord_bot_client_user_id) return;
+  if (member.user.id === client.user.id) return;
 
   // execute updating the members guild roles
   const hex = await Utilities.getVibrantColorFromUrl(member.displayAvatarURL());
@@ -103,7 +103,7 @@ export async function onGuildMemberAdd({ client, member }) {
  */
 export async function onGuildMemberUpdate({ client, oldMember, newMember }) {
   // verify the user is not excluded
-  if (newMember.user.id === config.discord_bot_client_user_id) return;
+  if (newMember.user.id === client.user.id) return;
 
   // verify the members server avatar was updated
   const oldMemberDisplayAvatarURL = oldMember.displayAvatarURL();

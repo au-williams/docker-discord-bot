@@ -128,7 +128,7 @@ export async function checkAndAnnounceAssignments({ client, listener }) {
   // ------------------------------------------------------------------------- //
 
   const { dive, eliteDive, endTime, startTime } = cachedApiAssignments;
-  const { dive: lastDive, eliteDive: lastEliteDive } = getLastSentAssignments();
+  const { dive: lastDive, eliteDive: lastEliteDive } = getLastSentAssignments(client);
 
   const isNewAssignments = lastDive.name + lastEliteDive.name !== dive.name + eliteDive.name;
   if (!isNewAssignments) return;
@@ -232,13 +232,13 @@ export function getFormattedTime(time) {
  * Get the assignments last sent to the Discord announcement channel.
  * @returns {object}
  */
-export function getLastSentAssignments() {
+export function getLastSentAssignments(client) {
   const message = Messages
     .get({
       channelId: config.announcement_discord_channel_id
     })
     .find(({ author, embeds }) =>
-      author.id === config.discord_bot_client_user_id
+      author.id === client.user.id
       && embeds?.[0]?.data?.fields?.[0]?.name
       && embeds?.[0]?.data?.fields?.[0]?.value
       && embeds?.[0]?.data?.author?.name?.includes("Deep Rock Galactic")

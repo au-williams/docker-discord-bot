@@ -48,10 +48,24 @@ catch(e) {
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ //
 ///////////////////////////////////////////////////////////////////////////////
 
-client.on(Events.ClientReady, () => Emitter.initialize(client).then(({ emit }) => emit({
-  event: Events.ClientReady,
-  params: { client }
-})));
+client.on(Events.ClientReady, async () => {
+  await Emitter.initialize(client);
+
+  if (process.argv.includes("deploy")) {
+    logger.info("Starting deployment ...");
+    const body = Emitter.builders;
+    const rest = new REST({ version: "10" }).setToken(config.discord_bot_login_token);
+    const data = await rest.put(Routes.applicationCommands(client.user.id), { body });
+    const label = Utilities.getPluralizedString("command", data.length);
+    const names = data.map(({ name }) => `"${name}"`).join(", ")
+    logger.info(`Finished deploying ${data.length} ${label} [${names}]`);
+  }
+
+  Emitter.emit({
+    event: Events.ClientReady,
+    params: { client }
+  });
+});
 
 client.on(Events.GuildMemberAdd, (member) => Emitter.emit({
   event: Events.GuildMemberAdd,
@@ -94,54 +108,4 @@ client.on(Events.UserUpdate, (oldUser, newUser) => Emitter.emit({
   params: { client, oldUser, newUser }
 }));
 
-///////////////////////////////////////////////////////////////////////////////
-// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ //
-// >> DEPLOYMENT DEFINITIONS                                              << //
-// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ //
-///////////////////////////////////////////////////////////////////////////////
-
-/**
- * Launch after deployment when the deploy parameter is provided on startup.
- */
-process.argv.includes("deploy")
-  ? invokeDeploy().then(() => client.login(config.discord_bot_login_token))
-  : client.login(config.discord_bot_login_token);
-
-/**
- * Send a PUT request to Discord with the current slash commands.
- */
-async function invokeDeploy() {
-  // ----------------------------------------------------------------------- //
-  // Initialize Emitter to populate the command listeners                    //
-  // ----------------------------------------------------------------------- //
-
-  logger.info("Starting command deployment ...");
-
-  await Emitter.initialize(client);
-
-  // ----------------------------------------------------------------------- //
-  // Populate the request body with command builders                         //
-  // ----------------------------------------------------------------------- //
-
-  const body = [];
-
-  Emitter.listeners.forEach(listener => {
-    if (listener.deploymentType != null) {
-      const { builder } = listener;
-      if (builder) body.push(builder);
-      else throw new Error("Unexpected deployment type.");
-    }
-  });
-
-  console.log(body)
-  // ----------------------------------------------------------------------- //
-  // Submit the request to the Discord API                                   //
-  // ----------------------------------------------------------------------- //
-
-  const rest = new REST({ version: "10" }).setToken(config.discord_bot_login_token);
-  const data = await rest.put(Routes.applicationCommands(config.discord_bot_client_user_id), { body });
-  const plural = Utilities.getPluralizedString("command", data.length);
-  const names = data.map(({ name }) => name).join(", ")
-
-  logger.info(`Successfully deployed ${data.length} ${plural} [${names}]`);
-}
+client.login(config.discord_bot_login_token);

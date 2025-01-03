@@ -6,7 +6,7 @@ import path from "path";
 
 let client; // TODO: utilize Discord log channel
 
-const { enable_debug_logs, enable_logger_timestamps } = fs.readJsonSync("config.json");
+const { enable_logger_debug, enable_logger_timestamps } = fs.readJsonSync("config.json");
 
 ///////////////////////////////////////////////////////////////////////////////
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ //
@@ -117,7 +117,7 @@ export class Logger {
  * @param {Listener?} param.listener
  */
 export function print({ filename, logMessage, logFunction, listener = null }) {
-  if (logFunction === console.debug && !enable_debug_logs) {
+  if (logFunction === console.debug && !enable_logger_debug) {
     return;
   }
 
@@ -165,7 +165,7 @@ export function print({ filename, logMessage, logFunction, listener = null }) {
   chalkMessage = chalkMessage.replace(/\((.*?)\)/g, chalk.gray("($1)"));
 
   const chalkResult = enable_logger_timestamps
-    ? `${date.format(new Date(), "M/D/YY H:mm:ss")} ${chalkFilename} → ${chalkMessage}`
+    ? `${primaryChalkColor(date.format(new Date(), "M/D/YY H:mm:ss"))} ${chalkFilename} → ${chalkMessage}`
     : `${chalkFilename} → ${chalkMessage}`;
 
   logFunction(chalk.white(chalkResult));
