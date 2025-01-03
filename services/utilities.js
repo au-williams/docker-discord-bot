@@ -783,7 +783,7 @@ export class Utilities {
     CreatedThread: (thread, listener) => logger.info(`Created thread channel "${thread.name}"`, listener),
     DebugSetValue: (property, value, listener) => logger.debug(`Set "${property}" key as "${Utilities.getValueAsString(value)}" ${Utilities.getValueAsType(value)} value.`, listener),
     DeletedMessage: (message, listener) => logger.info(`Deleted a${Utilities.checkEphemeralMessage(message) ? "n ephemeral" : ""} message in ${Utilities.getFormattedGuildAndChannelString(message)} sent by ${message.author.displayName}.`, listener),
-    DeletedReply: (message, listener) => logger.info(`Deleted a${Utilities.checkEphemeralMessage(message) ? "n ephemeral" : ""} message reply in ${Utilities.getFormattedGuildAndChannelString(message)}.`, listener),
+    DeletedReply: (interaction, listener) => logger.info(`Deleted a message reply in ${Utilities.getFormattedGuildAndChannelString(interaction.message)}.`, listener),
     EditedMessage: (message, listener) => logger.info(`Edited a${Utilities.checkEphemeralMessage(message) ? "n ephemeral" : ""} message in ${Utilities.getFormattedGuildAndChannelString(message)}.`, listener),
     EditedMessageFile: (message, filename, listener) => logger.info(`Edited a${Utilities.checkEphemeralMessage(message) ? "n ephemeral" : ""} message reply with "${filename}" file in ${Utilities.getFormattedGuildAndChannelString(message)}.`, listener),
     EditedReply: (message, listener) => logger.info(`Edited a${Utilities.checkEphemeralMessage(message) ? "n ephemeral" : ""} message reply in ${Utilities.getFormattedGuildAndChannelString(message)}.`, listener),

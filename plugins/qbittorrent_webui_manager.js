@@ -320,7 +320,7 @@ export async function onButtonSaveChanges({ client, interaction, listener }) {
 
   interaction
     .deleteReply()
-    .then(result => Utilities.LogPresets.DeletedReply(result, listener))
+    .then(() => Utilities.LogPresets.DeletedReply(interaction, listener))
     .catch(error => logger.error(error, listener));
 
   const { embeds } = await buildEmbeddedMessage();
