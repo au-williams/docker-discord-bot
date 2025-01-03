@@ -1,11 +1,12 @@
 import { Events } from "discord.js";
 import chalk from "chalk";
+import date from "date-and-time";
 import fs from "fs-extra";
 import path from "path";
 
 let client; // TODO: utilize Discord log channel
 
-const { enable_debug_logs } = fs.readJsonSync("config.json");
+const { enable_debug_logs, enable_logger_timestamps } = fs.readJsonSync("config.json");
 
 ///////////////////////////////////////////////////////////////////////////////
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ //
@@ -163,7 +164,10 @@ export function print({ filename, logMessage, logFunction, listener = null }) {
 
   chalkMessage = chalkMessage.replace(/\((.*?)\)/g, chalk.gray("($1)"));
 
-  const chalkResult = `${chalkFilename} → ${chalkMessage}`;
+  const chalkResult = enable_logger_timestamps
+    ? `${date.format(new Date(), "M/D/YY H:mm:ss")} ${chalkFilename} → ${chalkMessage}`
+    : `${chalkFilename} → ${chalkMessage}`;
+
   logFunction(chalk.white(chalkResult));
 }
 

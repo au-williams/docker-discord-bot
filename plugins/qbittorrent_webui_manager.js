@@ -335,6 +335,14 @@ export async function onButtonSaveChanges({ client, interaction, listener }) {
   Emitter.setBusy(interaction, false);
 }
 
+
+/**
+ * Build the message `embeds` and `files` properties. This will take more than
+ * one second while the qBittorrent API is fetched multiple times to calculate
+ * average download and upload speeds.
+ * @async
+ * @returns {object}
+ */
 export async function buildEmbeddedMessage() {
   const embeds = [new EmbedBuilder()];
   const files = [new AttachmentBuilder("assets/qbittorrent_logo.png")];
@@ -398,9 +406,9 @@ export async function buildEmbeddedMessage() {
 }
 
 /**
- * @export
+ * When the Cron job is invoked, remove the config value and disable the speed
+ * limit via post request to the qBittorrent API.
  * @async
- * @returns {*}
  */
 export async function onQbittorrentCronJob() {
   const isSpeedLimitEnabled = await getQbittorrentSpeedLimitEnabled(cookie);
