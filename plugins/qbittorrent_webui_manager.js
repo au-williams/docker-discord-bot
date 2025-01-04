@@ -1,4 +1,4 @@
-import { ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle, ChatInputCommandInteraction, EmbedBuilder, Events, StringSelectMenuBuilder, StringSelectMenuOptionBuilder } from "discord.js";
+import { ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, Events, StringSelectMenuBuilder, StringSelectMenuOptionBuilder } from "discord.js";
 import { Config } from "../services/config.js";
 import { DeploymentTypes } from "../entities/DeploymentTypes.js";
 import { Emitter } from "../services/emitter.js";
@@ -12,6 +12,12 @@ const config = new Config(import.meta.filename);
 const logger = new Logger(import.meta.filename);
 
 /**
+ * The authentication cookie for the qBittorrent WebAPI.
+ * @type {string}
+ */
+let cookie;
+
+/**
  * The selected speed limit duration list item.
  * @type {Map<string, string>} <messageId, selectedValue>
  */
@@ -22,12 +28,6 @@ const selectedSpeedLimitDurations = new Map();
  * @type {Map<string, ChatInputCommandInteraction>} <messageId, interaction>
  */
 const starterMessageInteractions = new Map();
-
-/**
- * The authentication cookie for the qBittorrent WebAPI.
- * @type {string}
- */
-let cookie;
 
 ///////////////////////////////////////////////////////////////////////////////
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ //
@@ -45,8 +45,8 @@ export const Interactions = Object.freeze({
 });
 
 export const Listeners = Object.freeze({
-  [Events.ClientReady]: new Listener()
-    .setFunction(onClientReady),
+  [Events.ClientReady]:
+    onClientReady,
   [Interactions.ButtonAddMagnet]: new Listener()
     .setDescription("Displays a popup to paste a new magnet link for the qBittorrent download queue.")
     .setFunction(() => { throw new Error("Not implemented") })
@@ -62,7 +62,7 @@ export const Listeners = Object.freeze({
   [Interactions.ChatInputCommandQbittorrent]: new Listener()
     .setDeploymentType(DeploymentTypes.ChatInputCommand)
     .setDescription("Sends you a message to manage the qBittorrent WebUI. 🌐")
-    .setFunction(sendSlashCommandReply)
+    .setFunction(onChatInputCommandQbittorrent)
     .setRequiredRoles(config.discord_required_role_ids),
   [Interactions.SelectMenuSpeedLimitDuration]: new Listener()
     .setDescription("Chooses a duration to use the qBittorrent speed limit for. The speed limit will be removed once the duration has been reached.")
@@ -95,7 +95,6 @@ const buttonManageSpeedLimit = new ButtonBuilder()
 
 const buttonSaveChanges = new ButtonBuilder()
   .setCustomId(Interactions.ButtonSaveChanges)
-  .setDisabled(true)
   .setEmoji("☑️")
   .setLabel("Save changes")
   .setStyle(ButtonStyle.Secondary);
@@ -148,179 +147,6 @@ function getSelectMenuSpeedLimitDuration(selectedValue, isSpeedLimitEnabled) {
 // #region PLUGIN LOGIC                                                      //
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ //
 ///////////////////////////////////////////////////////////////////////////////
-
-/**
- * Format the bytes per second as KiB/s or MiB/s.
- * @param {number} bytesPerSecond
- * @returns {string}
- */
-export function formatSpeed(bytesPerSecond) {
-  if (bytesPerSecond < 1048576) { // Below 1 MiB
-    const kib = bytesPerSecond / 1024;
-    return `${kib.toFixed(2)} KiB/s`;
-  } else { // 1 MiB or more
-    const mib = bytesPerSecond / 1048576;
-    return `${mib.toFixed(2)} MiB/s`;
-  }
-}
-
-/**
- * Get the Qbittorrent version from the API.
- * @async
- * @param {string} cookie
- * @returns {Promise<string>}
- */
-export async function getQbittorrentVersion(cookie) {
-  const url = `${config.qbittorrent_host}/api/v2/app/version`;
-  const options = { method: "GET", headers: { "Cookie": cookie } }
-  const response = await fetch(url, options);
-  if (response.ok) return await response.text();
-  throw new Error(await response.text());
-}
-
-/**
- * Get the Qbittorrent WebAPI version from the API.
- * @async
- * @param {string} cookie
- * @returns {Promise<string>}
- */
-export async function getQbittorrentWebApiVersion(cookie) {
-  const url = `${config.qbittorrent_host}/api/v2/app/webapiVersion`;
-  const options = { method: "GET", headers: { "Cookie": cookie } }
-  const response = await fetch(url, options);
-  if (response.ok) return await response.text();
-  throw new Error(await response.text());
-}
-
-/**
- * Get the Qbittorrent transfer info from the API.
- * @async
- * @param {string} cookie
- * @returns {Promise<string>}
- */
-export async function getQbittorrentInfo(cookie) {
-  const url = `${config.qbittorrent_host}/api/v2/transfer/info`;
-  const options = { method: "GET", headers: { "Cookie": cookie } }
-  const response = await fetch(url, options);
-  if (response.ok) return await response.json();
-  throw new Error(await response.text());
-}
-
-/**
- * Get the Qbittorrent speed limit enabled state from the API.
- * @async
- * @param {string} cookie
- * @returns {Promise<boolean>}
- */
-export async function getQbittorrentSpeedLimitEnabled(cookie) {
-  const url = `${config.qbittorrent_host}/api/v2/transfer/speedLimitsMode`;
-  const options = { method: "GET", headers: { "Cookie": cookie } }
-  const response = await fetch(url, options);
-  if (response.ok) return await response.text() === "1";
-  throw new Error(await response.text());
-}
-
-/**
- * Toggle the Qbittorrent speed limit mode with the API.
- * @async
- * @param {string} cookie
- * @returns {Promise<string>}
- */
-export async function postQbittorrentToggleSpeedLimitsMode(cookie) {
-  const url = `${config.qbittorrent_host}/api/v2/transfer/toggleSpeedLimitsMode`;
-
-  const response = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-      "Cookie": cookie
-    },
-  });
-
-  if (!response.ok) {
-    throw new Error(await response.text());
-  }
-}
-
-/**
- *
- */
-export async function onButtonSpeedLimit({ client, interaction, listener }) {
-  await interaction.deferReply({ ephemeral: true });
-
-  const isSpeedLimitEnabled = await getQbittorrentSpeedLimitEnabled(cookie);
-
-  const components = [
-    new ActionRowBuilder().addComponents(getSelectMenuSpeedLimitDuration(null, isSpeedLimitEnabled)),
-    new ActionRowBuilder().addComponents(buttonSaveChanges, Emitter.moreInfoButton),
-  ];
-
-  interaction.editReply({ components });
-}
-
-/**
- * Description placeholder
- * @export
- * @async
- * @param {{ client: any; interaction: any; listener: any; }} param0
- * @param {*} param0.client
- * @param {*} param0.interaction
- * @param {*} param0.listener
- * @returns {*}
- */
-export async function onButtonSaveChanges({ client, interaction, listener }) {
-  await interaction.deferUpdate();
-  Emitter.setBusy(interaction, true);
-
-  const isSpeedLimitEnabled = await getQbittorrentSpeedLimitEnabled(cookie);
-  const duration = selectedSpeedLimitDurations.get(interaction.message.id);
-
-  switch(duration) {
-    case "remove": {
-      if (isSpeedLimitEnabled) await postQbittorrentToggleSpeedLimitsMode(cookie);
-      config.cron_job_date = ""; // Speed limit is removed. Remove disable date.
-      break;
-    }
-    case "indefinite": {
-      if (!isSpeedLimitEnabled) await postQbittorrentToggleSpeedLimitsMode(cookie);
-      config.cron_job_date = ""; // Speed limit is indefinite. Remove disable date.
-      break;
-    }
-    default: {
-      // Update the Qbittorrent speed limit mode.
-      if (!isSpeedLimitEnabled) await postQbittorrentToggleSpeedLimitsMode(cookie);
-
-      // Save date to config in case the client is restarted.
-      const cronJobDate = date.addHours(new Date(), duration);
-      config.cron_job_date = cronJobDate.toString();
-
-      // Create the Cron job to run on the date.
-      Emitter.stopCronJobs(onQbittorrentCronJob);
-      const cronJob = new CronJob().setExpression(cronJobDate).setFunction(onQbittorrentCronJob);
-      Emitter.scheduleCronJob({ client, interaction, listener, cronJob });
-      break;
-    }
-  }
-
-  config.save();
-
-  interaction
-    .deleteReply()
-    .then(() => Utilities.LogPresets.DeletedReply(interaction, listener))
-    .catch(error => logger.error(error, listener));
-
-  const { embeds } = await buildEmbeddedMessage();
-
-  starterMessageInteractions
-    .get(interaction.message.reference.messageId)
-    .editReply({ embeds, fetchReply: true })
-    .then(result => Utilities.LogPresets.EditedReply(result, listener))
-    .catch(error => logger.error(error, listener));
-
-
-  Emitter.setBusy(interaction, false);
-}
-
 
 /**
  * Build the message `embeds` and `files` properties. This will take more than
@@ -392,15 +218,168 @@ export async function buildEmbeddedMessage() {
 }
 
 /**
- * When the Cron job is invoked, remove the config value and disable the speed
- * limit via post request to the qBittorrent API.
- * @async
+ * Format the bytes per second as KiB/s or MiB/s.
+ * @param {number} bytesPerSecond
+ * @returns {string}
  */
-export async function onQbittorrentCronJob() {
+export function formatSpeed(bytesPerSecond) {
+  if (bytesPerSecond < 1048576) { // Below 1 MiB
+    const kib = bytesPerSecond / 1024;
+    return `${kib.toFixed(2)} KiB/s`;
+  } else { // 1 MiB or more
+    const mib = bytesPerSecond / 1048576;
+    return `${mib.toFixed(2)} MiB/s`;
+  }
+}
+
+/**
+ * Get the Qbittorrent transfer info from the API.
+ * @async
+ * @param {string} cookie
+ * @returns {Promise<string>}
+ */
+export async function getQbittorrentInfo(cookie) {
+  const url = `${config.qbittorrent_host}/api/v2/transfer/info`;
+  const options = { method: "GET", headers: { "Cookie": cookie } }
+  const response = await fetch(url, options);
+  if (response.ok) return await response.json();
+  throw new Error(await response.text());
+}
+
+/**
+ * Get the Qbittorrent speed limit enabled state from the API.
+ * @async
+ * @param {string} cookie
+ * @returns {Promise<boolean>}
+ */
+export async function getQbittorrentSpeedLimitEnabled(cookie) {
+  const url = `${config.qbittorrent_host}/api/v2/transfer/speedLimitsMode`;
+  const options = { method: "GET", headers: { "Cookie": cookie } }
+  const response = await fetch(url, options);
+  if (response.ok) return await response.text() === "1";
+  throw new Error(await response.text());
+}
+
+/**
+ * Get the Qbittorrent version from the API.
+ * @async
+ * @param {string} cookie
+ * @returns {Promise<string>}
+ */
+export async function getQbittorrentVersion(cookie) {
+  const url = `${config.qbittorrent_host}/api/v2/app/version`;
+  const options = { method: "GET", headers: { "Cookie": cookie } }
+  const response = await fetch(url, options);
+  if (response.ok) return await response.text();
+  throw new Error(await response.text());
+}
+
+/**
+ * Get the Qbittorrent WebAPI version from the API.
+ * @async
+ * @param {string} cookie
+ * @returns {Promise<string>}
+ */
+export async function getQbittorrentWebApiVersion(cookie) {
+  const url = `${config.qbittorrent_host}/api/v2/app/webapiVersion`;
+  const options = { method: "GET", headers: { "Cookie": cookie } }
+  const response = await fetch(url, options);
+  if (response.ok) return await response.text();
+  throw new Error(await response.text());
+}
+
+/**
+ *
+ */
+export async function onButtonSaveChanges({ client, interaction, listener }) {
+  await interaction.deferUpdate();
+  Emitter.setBusy(interaction, true);
+
   const isSpeedLimitEnabled = await getQbittorrentSpeedLimitEnabled(cookie);
-  if (isSpeedLimitEnabled) await postQbittorrentToggleSpeedLimitsMode(cookie);
-  config.cron_job_date = "";
+  const duration = selectedSpeedLimitDurations.get(interaction.message.id);
+
+  switch(duration) {
+    case "remove": {
+      if (isSpeedLimitEnabled) await postQbittorrentToggleSpeedLimitsMode(cookie);
+      config.cron_job_date = ""; // Speed limit is removed. Remove disable date.
+      break;
+    }
+    case "indefinite": {
+      if (!isSpeedLimitEnabled) await postQbittorrentToggleSpeedLimitsMode(cookie);
+      config.cron_job_date = ""; // Speed limit is indefinite. Remove disable date.
+      break;
+    }
+    default: {
+      // Update the Qbittorrent speed limit mode.
+      if (!isSpeedLimitEnabled) await postQbittorrentToggleSpeedLimitsMode(cookie);
+
+      // Save date to config in case the client is restarted.
+      const cronJobDate = date.addHours(new Date(), Number(duration));
+      config.cron_job_date = cronJobDate.toString();
+
+      // Create the Cron job to run on the date.
+      Emitter.stopCronJobs(onQbittorrentCronJob);
+      const cronJob = new CronJob().setExpression(cronJobDate).setFunction(onQbittorrentCronJob);
+      Emitter.scheduleCronJob({ client, cronJob, interaction, listener });
+      break;
+    }
+  }
+
   config.save();
+
+  interaction
+    .deleteReply()
+    .then(() => Utilities.LogPresets.DeletedReply(interaction, listener))
+    .catch(error => logger.error(error, listener));
+
+  const { embeds } = await buildEmbeddedMessage();
+
+  starterMessageInteractions
+    .get(interaction.message.reference.messageId)
+    .editReply({ embeds, fetchReply: true })
+    .then(result => Utilities.LogPresets.EditedReply(result, listener))
+    .catch(error => logger.error(error, listener));
+
+  Emitter.setBusy(interaction, false);
+}
+
+/**
+ *
+ */
+export async function onButtonSpeedLimit({ interaction, listener }) {
+  await interaction.deferReply({ ephemeral: true });
+
+  const isSpeedLimitEnabled = await getQbittorrentSpeedLimitEnabled(cookie);
+
+  const components = [
+    new ActionRowBuilder().addComponents(getSelectMenuSpeedLimitDuration(null, isSpeedLimitEnabled)),
+    new ActionRowBuilder().addComponents(buttonSaveChanges.setDisabled(true), Emitter.moreInfoButton),
+  ];
+
+  interaction
+    .editReply({ components, fetchReply: true })
+    .then(result => Utilities.LogPresets.EditedReply(result, listener))
+    .catch(error => logger.error(error, listener));
+}
+
+/**
+ * @param {object} param
+ * @param {CommandInteraction} param.interaction
+ * @param {Listener} param.listener
+ */
+export async function onChatInputCommandQbittorrent({ interaction, listener }) {
+  const reply = await interaction.deferReply({ ephemeral: true, fetchReply: true });
+
+  starterMessageInteractions.set(reply.id, interaction);
+
+  const buttons = [buttonAddMagnet, buttonManageSpeedLimit, Emitter.moreInfoButton];
+  const components = [new ActionRowBuilder().addComponents(...buttons)];
+  const { embeds, files } = await buildEmbeddedMessage();
+
+  interaction
+    .editReply({ components, embeds, files })
+    .then(result => Utilities.LogPresets.EditedReply(result, listener))
+    .catch(error => logger.error(error, listener));
 }
 
 /**
@@ -428,9 +407,22 @@ export async function onClientReady({ client, interaction, listener }) {
 
   if (config.cron_job_date) {
     const cronJobDate = new Date(config.cron_job_date);
+    Emitter.stopCronJobs(onQbittorrentCronJob); // Just in case of any jobs previously created.
     const cronJob = new CronJob().setExpression(cronJobDate).setFunction(onQbittorrentCronJob);
     Emitter.scheduleCronJob({ client, cronJob, interaction, listener });
   }
+}
+
+/**
+ * When the Cron job is invoked, remove the config value and disable the speed
+ * limit via post request to the qBittorrent API.
+ * @async
+ */
+export async function onQbittorrentCronJob() {
+  const isSpeedLimitEnabled = await getQbittorrentSpeedLimitEnabled(cookie);
+  if (isSpeedLimitEnabled) await postQbittorrentToggleSpeedLimitsMode(cookie);
+  config.cron_job_date = "";
+  config.save();
 }
 
 /**
@@ -448,7 +440,7 @@ export async function onSelectMenuSpeedLimitDuration({ listener, interaction }) 
   const menu = getSelectMenuSpeedLimitDuration(interaction.values[0], isSpeedLimitEnabled);
   const row1 = new ActionRowBuilder().addComponents(menu);
   const row2 = ActionRowBuilder.from(interaction.message.components[1]);
-  row2.components[0].setDisabled(false);
+  row2.components[0] = buttonSaveChanges.setDisabled(false);
 
   interaction
     .editReply({ components: [row1, row2], fetchReply: true })
@@ -459,25 +451,26 @@ export async function onSelectMenuSpeedLimitDuration({ listener, interaction }) 
 }
 
 /**
- * @param {object} param
- * @param {CommandInteraction} param.interaction
- * @param {Listener} param.listener
+ * Toggle the Qbittorrent speed limit mode with the API.
+ * @async
+ * @param {string} cookie
+ * @returns {Promise<string>}
  */
-export async function sendSlashCommandReply({ interaction, listener }) {
-  const reply = await interaction.deferReply({ ephemeral: true, fetchReply: true });
+export async function postQbittorrentToggleSpeedLimitsMode(cookie) {
+  const url = `${config.qbittorrent_host}/api/v2/transfer/toggleSpeedLimitsMode`;
 
-  starterMessageInteractions.set(reply.id, interaction);
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      "Cookie": cookie
+    },
+  });
 
-  const buttons = [buttonAddMagnet, buttonManageSpeedLimit, Emitter.moreInfoButton];
-  const components = [new ActionRowBuilder().addComponents(...buttons)];
-  const { embeds, files } = await buildEmbeddedMessage();
-
-  interaction
-    .editReply({ components, embeds, files })
-    .then(result => Utilities.LogPresets.EditedReply(result, listener))
-    .catch(error => logger.error(error, listener));
+  if (!response.ok) {
+    throw new Error(await response.text());
+  }
 }
-
 
 ///////////////////////////////////////////////////////////////////////////////
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ //
