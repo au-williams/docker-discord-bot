@@ -1,4 +1,4 @@
-import { Client, Events, GatewayIntentBits, Options, Partials, REST, Routes } from "discord.js";
+import { ApplicationCommandType, Client, Events, GatewayIntentBits, Options, Partials, REST, Routes } from "discord.js";
 import { Config } from "./services/config.js";
 import { Emitter } from "./services/emitter.js";
 import { Logger } from "./services/logger.js";
@@ -57,8 +57,8 @@ client.on(Events.ClientReady, async () => {
     const rest = new REST({ version: "10" }).setToken(config.discord_bot_login_token);
     const data = await rest.put(Routes.applicationCommands(client.user.id), { body });
     const label = Utilities.getPluralizedString("command", data.length);
-    const names = data.map(({ name }) => `"${name}"`).join(", ")
-    logger.info(`Finished deploying ${data.length} ${label} [${names}]`);
+    const names = data.map(d => `"${d.type === ApplicationCommandType.ChatInput ? "/" : ""}${d.name}"`);
+    logger.info(`Finished deploying ${data.length} ${label} [${names.join(", ")}]`);
   }
 
   Emitter.emit({
