@@ -290,7 +290,6 @@ export async function restoreBackupFile({ interaction }) {
     .filter(({ contentType }) => contentType.includes("application/json"));
 
   if (!attachments.length) {
-    // TODO: send error as message from emitter ... this should be throw?
     throw new Error("Invalid message attachments. Received zero but expected one or many.");
   }
 
