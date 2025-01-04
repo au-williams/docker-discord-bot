@@ -122,7 +122,8 @@ export const Listeners = Object.freeze({
   [Interactions.ChatInputCommandCaturday]: new Listener()
     .setDeploymentType(DeploymentTypes.ChatInputCommand)
     .setDescription("Privately shows a file selector to submit channel pictures for #caturday 🐱")
-    .setFunction(onChatInputCommandCaturday),
+    .setFunction(onChatInputCommandCaturday)
+    .setRequiredRoles(config.discord_admin_role_ids),
   [Interactions.ContextMenuCommandCollectCatTaxes]: new Listener()
     .setDeploymentType(DeploymentTypes.UserContextMenuCommand)
     .setFunction(onContextMenuCommandCollectCatTaxes)
