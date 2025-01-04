@@ -369,12 +369,18 @@ async function handleListenerError({ interaction, listener, error }) {
   try {
     logger.error(error, listener);
 
-    if (interaction && error.toString().includes("DiscordAPIError[40005]")) {
+    if (!interaction) return;
+
+    if (!interaction.deferred) {
+      await interaction.deferUpdate();
+    }
+
+    if (error.toString().includes("DiscordAPIError[40005]")) {
       const content = `I'm not able to upload your file because the size exceeds the limit set by Discord. Please try again with a smaller file.\n\`\`\`${error}\`\`\``;
       const reply = await interaction.followUp({ content, ephemeral: true }).catch(e => logger.error(e, listener));
       if (reply) Utilities.LogPresets.SentReply(reply, listener);
     }
-    else if (interaction) {
+    else {
       const joinedAdmins = Utilities.getJoinedArrayWithOr(discord_bot_admin_user_ids.map(item => `<@${item}>`));
       const content = `I had an error with your request. Please contact ${joinedAdmins} if it keeps happening. 🧑‍🔧\n\`\`\`${error}\`\`\``;
       const reply = await interaction.followUp({ content, ephemeral: true }).catch(e => logger.error(e, listener));
