@@ -9,6 +9,7 @@ import Downloader from "nodejs-file-downloader";
 import fs from "fs-extra";
 import Listener from "../entities/Listener.js";
 import path from "path";
+import { stringify } from "querystring";
 
 const { discord_bot_admin_user_ids, discord_config_channel_id, temp_directory } = fs.readJsonSync("config.json");
 
@@ -446,11 +447,8 @@ export async function validateBackups({ client, listener }) {
 function validateContents(contents, filename, filepath) {
   const count = Object.keys(contents).length;
   const size = Utilities.getSizeInKilobytes(filepath);
-  logger.debug(`Read ${count} key-value ${Utilities.getPluralizedString("pair", count)} from "${filename}" file. (${size})`);
-
-  for (const [index, [key, value]] of Object.entries(contents).entries()) {
-    logger.debug(`[${index}] { "${key}" : "${typeof value === "string" && value === "" ? "\"\"" : value.toString()}" }`);
-  }
+  const text = `Read ${count} key-value ${Utilities.getPluralizedString("pair", count)} from "${filename}" file. (${size})`;
+  logger.debug(`${text}\n${JSON.stringify(contents, null, 2)}`);
 }
 
 ///////////////////////////////////////////////////////////////////////////////

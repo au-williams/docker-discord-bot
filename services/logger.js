@@ -99,7 +99,7 @@ export class Logger {
    * @param {Listener?} listener The listener of the issuing command / event / interaction (optional).
    * @returns {undefined}
    */
-  debug = (message, listener = null) => print({
+  debug = (message, listener = null) => enable_logger_debug && print({
     filename: listener?.filename || this?.filename,
     logMessage: message,
     logFunction: console.debug,
@@ -117,58 +117,40 @@ export class Logger {
  * @param {Listener?} param.listener
  */
 export function print({ filename, logMessage, logFunction, listener = null }) {
-  if (logFunction === console.debug && !enable_logger_debug) {
-    return;
-  }
+  let text = enable_logger_timestamps
+    ? `${date.format(new Date(), "M/D/YY H:mm:ss")} ${filename}`
+    : `${filename}`;
 
-  const primaryChalkColor = (() => {
-    switch(logFunction) {
-      case console.log: return chalk.greenBright;
-      case console.warn: return chalk.yellow;
-      case console.error: return chalk.red;
-      case console.debug: return chalk.gray;
-      default: throw new Error("Invalid logFunction was provided.");
-    }
-  })();
+  if (console.log === logFunction) text = chalk.greenBright(text);
+  else if (console.warn === logFunction) text = chalk.yellow(text);
+  else if (console.error === logFunction) text = chalk.red(text);
+  else if (console.debug === logFunction) text = chalk.gray(`# ${text}`);
+  else throw new Error("Invalid logFunction was provided.");
 
-  // --------------------------------------------------------------------- //
-  // Format the filename to include listener information                   //
-  // --------------------------------------------------------------------- //
+  if (listener?.id) text += console.debug === logFunction
+    ? ` ${chalk.gray("[")}${chalk.gray(`"${listener.id}"`)}${chalk.gray("]")}`
+    : ` ${chalk.yellowBright("[")}${chalk.cyanBright(`"${listener.id}"`)}${chalk.yellowBright("]")}`;
 
-  let chalkFilename = logFunction === console.debug
-    ? primaryChalkColor(`# ${filename}`)
-    : primaryChalkColor(`${filename}`);
-
-  if (listener?.id) {
-    chalkFilename += logFunction === console.debug
-      ? ` ${chalk.gray(`["${listener.id}"]`)}`
-      : ` ${chalk.yellowBright("[")}${chalk.cyanBright(`"${listener.id}"`)}${chalk.yellowBright("]")}`;
-  }
-
-  // --------------------------------------------------------------------- //
-  // Format the message to include stack information                       //
-  // --------------------------------------------------------------------- //
-
-  let chalkMessage = logMessage;
-
-  if (chalkMessage.stack) {
+  if (logMessage.stack) {
     const stack = logMessage.stack.split("\n");
     const header = stack.shift();
     const body = stack.map(item => `    ${item.trim()}`).join("\n");
-    chalkMessage = `${header}\n${body}`;
+    text += ` → ${header}\n${body}`;
   }
 
-  else if (typeof chalkMessage === "object") {
-    chalkMessage = `${chalkMessage.constructor.name}\n${JSON.stringify(chalkMessage, null, 4)}`;
+  else if (typeof logMessage === "object") {
+    const name = logMessage.constructor.name;
+    const json = JSON.stringify(logMessage, null, 4);
+    text += ` → ${name}\n${json}`;
   }
 
-  chalkMessage = chalkMessage.replace(/\((.*?)\)/g, chalk.gray("($1)"));
+  else {
+    text += ` → ${logMessage}`;
+  }
 
-  const chalkResult = enable_logger_timestamps
-    ? `${primaryChalkColor(date.format(new Date(), "M/D/YY H:mm:ss"))} ${chalkFilename} → ${chalkMessage}`
-    : `${chalkFilename} → ${chalkMessage}`;
-
-  logFunction(chalk.white(chalkResult));
+  text = text.replace(/\((.*?)\)$/gm, chalk.gray("($1)"));
+  text = chalk.white(text);
+  logFunction(text);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
