@@ -50,7 +50,7 @@ export const Listeners = Object.freeze({
     .setFunction(replyEliteDeepDiveAssignmentDetails),
   [Interactions.ChatInputCommandDrg]: new Listener()
     .setDeploymentType(DeploymentTypes.ChatInputCommand)
-    .setDescription("Privately shows you this weeks Deep Dive assignments in Deep Rock Galactic. 🎮")
+    .setDescription("Sends you Deep Rock Galactic's Deep Dive assignments. 🎮")
     .setFunction(replyThisWeeksAssignments),
 });
 

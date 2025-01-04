@@ -32,7 +32,7 @@ export const Interactions = Object.freeze({
 export const Listeners = Object.freeze({
   [Interactions.ChatInputCommandCatfact]: new Listener()
     .setDeploymentType(DeploymentTypes.ChatInputCommand)
-    .setDescription("Publicly sends a message to the channel with a random cat fact. 🐱")
+    .setDescription("Sends a message with a random cat fact to the channel. 🐱")
     .setFunction(sendSlashCommandReply)
 });
 
