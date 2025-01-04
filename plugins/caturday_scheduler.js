@@ -1,4 +1,4 @@
-import { ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle, ChannelType, EmbedBuilder, Events, UserSelectMenuBuilder } from "discord.js";
+import { ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle, ChannelType, EmbedBuilder, Events, InteractionContextType, UserSelectMenuBuilder } from "discord.js";
 import { Config } from "../services/config.js";
 import { DeploymentTypes } from "../entities/DeploymentTypes.js";
 import { Emitter } from "../services/emitter.js";
@@ -102,11 +102,13 @@ export const Listeners = Object.freeze({
     .setDescription("Chooses the user that should be attributed for the image.")
     .setFunction(onSelectMenuUser),
   [Interactions.ChatInputCommandCaturday]: new Listener()
+    .setContexts(InteractionContextType.Guild, InteractionContextType.PrivateChannel)
     .setDeploymentType(DeploymentTypes.ChatInputCommand)
     .setDescription("Privately shows a file selector to submit channel pictures for #caturday 🐱")
     .setFunction(onChatInputCommandCaturday)
     .setRequiredRoles(config.discord_admin_role_ids),
   [Interactions.ContextMenuCommandCollectCatTaxes]: new Listener()
+    .setContexts(InteractionContextType.Guild, InteractionContextType.PrivateChannel)
     .setDeploymentType(DeploymentTypes.UserContextMenuCommand)
     .setFunction(onContextMenuCommandCollectCatTaxes)
     .setRequiredRoles(config.discord_admin_role_ids)

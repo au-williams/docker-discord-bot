@@ -15,6 +15,7 @@ export default class Listener {
    */
   constructor() {
     this.commandName = "";
+    this.contexts = null;
     this.customId = "";
     this.description = "";
     this.deploymentType = null;
@@ -66,16 +67,24 @@ export default class Listener {
    *
    */
   get builder() {
+    if (IsDeploymentType(this.deploymentType)) {
+      this.contexts ??= [
+        InteractionContextType.Guild,
+        InteractionContextType.BotDM,
+        InteractionContextType.PrivateChannel
+      ]
+    }
+
     switch(this.deploymentType) {
       case DeploymentTypes.ChatInputCommand:
         return new SlashCommandBuilder()
-          .setContexts(InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel)
+          .setContexts(...this.contexts)
           .setDescription(this.description)
           .setName(this.id)
           .setNSFW(false);
       case DeploymentTypes.UserContextMenuCommand:
         return new ContextMenuCommandBuilder()
-          .setContexts(InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel)
+          .setContexts(...this.contexts)
           .setName(this.id)
           .setType(ApplicationCommandType.User); // TODO: https://discordjs.guide/interactions/context-menus.html#registering-context-menu-commands
       default:
@@ -197,6 +206,16 @@ export default class Listener {
   setCommandName(commandName) {
     Utilities.throwType("string", commandName);
     this.commandName = commandName;
+    return this;
+  }
+
+  /**
+   *
+   */
+  setContexts(...contexts) {
+    const isType = item => Object.values(InteractionContextType).includes(item);
+    contexts.forEach(item => { if(!isType(item)) { throw new Error("Unexpected context type."); }});
+    this.contexts = contexts;
     return this;
   }
 
