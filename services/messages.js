@@ -10,19 +10,10 @@ const { enable_messages_service } = fs.readJsonSync("config.json");
 
 ///////////////////////////////////////////////////////////////////////////////
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ //
-// #region EMITTER.JS LISTENERS                                              //
+// #region EMITTER.JS IMPORTS                                                //
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ //
 ///////////////////////////////////////////////////////////////////////////////
 
-/**
- * The event listeners handled by this script. The key is a Discord event or an
- * interaction property from the `Interactions<object>` variable. The value is
- * a `Listener` object and requires a function to be set. Listeners that only
- * set a function can use the function as the value and it will be wrapped in
- * a Listener by the framework for you automatically. When the key is emitted
- * by Discord then the value will be executed. You may use an array to define
- * multiple Listeners for a single key.
- */
 export const Listeners = Object.freeze({
   [Events.ClientReady]: new Listener()
     .setEnabled(enable_messages_service)
@@ -41,7 +32,7 @@ export const Listeners = Object.freeze({
 
 ///////////////////////////////////////////////////////////////////////////////
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ //
-// #endregion EMITTER.JS LISTENERS                                           //
+// #endregion EMITTER.JS IMPORTS                                             //
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ //
 ///////////////////////////////////////////////////////////////////////////////
 

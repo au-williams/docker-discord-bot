@@ -19,30 +19,16 @@ const logger = new Logger(import.meta.filename);
 
 ///////////////////////////////////////////////////////////////////////////////
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ //
-// #region EMITTER.JS LISTENERS                                              //
+// #region EMITTER.JS IMPORTS                                                //
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ //
 ///////////////////////////////////////////////////////////////////////////////
 
-/**
- * The interactions created by this script. We use these unique IDs to define
- * buttons, commands, and components and so Discord can emit the interactions
- * that we handle in the `Listeners<object>` variable.
- */
 export const Interactions = Object.freeze({
   ButtonComponentHideMessage: "DM_MANAGER_BUTTON_COMPONENT_HIDE_MESSAGE",
   ButtonComponentSendReply: "DM_MANAGER_BUTTON_COMPONENT_SEND_REPLY",
   ModalSubmitSendReply: "DM_MANAGER_MODAL_SUBMIT_SEND_REPLY",
 });
 
-/**
- * The event listeners handled by this script. The key is a Discord event or an
- * interaction property from the `Interactions<object>` variable. The value is
- * a `Listener` object and requires a function to be set. Listeners that only
- * set a function can use the function as the value and it will be wrapped in
- * a Listener by the framework for you automatically. When the key is emitted
- * by Discord then the value will be executed. You may use an array to define
- * multiple Listeners for a single key.
- */
 export const Listeners = Object.freeze({
   [Events.MessageCreate]: new Listener()
     .setFunction(onDirectMessageCreate)
@@ -62,7 +48,7 @@ export const Listeners = Object.freeze({
 
 ///////////////////////////////////////////////////////////////////////////////
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ //
-// #endregion EMITTER.JS LISTENERS                                           //
+// #endregion EMITTER.JS IMPORTS                                             //
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ //
 ///////////////////////////////////////////////////////////////////////////////
 
