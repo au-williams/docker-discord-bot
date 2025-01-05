@@ -627,7 +627,7 @@ export async function downloadLinkAndExecuteCallback({ callback, contentType, in
   // compile the options consumed by YoutubeDL with optional parameters //
   // ------------------------------------------------------------------ //
 
-  const tempDownloadDirectory = resolve(`${config.temp_directory}/${nanoid()}`);
+  const tempDownloadDirectory = resolve(`${config.temp_directory_path}/${nanoid()}`);
 
   const outputArtistTitle = Utilities.getSanitizedFilename(`${inputArtist} - ${inputTitle}`);
   const outputId = " [%(id)s]";
@@ -703,7 +703,7 @@ export async function downloadLinkAndExecuteCallback({ callback, contentType, in
 
   await callback(downloadCache, interaction, listener, tempDownloadFilename, tempDownloadFilepath);
 
-  if (config.delete_temporary_files) {
+  if (config.enable_temp_file_deletion) {
     // todo: make this async w/ then catch
     await fs.remove(tempDownloadDirectory);
   }

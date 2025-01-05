@@ -17,7 +17,7 @@ const logger = new Logger(import.meta.filename);
  *
  */
 export class Utilities {
-  static tempDirectory = fs.readJsonSync("config.json").temp_directory;
+  static tempDirectory = fs.readJsonSync("config.json").temp_directory_path;
 
   /**
    * Check if a message thread is able to be created. Message threads cannot be created in DMs.
@@ -767,7 +767,7 @@ export class Utilities {
     const vibrantColor = await new Vibrant(tempDownloadFilePath).getPalette();
     const { LightVibrant, LightMuted, DarkVibrant, DarkMuted } = vibrantColor;
 
-    if (fs.readJsonSync("config.json").delete_temporary_files) {
+    if (fs.readJsonSync("config.json").enable_temp_file_deletion) {
       // TODO: has issues with file locking that need resolving
       // https://stackoverflow.com/questions/20796902/deleting-file-in-node-js
       fs

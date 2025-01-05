@@ -35,7 +35,7 @@ const logger = new Logger(import.meta.filename);
 
 try {
   // clear last sessions temp folder
-  await fs.emptyDir(config.temp_directory);
+  await fs.emptyDir(config.temp_directory_path);
 }
 catch(e) {
   // temp folder may be locked on Windows 💩

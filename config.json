@@ -1,10 +1,10 @@
 {
-  "delete_temporary_files": true,
   "discord_bot_admin_user_ids": [""],
   "discord_bot_login_token": "",
   "discord_config_channel_id": "",
   "enable_logger_debug": true,
   "enable_logger_timestamps": true,
   "enable_messages_service": true,
-  "temp_directory": "./temp"
+  "enable_temp_file_deletion": true,
+  "temp_directory_path": "./temp"
 }

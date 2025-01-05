@@ -239,7 +239,7 @@ export function formatSpeed(bytesPerSecond) {
  * @returns {Promise<string>}
  */
 export async function getQbittorrentInfo(cookie) {
-  const url = `${config.qbittorrent_host}/api/v2/transfer/info`;
+  const url = `${config.qbittorrent_host_url}/api/v2/transfer/info`;
   const options = { method: "GET", headers: { "Cookie": cookie } }
   const response = await fetch(url, options);
   if (response.ok) return await response.json();
@@ -253,7 +253,7 @@ export async function getQbittorrentInfo(cookie) {
  * @returns {Promise<boolean>}
  */
 export async function getQbittorrentSpeedLimitEnabled(cookie) {
-  const url = `${config.qbittorrent_host}/api/v2/transfer/speedLimitsMode`;
+  const url = `${config.qbittorrent_host_url}/api/v2/transfer/speedLimitsMode`;
   const options = { method: "GET", headers: { "Cookie": cookie } }
   const response = await fetch(url, options);
   if (response.ok) return await response.text() === "1";
@@ -267,7 +267,7 @@ export async function getQbittorrentSpeedLimitEnabled(cookie) {
  * @returns {Promise<string>}
  */
 export async function getQbittorrentVersion(cookie) {
-  const url = `${config.qbittorrent_host}/api/v2/app/version`;
+  const url = `${config.qbittorrent_host_url}/api/v2/app/version`;
   const options = { method: "GET", headers: { "Cookie": cookie } }
   const response = await fetch(url, options);
   if (response.ok) return await response.text();
@@ -281,7 +281,7 @@ export async function getQbittorrentVersion(cookie) {
  * @returns {Promise<string>}
  */
 export async function getQbittorrentWebApiVersion(cookie) {
-  const url = `${config.qbittorrent_host}/api/v2/app/webapiVersion`;
+  const url = `${config.qbittorrent_host_url}/api/v2/app/webapiVersion`;
   const options = { method: "GET", headers: { "Cookie": cookie } }
   const response = await fetch(url, options);
   if (response.ok) return await response.text();
@@ -386,11 +386,9 @@ export async function onChatInputCommandQbittorrent({ interaction, listener }) {
  *
  */
 export async function onClientReady({ client, interaction, listener }) {
-  const qbittorrent_host = config.qbittorrent_host;
+  const url = `${config.qbittorrent_host_url}/api/v2/auth/login`;
   const password = config.qbittorrent_password;
   const username = config.qbittorrent_username;
-
-  const url = `${qbittorrent_host}/api/v2/auth/login`;
 
   const response = await fetch(url, {
     method: "POST",
@@ -457,7 +455,7 @@ export async function onSelectMenuSpeedLimitDuration({ listener, interaction }) 
  * @returns {Promise<string>}
  */
 export async function postQbittorrentToggleSpeedLimitsMode(cookie) {
-  const url = `${config.qbittorrent_host}/api/v2/transfer/toggleSpeedLimitsMode`;
+  const url = `${config.qbittorrent_host_url}/api/v2/transfer/toggleSpeedLimitsMode`;
 
   const response = await fetch(url, {
     method: "POST",

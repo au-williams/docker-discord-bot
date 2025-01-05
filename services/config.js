@@ -10,7 +10,7 @@ import fs from "fs-extra";
 import Listener from "../entities/Listener.js";
 import path from "path";
 
-const { discord_bot_admin_user_ids, discord_config_channel_id, temp_directory } = fs.readJsonSync("config.json");
+const { discord_bot_admin_user_ids, discord_config_channel_id, temp_directory_path } = fs.readJsonSync("config.json");
 
 const logger = new Logger(import.meta.filename);
 
@@ -278,7 +278,7 @@ export async function restoreBackupFile({ interaction }) {
     throw new Error("Invalid message attachments. Received zero but expected one or many.");
   }
 
-  const interactionDownloadDirectory = `${temp_directory}/${nanoid()}`;
+  const interactionDownloadDirectory = `${temp_directory_path}/${nanoid()}`;
   const downloader = new Downloader({ url: attachments[0].url, directory: interactionDownloadDirectory });
   const { filePath: interactionDownloadFilepath } = await downloader.download();
   fs.renameSync(interactionDownloadFilepath, filepath);
@@ -402,7 +402,7 @@ export async function validateBackups({ client, listener }) {
       continue;
     }
 
-    const tempDownloadDirectory = `${temp_directory}/${nanoid()}`;
+    const tempDownloadDirectory = `${temp_directory_path}/${nanoid()}`;
     const downloader = new Downloader({ url: attachments[0].url, directory: tempDownloadDirectory });
     const { filePath: tempDownloadFilepath } = await downloader.download();
 
@@ -416,7 +416,7 @@ export async function validateBackups({ client, listener }) {
       logger.debug(`Validated ${name} backup.`, listener);
     }
 
-    if (fs.readJsonSync("config.json").delete_temporary_files) {
+    if (fs.readJsonSync("config.json").enable_temp_file_deletion) {
       fs
         .remove(tempDownloadDirectory)
         .then(() => null) // TODO: log this

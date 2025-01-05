@@ -12,15 +12,16 @@ My Discord bot made with [discord.js](https://discord.js.org/) for the scalable 
 > <details>
 >  <summary>🛠️ config.json</summary>
 >
-> | Key                          | Description                                                                                                               | Required |
-> | :--------------------------- | :------------------------------------------------------------------------------------------------------------------------ | :------- |
-> | "discord_bot_admin_role_id"  |                                                                                                                           | `true`   |
-> | "discord_bot_client_user_id" | The Discord bot client ID [(how to find this)](https://support.heateor.com/discord-client-id-discord-client-secret/)      | `true`   |
-> | "discord_bot_login_token"    | The Discord bot login token [(how to find this)](https://docs.discordbotstudio.org/setting-up-dbs/finding-your-bot-token) | `true`   |
-> | "discord_config_channel_id"  | The Discord channel ID where plugin config files will be backed up                                                        | `false`  |
-> | "enable_debug_logs"          |                                                                                                                           | `true`   |
-> | "enable_message_service"     |                                                                                                                           | `true`   |
-> | "temp_directory"             | The directory where temporary files will be stored                                                                        | `true`   |
+> | Key                          | Description                                                                                                                                                                                       | Required |
+> | :--------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | :------- |
+> | "discord_bot_admin_user_ids" | The Discord user ID(s) to treat as admin [(how to find)](https://support.discord.com/hc/en-us/articles/206346498-Where-can-I-find-my-User-Server-Message-ID).                                     | `true`   |
+> | "discord_bot_login_token"    | The Discord login token used by the bot [(how to find)](https://docs.discordbotstudio.org/setting-up-dbs/finding-your-bot-token).                                                                 | `true`   |
+> | "discord_config_channel_id"  | The Discord channel ID for the [Config service](#%EF%B8%8F-servicesconfigjs) [(how to find)](https://support.discord.com/hc/en-us/articles/206346498-Where-can-I-find-my-User-Server-Message-ID). | `false`  |
+> | "enable_logger_debug"        | Enables displaying the [Logger service](#%EF%B8%8F-servicesloggerjs) `debug` type logs.                                                                                                           | `true`   |
+> | "enable_logger_timestamps"   | Enables displaying timestamps in the [Logger service](#%EF%B8%8F-servicesloggerjs) logs.                                                                                                          | `true`   |
+> | "enable_messages_service"    | Enables the [Messages service](#%EF%B8%8F-servicesmessagesjs) collection on bot startup.                                                                                                          | `true`   |
+> | "enable_temp_file_deletion"  | Enables deleting temporary files in the temp directory.                                                                                                                                           | `true`   |
+> | "temp_directory_path"        | The directory path where temporary files are stored.                                                                                                                                              | `true`   |
 
 </details>
 
@@ -52,11 +53,7 @@ The bot is a framework meant to automate many code-heavy tasks working with the 
 ```js
 import CronJob from "../entities/CronJob.js";
 
-export const CronJobs = new Set([
-  new CronJob()
-    .setExpression("* * * * *")
-    .setFunction(myFunction)
-]);
+export const CronJobs = new Set([new CronJob().setExpression("* * * * *").setFunction(myFunction)]);
 ```
 
 [Cron](https://en.wikipedia.org/wiki/Cron#CRON_expression) is a job scheduler that runs functions on an [expression](https://devhints.io/cron), like every 20 minutes or every Saturday at 9 AM. The bot framework will automatically schedule the Cron jobs you create here. You can extend the Cron jobs with the following setters ...
@@ -249,6 +246,32 @@ This JavaScript file sends a message reply in response to a message with a media
 
 </details>
 
+<!-- plugins/qbittorrent_webui_manager.js -->
+
+<details>
+
+<summary>🧩 plugins/qbittorrent_webui_manager.js</summary>
+
+### 🧩 plugins/qbittorrent_webui_manager.js
+
+<img src="assets/qbittorrent_webui_manager.gif" style="height: 180px;"></img>
+
+This JavaScript file sends the user a message with info from the qBittorrent WebUI API.
+
+<!-- [Steam](https://store.steampowered.com/) game news and updates to the announcement channel by running a Cron job that fetches the [Steamworks Web API](https://partner.steamgames.com/doc/webapi_overview). Previews of the announcement are sourced from its response body. -->
+
+### 🛠️ plugins/qbittorrent_webui_manager.json
+
+| Key                         | Description                                                                                                                                                              | Required |
+| :-------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :------- |
+| "cron_job_date"             | The date to remove the speed limit. This is set by the plugin.                                                                                                           | `false`  |
+| "discord_required_role_ids" | The Discord role ID(s) required to use this plugin [(how to find)](https://www.pythondiscord.com/pages/guides/pydis-guides/contributing/obtaining-discord-ids/#role-id). | `true`   |
+| "qbittorrent_host_url"      | The host URL. `127.0.0.1` or `host.docker.internal` on `:8080`.                                                                                                          | `true`   |
+| "qbittorrent_username"      | The qBittorrent WebUI username to authenticate with.                                                                                                                     | `true`   |
+| "qbittorrent_password"      | The qBittorrent WebUI password to authenticate with.                                                                                                                     | `true`   |
+
+</details>
+
 <!-- plugins/steam_community_announcer.js -->
 
 <details>
@@ -261,7 +284,7 @@ This JavaScript file sends a message reply in response to a message with a media
 
 This JavaScript file sends [Steam](https://store.steampowered.com/) game news and updates to the announcement channel by running a Cron job that fetches the [Steamworks Web API](https://partner.steamgames.com/doc/webapi_overview). Previews of the announcement are sourced from its response body.
 
-### 🛠️ plugins/steam_community_announcer.js
+### 🛠️ plugins/steam_community_announcer.json
 
 | Key                                | Description | Required |
 | :--------------------------------- | :---------- | :------- |
@@ -285,7 +308,7 @@ import { Config } from "../services/config.js";
 const config = new Config(import.meta.filename);
 ```
 
-This JavaScript file manages the config service state. You can create a `Config` object in your plugin using the plugins filename as a parameter - provided by Node.js as `import.meta.filename`. This `Config` object has the file contents of [config.json](config.json) and the JSON file of the plugin filename (if one exists). After updating data stored in the plugin JSON file you can use `config.save()` to update the plugin JSON file locally.
+This JavaScript file manages the config service state. You can create a `Config` object in your plugin using the plugins filename as a parameter - provided by Node.js as `import.meta.filename`. This `Config` object has the file contents of [config.json](config.json) and the JSON file of the plugin's file name (if it exists). After updating data sourced from the plugin JSON file, you can use `config.save()` to update the file content on disk.
 
 If `discord_config_channel_id` is set in [config.json](config.json) then your plugin JSON files will be backed up to that channel on bot startup. You'll be warned if a backup is out of sync thereafter so it can be reuploaded. Reuploading the JSON is done by clicking the `⬆️ Backup` button which backs up your current file after saving the previous backup file to its version history. Clicking `⬇️ Restore` on a backup will rename your JSON file before downloading the backup file.
 
@@ -335,7 +358,7 @@ import { Messages } from "../services/messages.js";
 const messages = Messages.get({ channelId });
 ```
 
-This JavaScript file manages the enumerable message history. If `enable_message_service` is set as `true` in [config.json](config.json) then on bot startup a collection of all messages it can access will be created. This lets us quickly and easily sort them using [ES6 array functions](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array#instance_methods). If `enable_message_service` is set as `false` then the collection won't be created. This saves a significant amount of time on bot startup at the expense of disabling all plugins that rely on the message history to function. Setting this value as `false` is used during local development of plugins and <ins>not</ins> server deployments.
+This JavaScript file manages the enumerable message history. If `enable_message_service` is set as `true` in [config.json](config.json) then on bot startup a collection of all messages it can read will be created, allowing us to quickly and easily sort them using [ES6 array functions](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array#instance_methods). If `enable_message_service` is set as `false` then the collection won't be created. This saves a significant amount of time on bot startup at the expense of disabling the plugins that use the `Messages` service to function. Setting this value as `false` is used during local development of plugins and <ins>not</ins> server deployments.
 
 </details>
 
