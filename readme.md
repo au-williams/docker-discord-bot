@@ -369,4 +369,4 @@ $ node index.js deploy
 ```
 
 > [!WARNING]
-> Discord API requires a deployment each time a command is created or changed for it to update!
+> Discord API requires a deployment when creating, updating, or deleting context menus and slash commands!
