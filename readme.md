@@ -1,6 +1,6 @@
 # docker-discord-bot
 
-My Discord bot made with [discord.js](https://discord.js.org/) for the scalable automation of tasks. [Docker image](https://github.com/au-williams/docker-discord-bot/pkgs/container/docker-discord-bot) is packaged using [GitHub Actions](https://github.com/au-williams/docker-discord-bot/actions) CI/CD. 🐋📦
+My Discord bot made with [discord.js](https://discord.js.org/) for the scalable automation of tasks. [Docker image](https://ghcr.io/au-williams/docker-discord-bot:master) is packaged using [GitHub Actions](https://github.com/au-williams/docker-discord-bot/actions) CI/CD. 🐋📦
 
 <img style="height: 75px" src="assets/readme_logos.png"/>
 
@@ -25,7 +25,7 @@ My Discord bot made with [discord.js](https://discord.js.org/) for the scalable 
 
 </details>
 
-This project can be started from CLI with [Node.js](https://nodejs.org/en):
+This project can be started with [Node.js](https://nodejs.org/en):
 
 ```bash
 $ node index.js
