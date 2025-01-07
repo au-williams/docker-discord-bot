@@ -133,11 +133,11 @@ Note: The [catfact.ninja API](https://catfact.ninja/) has awful data consistency
 
 ### 🛠️ plugins/cat_facts_scheduler.json
 
-| Key                                | Description | Required |
-| :--------------------------------- | :---------- | :------- |
-| "announcement_cron_job_expression" |             | `true`   |
-| "announcement_discord_channel_id"  |             | `true`   |
-| "catfact_responses"                |             | `true`   |
+| Key                                | Description                                                                                                                                                     | Required |
+| :--------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------- | :------- |
+| "announcement_cron_job_expression" | The Cron job expression to send announcement messages.                                                                                                          | `true`   |
+| "announcement_discord_channel_id"  | The Discord channel ID to send messages to [(how to find)](https://support.discord.com/hc/en-us/articles/206346498-Where-can-I-find-my-User-Server-Message-ID). | `true`   |
+| "catfact_responses"                | The cleaned and sanitized catfact.ninja API responses.                                                                                                          | `true`   |
 
 </details>
 
@@ -181,11 +181,11 @@ This JavaScript file sends assignment updates for the video game [Deep Rock Gala
 
 ### 🛠️ plugins/deep_rock_galactic_announcer.json
 
-| Key                                | Description | Required |
-| :--------------------------------- | :---------- | :------- |
-| "announcement_cron_job_expression" |             | `true`   |
-| "announcement_discord_channel_id"  |             | `true`   |
-| "discord_emoji_deep_rock_galactic" |             | `true`   |
+| Key                                | Description                                                                                                                                                     | Required |
+| :--------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------- | :------- |
+| "announcement_cron_job_expression" | The Cron job expression to send announcement messages.                                                                                                          | `true`   |
+| "announcement_discord_channel_id"  | The Discord channel ID to send messages to [(how to find)](https://support.discord.com/hc/en-us/articles/206346498-Where-can-I-find-my-User-Server-Message-ID). | `true`   |
+| "discord_emoji_deep_rock_galactic" | The custom emoji in `<:NAME:ID>` format [(how to find)](https://www.pythondiscord.com/pages/guides/pydis-guides/contributing/obtaining-discord-ids/#emoji-id).  | `true`   |
 
 </details>
 
@@ -209,10 +209,10 @@ This JavaScript file creates a guild role for each member based on their profile
 
 ### 🛠️ plugins/discord_guild_role_color_manager.json
 
-| Key                          | Description | Required |
-| :--------------------------- | :---------- | :------- |
-| "discord_excluded_guild_ids" |             | `false`  |
-| "discord_excluded_user_ids"  |             | `false`  |
+| Key                          | Description                                                                                                                                                                 | Required |
+| :--------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :------- |
+| "discord_excluded_guild_ids" | The Discord guild ID(s) this plugin should not manage [(how to find)](https://www.pythondiscord.com/pages/guides/pydis-guides/contributing/obtaining-discord-ids/#guild-id) | `false`  |
+| "discord_excluded_user_ids"  | The Discord user ID(s) this plugin should not manage [(how to find)](https://support.discord.com/hc/en-us/articles/206346498-Where-can-I-find-my-User-Server-Message-ID).   | `false`  |
 
 </details>
 
@@ -284,11 +284,11 @@ This JavaScript file sends [Steam](https://store.steampowered.com/) game news an
 
 ### 🛠️ plugins/steam_community_announcer.json
 
-| Key                                | Description | Required |
-| :--------------------------------- | :---------- | :------- |
-| "announcement_steam_app_ids"       |             |          |
-| "announcement_cron_job_expression" |             |          |
-| "announcement_discord_channel_id"  |             |          |
+| Key                                | Description                                                                                                                                                     | Required |
+| :--------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------- | :------- |
+| "announcement_steam_app_ids"       | The Steam app ID(s) to announce news for [(how to find)](https://gaming.stackexchange.com/questions/149837/how-do-i-find-the-id-for-a-game-on-steam).           | `true`   |
+| "announcement_cron_job_expression" | The Cron job expression to send announcement messages.                                                                                                          | `true`   |
+| "announcement_discord_channel_id"  | The Discord channel ID to send messages to [(how to find)](https://support.discord.com/hc/en-us/articles/206346498-Where-can-I-find-my-User-Server-Message-ID). | `true`   |
 
 </details>
 
