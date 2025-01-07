@@ -25,16 +25,16 @@ My Discord bot made with [discord.js](https://discord.js.org/) for the scalable 
 
 </details>
 
-This project can be started from CLI with [Node.js](https://nodejs.org/en) ...
+This project can be started from CLI with [Node.js](https://nodejs.org/en):
 
 ```bash
 $ node index.js
 ```
 
-Or be started with [Docker](https://www.docker.com/) using the [Docker image](https://github.com/au-williams/docker-discord-bot/pkgs/container/discord-bot) ...
+Or be started with [Docker](https://www.docker.com/) using the [Docker image](https://ghcr.io/au-williams/docker-discord-bot:master):
 
-```
-ghcr.io/au-williams/discord-bot:master
+```bash
+$ docker-compose up -d
 ```
 
 > [!TIP]
@@ -42,7 +42,7 @@ ghcr.io/au-williams/discord-bot:master
 
 ## Anatomy of the bot
 
-The bot is a framework meant to automate many code-heavy tasks working with the Discord API. You simply need to add a new JavaScript file to the `plugins` folder to add functionality. You must export one or more of these objects in that script ...
+The bot is a framework meant to automate many code-heavy tasks working with the Discord API. You simply need to add a new JavaScript file to the `plugins` folder to add functionality. You must export one or more of these objects in that script:
 
 <details>
 
@@ -56,7 +56,7 @@ import CronJob from "../entities/CronJob.js";
 export const CronJobs = new Set([new CronJob().setExpression("* * * * *").setFunction(myFunction)]);
 ```
 
-[Cron](https://en.wikipedia.org/wiki/Cron#CRON_expression) is a job scheduler that runs functions on an [expression](https://devhints.io/cron), like every 20 minutes or every Saturday at 9 AM. The bot framework will automatically schedule the Cron jobs you create here. You can extend the Cron jobs with the following setters ...
+[Cron](https://en.wikipedia.org/wiki/Cron#CRON_expression) is a job scheduler that runs functions on an [expression](https://devhints.io/cron), like every 20 minutes or every Saturday at 9 AM. The bot framework will automatically schedule the Cron jobs you create here. You can extend the Cron jobs with the following setters. 📚
 
 | Name          | Description                                                           | Required |
 | :------------ | :-------------------------------------------------------------------- | :------- |
@@ -100,7 +100,7 @@ export const Listeners = Object.freeze({
 });
 ```
 
-Listeners handle actions. The property key is a Discord event or interaction from the `Interactions` object. The value is a `Listener` object that will be executed when the key is emitted by Discord. Listeners that only set a function can use that function as the value and the bot framework will automatically wrap it in a Listener. You can use an array to create multiple Listener values for a single key. You can customize the Listener with the following setters ...
+Listeners handle actions. The property key is a Discord event or interaction from the `Interactions` object. The value is a `Listener` object that will be executed when the key is emitted by Discord. Listeners that only set a function can use that function as the value and the bot framework will automatically wrap it in a Listener. You can use an array to create multiple Listener values for a single key. You can customize the Listener with the following setters. 📚
 
 | Name                   | Description                                                           | Required |
 | :--------------------- | :-------------------------------------------------------------------- | :------- |
@@ -117,7 +117,7 @@ Listeners handle actions. The property key is a Discord event or interaction fro
 
 </details>
 
-These are the JavaScript files in the `plugins` folder. JSON files of the same name are their config files. These plugins may have their own config files that must be updated before they can start ...
+These are the JavaScript files in the `plugins` folder. JSON files of the same name are their config files. These plugins may have their own config files with required fields that must be updated before they can start.
 
 <details>
 
@@ -256,9 +256,7 @@ This JavaScript file sends a message reply in response to a message with a media
 
 <img src="assets/qbittorrent_webui_manager.gif" style="height: 180px;"></img>
 
-This JavaScript file sends the user a message with info from the qBittorrent WebUI API.
-
-<!-- [Steam](https://store.steampowered.com/) game news and updates to the announcement channel by running a Cron job that fetches the [Steamworks Web API](https://partner.steamgames.com/doc/webapi_overview). Previews of the announcement are sourced from its response body. -->
+This JavaScript file manages the host [qBittorrent](https://www.qbittorrent.org/) client by fetching the [qBittorrent WebUI API](https://github.com/qbittorrent/qBittorrent/wiki/WebUI-API-(qBittorrent-4.1)). `/qbittorrent` privately sends the author a message with the current session's info. Clicking `🧲 Add Magnet` opens a popup to add a magnet link to the download queue. Clicking `⏱️ Speed limit` displays a select menu to create, update, or remove the speed limit. The speed limit is automatically removed once the configured time elapses.
 
 ### 🛠️ plugins/qbittorrent_webui_manager.json
 
@@ -294,7 +292,7 @@ This JavaScript file sends [Steam](https://store.steampowered.com/) game news an
 
 </details>
 
-JavaScript files in the `services` folder operate the same as plugins but are dependencies of the bot framework. Thus when handling errors plugins will catch and release while services will throw to avoid an invalid system state. You can use these services in your plugin by referencing them ...
+JavaScript files in the `services` folder operate the same as plugins but are dependencies of the bot framework. Thus when handling errors plugins will catch and release while services will throw to avoid an invalid system state. You can use these services in your plugin by referencing them.
 
 <details>
 
@@ -364,7 +362,7 @@ This JavaScript file manages the enumerable message history. If `enable_message_
 
 ## Deploying the bot
 
-Discord updates context menus and slash commands using a POST request. This typically requires each command to create a [builder](https://discordjs.guide/slash-commands/advanced-creation.html#adding-options) before submitting the POST request but most of this has been automated. Your commands must use the `setDeploymentType` setter on their `Listener` objects. Starting the bot with the `deploy` argument will deploy the commands to Discord ...
+Discord updates context menus and slash commands using a POST request. This typically requires each command to create a [builder](https://discordjs.guide/slash-commands/advanced-creation.html#adding-options) before submitting the POST request but most of this has been automated. Your commands must use the `setDeploymentType` setter on their `Listener` objects. Starting the bot with the `deploy` argument will deploy the commands to Discord.
 
 ```cmd
 $ node index.js deploy
