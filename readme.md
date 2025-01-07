@@ -14,9 +14,9 @@ My Discord bot made with [discord.js](https://discord.js.org/) for the scalable 
 >
 > | Key                          | Description                                                                                                                                                                                       | Required |
 > | :--------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | :------- |
-> | "discord_bot_admin_user_ids" | The Discord user ID(s) to treat as admin [(how to find)](https://support.discord.com/hc/en-us/articles/206346498-Where-can-I-find-my-User-Server-Message-ID).                                     | `true`   |
-> | "discord_bot_login_token"    | The Discord login token used by the bot [(how to find)](https://docs.discordbotstudio.org/setting-up-dbs/finding-your-bot-token).                                                                 | `true`   |
-> | "discord_config_channel_id"  | The Discord channel ID for the [Config service](#%EF%B8%8F-servicesconfigjs) [(how to find)](https://support.discord.com/hc/en-us/articles/206346498-Where-can-I-find-my-User-Server-Message-ID). | `false`  |
+> | "discord_bot_admin_user_ids" | The Discord user ID(s) to treat as admin. [(how to find)](https://support.discord.com/hc/en-us/articles/206346498-Where-can-I-find-my-User-Server-Message-ID)                                     | `true`   |
+> | "discord_bot_login_token"    | The Discord login token used by the bot. [(how to find)](https://docs.discordbotstudio.org/setting-up-dbs/finding-your-bot-token)                                                                 | `true`   |
+> | "discord_config_channel_id"  | The Discord channel ID for the [Config service](#%EF%B8%8F-servicesconfigjs). [(how to find)](https://support.discord.com/hc/en-us/articles/206346498-Where-can-I-find-my-User-Server-Message-ID) | `false`  |
 > | "enable_logger_debug"        | Enables displaying the [Logger service](#%EF%B8%8F-servicesloggerjs) `debug` type logs.                                                                                                           | `true`   |
 > | "enable_logger_timestamps"   | Enables displaying timestamps in the [Logger service](#%EF%B8%8F-servicesloggerjs) logs.                                                                                                          | `true`   |
 > | "enable_messages_service"    | Enables the [Messages service](#%EF%B8%8F-servicesmessagesjs) collection on bot startup.                                                                                                          | `true`   |
@@ -136,7 +136,7 @@ Note: The [catfact.ninja API](https://catfact.ninja/) has awful data consistency
 | Key                                | Description                                                                                                                                                     | Required |
 | :--------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------- | :------- |
 | "announcement_cron_job_expression" | The Cron job expression to send announcement messages.                                                                                                          | `true`   |
-| "announcement_discord_channel_id"  | The Discord channel ID to send messages to [(how to find)](https://support.discord.com/hc/en-us/articles/206346498-Where-can-I-find-my-User-Server-Message-ID). | `true`   |
+| "announcement_discord_channel_id"  | The Discord channel ID to send messages to. [(how to find)](https://support.discord.com/hc/en-us/articles/206346498-Where-can-I-find-my-User-Server-Message-ID) | `true`   |
 | "catfact_responses"                | The cleaned and sanitized catfact.ninja API responses.                                                                                                          | `true`   |
 
 </details>
@@ -184,8 +184,8 @@ This JavaScript file sends assignment updates for the video game [Deep Rock Gala
 | Key                                | Description                                                                                                                                                     | Required |
 | :--------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------- | :------- |
 | "announcement_cron_job_expression" | The Cron job expression to send announcement messages.                                                                                                          | `true`   |
-| "announcement_discord_channel_id"  | The Discord channel ID to send messages to [(how to find)](https://support.discord.com/hc/en-us/articles/206346498-Where-can-I-find-my-User-Server-Message-ID). | `true`   |
-| "discord_emoji_deep_rock_galactic" | The custom emoji in `<:NAME:ID>` format [(how to find)](https://www.pythondiscord.com/pages/guides/pydis-guides/contributing/obtaining-discord-ids/#emoji-id).  | `true`   |
+| "announcement_discord_channel_id"  | The Discord channel ID to send messages to. [(how to find)](https://support.discord.com/hc/en-us/articles/206346498-Where-can-I-find-my-User-Server-Message-ID) | `true`   |
+| "discord_emoji_deep_rock_galactic" | The custom emoji in `<:NAME:ID>` format. [(how to find)](https://www.pythondiscord.com/pages/guides/pydis-guides/contributing/obtaining-discord-ids/#emoji-id)  | `true`   |
 
 </details>
 
@@ -211,8 +211,8 @@ This JavaScript file creates a guild role for each member based on their profile
 
 | Key                          | Description                                                                                                                                                                 | Required |
 | :--------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :------- |
-| "discord_excluded_guild_ids" | The Discord guild ID(s) this plugin should not manage [(how to find)](https://www.pythondiscord.com/pages/guides/pydis-guides/contributing/obtaining-discord-ids/#guild-id) | `false`  |
-| "discord_excluded_user_ids"  | The Discord user ID(s) this plugin should not manage [(how to find)](https://support.discord.com/hc/en-us/articles/206346498-Where-can-I-find-my-User-Server-Message-ID).   | `false`  |
+| "discord_excluded_guild_ids" | The Discord guild ID(s) this plugin shouldn't manage. [(how to find)](https://www.pythondiscord.com/pages/guides/pydis-guides/contributing/obtaining-discord-ids/#guild-id) | `false`  |
+| "discord_excluded_user_ids"  | The Discord user ID(s) this plugin shouldn't manage. [(how to find)](https://support.discord.com/hc/en-us/articles/206346498-Where-can-I-find-my-User-Server-Message-ID)    | `false`  |
 
 </details>
 
@@ -263,7 +263,7 @@ This JavaScript file manages the host [qBittorrent](https://www.qbittorrent.org/
 | Key                         | Description                                                                                                                                                              | Required |
 | :-------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :------- |
 | "cron_job_date"             | The date to remove the speed limit. This is set by the plugin.                                                                                                           | `false`  |
-| "discord_required_role_ids" | The Discord role ID(s) required to use this plugin [(how to find)](https://www.pythondiscord.com/pages/guides/pydis-guides/contributing/obtaining-discord-ids/#role-id). | `true`   |
+| "discord_required_role_ids" | The Discord role ID(s) required to use this plugin. [(how to find)](https://www.pythondiscord.com/pages/guides/pydis-guides/contributing/obtaining-discord-ids/#role-id) | `true`   |
 | "qbittorrent_host_url"      | The host URL. `127.0.0.1` or `host.docker.internal` on `:8080`.                                                                                                          | `true`   |
 | "qbittorrent_username"      | The qBittorrent WebUI username to authenticate with.                                                                                                                     | `true`   |
 | "qbittorrent_password"      | The qBittorrent WebUI password to authenticate with.                                                                                                                     | `true`   |
@@ -286,9 +286,9 @@ This JavaScript file sends [Steam](https://store.steampowered.com/) game news an
 
 | Key                                | Description                                                                                                                                                     | Required |
 | :--------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------- | :------- |
-| "announcement_steam_app_ids"       | The Steam app ID(s) to announce news for [(how to find)](https://gaming.stackexchange.com/questions/149837/how-do-i-find-the-id-for-a-game-on-steam).           | `true`   |
+| "announcement_steam_app_ids"       | The Steam app ID(s) to announce news for. [(how to find)](https://gaming.stackexchange.com/questions/149837/how-do-i-find-the-id-for-a-game-on-steam)           | `true`   |
 | "announcement_cron_job_expression" | The Cron job expression to send announcement messages.                                                                                                          | `true`   |
-| "announcement_discord_channel_id"  | The Discord channel ID to send messages to [(how to find)](https://support.discord.com/hc/en-us/articles/206346498-Where-can-I-find-my-User-Server-Message-ID). | `true`   |
+| "announcement_discord_channel_id"  | The Discord channel ID to send messages to. [(how to find)](https://support.discord.com/hc/en-us/articles/206346498-Where-can-I-find-my-User-Server-Message-ID) | `true`   |
 
 </details>
 
