@@ -362,7 +362,7 @@ This JavaScript file manages the enumerable message history. If `enable_message_
 
 ## Deploying the bot
 
-Discord updates context menus and slash commands using a POST request. This typically requires each command to create a [builder](https://discordjs.guide/slash-commands/advanced-creation.html#adding-options) before submitting the POST request but most of this has been automated. Your commands must use the `setDeploymentType` setter on their `Listener` objects. Starting the bot with the `deploy` argument will deploy the commands to Discord.
+Discord updates context menus and slash commands using a POST request. This typically requires each one to create a [builder](https://discordjs.guide/slash-commands/advanced-creation.html#adding-options) to be included in the POST request but the framework has automated most of this. Your context menus and slash commands must use the `setDeploymentType` setter on their `Listener` objects. Starting the bot with the `deploy` argument will deploy them to Discord for you.
 
 ```cmd
 $ node index.js deploy
