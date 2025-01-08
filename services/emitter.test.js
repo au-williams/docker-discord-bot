@@ -1,6 +1,8 @@
-import { checkAllowedChannel, Emitter, getBusyInteractionCompositeKey, importCronJob } from "./emitter.js";
+import { checkAllowedChannel, checkAllowedUser, Emitter, getBusyInteractionCompositeKey, importCronJob } from "./emitter.js";
 import CronJob from "../entities/CronJob.js";
 import Listener from "../entities/Listener.js";
+import { jest } from "@jest/globals"
+
 
 describe("checkAllowedChannel", () => {
   it("returns true when listener has no requiredChannelIds", async () => {
@@ -27,6 +29,66 @@ describe("checkAllowedChannel", () => {
     expect(result).toBe(true);
   });
 });
+
+describe("checkAllowedUser", () => {
+  it("returns true if no requiredRoleIds or requiredUserIds", async () => {
+    const listener = new Listener();
+    const result = await checkAllowedUser(listener, null);
+    expect(result).toBe(true);
+  });
+
+  it("returns false if unmet requiredRoleIds", async () => {
+    const listener = new Listener().setRequiredRoles("2");
+    const roles = { cache: new Map([["1", "_"]]) };
+    const members = { fetch: jest.fn().mockResolvedValue({ roles }) };
+    const guilds = { cache: new Map([["_", { members }]]) };
+    const user = { id: "0", client: { guilds } };
+    const result = await checkAllowedUser(listener, user);
+    expect(result).toBe(false);
+  });
+
+  it("returns true if met requiredRoleIds <string>", async () => {
+    const listener = new Listener().setRequiredRoles("2");
+    const roles = { cache: new Map([["2", "_"]]) };
+    const members = { fetch: jest.fn().mockResolvedValue({ roles }) };
+    const guilds = { cache: new Map([["_", { members }]]) };
+    const user = { id: "0", client: { guilds } };
+    const result = await checkAllowedUser(listener, user);
+    expect(result).toBe(true);
+  });
+
+  it("returns true if met requiredRoleIds <string[]>", async () => {
+    const listener = new Listener().setRequiredRoles(["1", "2"]);
+    const roles = { cache: new Map([["2", "_"]]) };
+    const members = { fetch: jest.fn().mockResolvedValue({ roles }) };
+    const guilds = { cache: new Map([["_", { members }]]) };
+    const user = { id: "0", client: { guilds } };
+    const result = await checkAllowedUser(listener, user);
+    expect(result).toBe(true);
+  });
+
+  it("returns false if unmet requiredUserIds", async () => {
+    const listener = new Listener().setRequiredUsers("2");
+    const cache = new Map([["guild_id", "guild_object"]]);
+    const user = { id: "1", client: { guilds: { cache } } };
+    const result = await checkAllowedUser(listener, user);
+    expect(result).toBe(false);
+  });
+
+  it("returns true if met requiredUserIds <string>", async () => {
+    const listener = new Listener().setRequiredUsers("2");
+    const user = { id: "2" };
+    const result = await checkAllowedUser(listener, user);
+    expect(result).toBe(true);
+  });
+
+  it("returns true if met requiredUserIds <string[]>", async () => {
+    const listener = new Listener().setRequiredUsers(["1", "2"]);
+    const user = { id: "2" };
+    const result = await checkAllowedUser(listener, user);
+    expect(result).toBe(true);
+  });
+})
 
 describe("getBusyInteractionCompositeKey", () => {
   it("returns the expected composite key format", () => {

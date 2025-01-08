@@ -1,4 +1,4 @@
-import { Events, ButtonBuilder, ButtonStyle, ButtonComponent, BaseSelectMenuComponent, ComponentType, ChannelType, BaseChannel } from "discord.js";
+import { Events, ButtonBuilder, ButtonStyle, ButtonComponent, BaseSelectMenuComponent, ComponentType, ChannelType, BaseChannel, User } from "discord.js";
 import { Logger } from "./logger.js";
 import { Utilities } from "./utilities.js";
 import Cron from "croner";
@@ -233,7 +233,7 @@ export class Emitter {
 
 /**
  * Check if the listener is allowed for the channel.
- * @throws On unexpected type of interaction or channel.
+ * @throws On unexpected type of channel.
  * @param {Listener} listener
  * @param {GuildChannel} channel
  * @returns {Promise<boolean>}
@@ -256,6 +256,38 @@ export async function checkAllowedChannel(listener, channel) {
   }
 
   return listener.requiredChannelIds.some(id => id === channel.id);
+}
+
+/**
+ * @throws On unexpected type of user.
+ * @param {Listener} listener
+ * @param {User} user
+ * @returns {Promise<boolean>}
+ */
+export async function checkAllowedUser(listener, user) {
+  if (!Utilities.checkJestTest()) {
+    Utilities.throwType(User, user);
+  }
+
+  const isAnyUserId = !listener.requiredUserIds.length;
+  const isAnyRoleId = !listener.requiredRoleIds.length;
+  if (isAnyUserId && isAnyRoleId) return true;
+
+  if (listener.requiredUserIds.length) {
+    const some = listener.requiredUserIds.includes(user.id);
+    if (some) return true;
+  }
+
+  if (listener.requiredRoleIds.length) {
+    for (const guild of user.client.guilds.cache.values()) {
+      const roleIds = listener.requiredRoleIds;
+      const member = await guild.members.fetch({ user });
+      const some = roleIds.some(id => member.roles.cache.has(id));
+      if (some) return true;
+    }
+  }
+
+  return false;
 }
 
 /**
