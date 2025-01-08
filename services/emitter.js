@@ -1,4 +1,4 @@
-import { Events, ButtonBuilder, ButtonStyle, ButtonComponent, BaseSelectMenuComponent, ComponentType } from "discord.js";
+import { Events, ButtonBuilder, ButtonStyle, ButtonComponent, BaseSelectMenuComponent, ComponentType, ChannelType, BaseChannel } from "discord.js";
 import { Logger } from "./logger.js";
 import { Utilities } from "./utilities.js";
 import Cron from "croner";
@@ -229,6 +229,33 @@ export class Emitter {
     scheduledJobs.forEach(item => item.stop());
     logger.debug(`Stopped ${scheduledJobs.length} scheduled ${Utilities.getPluralizedString("job", scheduledJobs)} named ${functionOrName}`);
   }
+}
+
+/**
+ * Check if the listener is allowed for the channel.
+ * @throws On unexpected type of interaction or channel.
+ * @param {Listener} listener
+ * @param {GuildChannel} channel
+ * @returns {Promise<boolean>}
+ */
+export async function checkAllowedChannel(listener, channel) {
+  if (!listener.requiredChannelIds?.length) {
+    return true;
+  }
+
+  const isThreadChannel =
+    channel.type === ChannelType.PublicThread
+    || channel.type === ChannelType.PrivateThread;
+
+  if (isThreadChannel) {
+    channel = await channel.fetchStarterMessage().then(result => result.channel);
+  }
+
+  if (!Utilities.checkJestTest()) {
+    Utilities.throwType(BaseChannel, channel);
+  }
+
+  return listener.requiredChannelIds.some(id => id === channel.id);
 }
 
 /**

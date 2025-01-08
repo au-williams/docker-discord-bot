@@ -1,6 +1,32 @@
-import { Emitter, getBusyInteractionCompositeKey, importCronJob } from "./emitter.js";
-// import { jest } from '@jest/globals'
+import { checkAllowedChannel, Emitter, getBusyInteractionCompositeKey, importCronJob } from "./emitter.js";
 import CronJob from "../entities/CronJob.js";
+import Listener from "../entities/Listener.js";
+
+describe("checkAllowedChannel", () => {
+  it("returns true when listener has no requiredChannelIds", async () => {
+    const listener = new Listener();
+    const result = await checkAllowedChannel(listener, null);
+    expect(result).toBe(true);
+  });
+
+  it("returns false when listener has unmet requiredChannelIds", async () => {
+    const listener = new Listener().setRequiredChannels("1");
+    const result = await checkAllowedChannel(listener, { id: "0" });
+    expect(result).toBe(false);
+  });
+
+  it("returns true when listener has met requiredChannelIds <string>", async () => {
+    const listener = new Listener().setRequiredChannels("1");
+    const result = await checkAllowedChannel(listener, { id: "1" });
+    expect(result).toBe(true);
+  });
+
+  it("returns true when listener has met requiredChannelIds <string[]>", async () => {
+    const listener = new Listener().setRequiredChannels(["1", "2", "3"]);
+    const result = await checkAllowedChannel(listener, { id: "2" });
+    expect(result).toBe(true);
+  });
+});
 
 describe("getBusyInteractionCompositeKey", () => {
   it("returns the expected composite key format", () => {

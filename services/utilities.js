@@ -855,6 +855,14 @@ export class Utilities {
     const some = types.some(type => Utilities.checkType(type, value));
     if (!some) throw new Error(`Expected types [${types.join("\", \"")}]. Received ${value?.constructor?.name}.`);
   }
+
+  /**
+   * @static
+   * @returns {boolean}
+   */
+  static checkJestTest() {
+    return process.env.JEST_WORKER_ID === "1";
+  }
 }
 
 // TODO: move to static
