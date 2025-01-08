@@ -259,6 +259,15 @@ export async function checkAllowedChannel(listener, channel) {
 }
 
 /**
+ *
+ */
+export function checkAllowedChannelType(listener, channel) {
+  if (!channel) return true;
+  if (!Array.isArray(listener.requiredChannelTypes)) return true;
+  return listener.requiredChannelTypes.some(type => type === channel.type);
+}
+
+/**
  * @throws On unexpected type of user.
  * @param {Listener} listener
  * @param {User} user

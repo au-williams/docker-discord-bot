@@ -1,7 +1,8 @@
-import { checkAllowedChannel, checkAllowedUser, Emitter, getBusyInteractionCompositeKey, importCronJob } from "./emitter.js";
+import { checkAllowedChannel, checkAllowedChannelType, checkAllowedUser, Emitter, getBusyInteractionCompositeKey, importCronJob } from "./emitter.js";
 import CronJob from "../entities/CronJob.js";
 import Listener from "../entities/Listener.js";
 import { jest } from "@jest/globals"
+import { ChannelType } from "discord.js";
 
 
 describe("checkAllowedChannel", () => {
@@ -27,6 +28,56 @@ describe("checkAllowedChannel", () => {
     const listener = new Listener().setRequiredChannels(["1", "2", "3"]);
     const result = await checkAllowedChannel(listener, { id: "2" });
     expect(result).toBe(true);
+  });
+});
+
+describe("checkAllowedChannelType", () => {
+  it("returns true if requiredChannelTypes is not an array", () => {
+    const listener = new Listener();
+    const result = checkAllowedChannelType(listener, null);
+    expect(result).toBe(true);
+  });
+
+  it("returns true if channel type matches one in requiredChannelTypes <...string>", () => {
+    const listener = new Listener().setRequiredChannelTypes(ChannelType.DM, ChannelType.GuildText);
+    const channel = { type: ChannelType.GuildText }
+    const result = checkAllowedChannelType(listener, channel);
+    expect(result).toBe(true);
+  });
+
+  it("returns true if channel type matches one in requiredChannelTypes <string[]>", () => {
+    const listener = new Listener().setRequiredChannelTypes([ChannelType.DM, ChannelType.GuildText]);
+    const channel = { type: ChannelType.GuildText }
+    const result = checkAllowedChannelType(listener, channel);
+    expect(result).toBe(true);
+  });
+
+  test("returns false if channel type does not match any in requiredChannelTypes <...string>", () => {
+    const listener = new Listener().setRequiredChannelTypes(ChannelType.DM, ChannelType.GuildText);
+    const channel = { type: ChannelType.PrivateThread };
+    const result = checkAllowedChannelType(listener, channel);
+    expect(result).toBe(false);
+  });
+
+  test("returns false if channel type does not match any in requiredChannelTypes <string[]>", () => {
+    const listener = new Listener().setRequiredChannelTypes([ChannelType.DM, ChannelType.GuildText]);
+    const channel = { type: ChannelType.PrivateThread };
+    const result = checkAllowedChannelType(listener, channel);
+    expect(result).toBe(false);
+  });
+
+  test("returns false if setRequiredChannelType is an empty array", () => {
+    const listener = new Listener().setRequiredChannelTypes([]);
+    const channel = { type: ChannelType.PrivateThread };
+    const result = checkAllowedChannelType(listener, channel);
+    expect(result).toBe(false);
+  });
+
+  test("returns false if setRequiredChannelType has no parameter", () => {
+    const listener = new Listener().setRequiredChannelTypes();
+    const channel = { type: ChannelType.PrivateThread };
+    const result = checkAllowedChannelType(listener, channel);
+    expect(result).toBe(false);
   });
 });
 
