@@ -1,5 +1,4 @@
 import { ApplicationCommandType, BaseChannel, ChannelType, ContextMenuCommandBuilder, InteractionContextType, SlashCommandBuilder, User } from "discord.js";
-import { client as Client } from "../index.js";
 import { DeploymentTypes, IsDeploymentType } from "./DeploymentTypes.js";
 import { Utilities } from "../services/utilities.js"
 import fs from "fs-extra";
@@ -134,7 +133,7 @@ export default class Listener {
     }
 
     if (this.requiredRoleIds.length) {
-      for (const guild of Client.guilds.cache.values()) {
+      for (const guild of user.client.guilds.cache.values()) {
         const member = await guild.members.fetch({ user });
         const some = this.requiredRoleIds.some(id => member.roles.cache.has(id));
         if (some) isRequiredRole = true;

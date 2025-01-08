@@ -119,6 +119,11 @@ export class Config {
    * @param {string?} filepath `"./plugins/example.js"` or `"./plugins/example.json"`
    */
   constructor(filepath = null) {
+    if (process.env.JEST_WORKER_ID) {
+      // do not load files in unit tests
+      return;
+    }
+
     if (!_rootConfig) {
       if (!fs.existsSync("config.json")) {
         throw new Error("Could not find the root \"config.json\" file.");

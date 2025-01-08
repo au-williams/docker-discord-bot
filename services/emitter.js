@@ -1,4 +1,4 @@
-import { Events, ButtonBuilder, ButtonStyle, ButtonComponent, BaseSelectMenuComponent, ComponentType, BaseInteraction } from "discord.js";
+import { Events, ButtonBuilder, ButtonStyle, ButtonComponent, BaseSelectMenuComponent, ComponentType } from "discord.js";
 import { Logger } from "./logger.js";
 import { Utilities } from "./utilities.js";
 import Cron from "croner";
@@ -62,7 +62,8 @@ export class Emitter {
   static _importedListeners = new Map();
 
   /**
-   *
+   * The context menu and slash command builders sent with the deployment POST request.
+   * @returns {object[]} Array<ContextMenuCommandBuilder|SlashCommandBuilder>
    */
   static get builders() {
     return Emitter.listeners.reduce((total, current) => {
@@ -76,7 +77,8 @@ export class Emitter {
   }
 
   /**
-   *
+   * The listeners imported from all plugins and services.
+   * @returns {Listener[]}
    */
   static get listeners() {
     return Array.from(Emitter._importedListeners.values()).flat();
@@ -160,7 +162,7 @@ export class Emitter {
    * @returns {boolean}
    */
   static isBusy(interaction) {
-    const compositeKey = getCompositeKey(interaction);
+    const compositeKey = getBusyInteractionCompositeKey(interaction);
     return Emitter._busyInteractions.has(compositeKey) && Emitter._busyInteractions.get(compositeKey);
   }
 
@@ -170,7 +172,7 @@ export class Emitter {
    * @param {boolean} value
    */
   static setBusy(interaction, value) {
-    const compositeKey = getCompositeKey(interaction);
+    const compositeKey = getBusyInteractionCompositeKey(interaction);
     Emitter._busyInteractions.set(compositeKey, value);
     const loggerLabel = value ? "busy" : "not busy";
     logger.debug(`Set ${compositeKey} as ${loggerLabel} (${value}).`);
@@ -335,7 +337,7 @@ async function executeListener(params) {
  * @param {BaseInteraction} interaction
  * @returns {string}
  */
-export function getCompositeKey(interaction) {
+export function getBusyInteractionCompositeKey(interaction) {
   return interaction.customId
     + ("|" + interaction.message?.id || "")
     + ("|" + interaction.user?.id || "");
@@ -365,7 +367,7 @@ export function getImportableFilepaths(directory) {
  * @param {Listener} param.listener
  * @param {Error} param.error
  */
-async function handleListenerError({ interaction, listener, error }) {
+export async function handleListenerError({ interaction, listener, error }) {
   try {
     logger.error(error, listener);
 
@@ -400,16 +402,16 @@ async function handleListenerError({ interaction, listener, error }) {
  * @param {string} filepath
  * @param {boolean} isService
  */
-function importCronJob(cronJob, filepath, isService) {
+export function importCronJob(cronJob, filepath, isService) {
   const listener = new Listener()
     .setFunction(params => Emitter.scheduleCronJob({ cronJob, ...params }));
 
   listener.filename = path.basename(filepath);
   listener.filepath = filepath;
   listener.id = Events.ClientReady;
-  listener.isEnabled = cronJob.isEnabled || listener.isEnabled;
+  listener.isEnabled = cronJob.isEnabled;
   listener.isService = isService;
-  listener.runOrder = cronJob.runOrder || listener.runOrder;
+  listener.runOrder = cronJob.runOrder;
 
   Emitter._importedListeners.has(Events.ClientReady)
     ? Emitter._importedListeners.get(Events.ClientReady).push(listener)
@@ -425,7 +427,7 @@ function importCronJob(cronJob, filepath, isService) {
  * @param {string} filepath The filepath where the item was imported.
  * @param {boolean} isService If the item belongs to a service.
  */
-function importListener(value, key, filepath, isService) {
+export function importListener(value, key, filepath, isService) {
   if (!Emitter._importedListeners.has(key)) {
     Emitter._importedListeners.set(key, []);
   }

@@ -39,7 +39,9 @@ export class Logger {
    * @param {string} param `import.meta` | `import.meta.filename` | `filename as string value`
    */
   constructor(param) {
-    this.filename = path.basename(param.filename || param);
+    // Jest has import.meta undefined - this is a lazy solution.
+    if (process.env.JEST_WORKER_ID) this.filename = "*.test.js";
+    else this.filename = path.basename(param.filename || param);
   }
 
   /**
