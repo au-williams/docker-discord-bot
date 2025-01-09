@@ -1,4 +1,4 @@
-import { Events, ButtonBuilder, ButtonStyle, ButtonComponent, BaseSelectMenuComponent, ComponentType, ChannelType, BaseChannel, User } from "discord.js";
+import { BaseChannel, ButtonBuilder, ButtonStyle, ButtonComponent, BaseSelectMenuComponent, ComponentType, ChannelType, Events, User } from "discord.js";
 import { Logger } from "./logger.js";
 import { Utilities } from "./utilities.js";
 import Cron from "croner";
@@ -10,13 +10,12 @@ const { discord_bot_admin_user_ids } = fs.readJsonSync("config.json");
 
 const logger = new Logger(import.meta.filename);
 
-/*----------------------------------------------*\
-| TODO:                                          |
-| - Allow multiple SetFunctions with ChannelType |
-| - Clean up more info button rendering          |
-| - .setDismountOnError()                        |
-| - [Event ☉] [Interaction ☇] [Command ☄]       |
-\*----------------------------------------------*/
+// TODO: ///////////////////////////////////////////
+// - Allow multiple SetFunctions with ChannelType //
+// - Clean up more info button rendering          //
+// - .setDismountOnError()                        //
+// - [Event ☉] [Interaction ☇] [Command ☄]       //
+////////////////////////////////////////////////////
 
 ///////////////////////////////////////////////////////////////////////////////
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ //
@@ -265,7 +264,11 @@ export async function checkAllowedChannel(listener, channel) {
 }
 
 /**
- *
+ * Check if the listener is allowed for the channel type.
+ * @throws On unexpected type of channel.
+ * @param {Listener} listener
+ * @param {GuildChannel} channel
+ * @returns {Promise<boolean>}
  */
 export function checkAllowedChannelType(listener, channel) {
   if (!channel) return true;
@@ -273,14 +276,14 @@ export function checkAllowedChannelType(listener, channel) {
   return listener.requiredChannelTypes.some(type => type === channel.type);
 }
 
-  /**
-   * Check if the listener is locked for the user. Listeners may be
-   * invoked within or outside of a Guild, so check if the user has
-   * the required role within each available guild.
-   * @param {Listener} listener
-   * @param {User} user
-   * @returns {Promise<boolean>}
-   */
+/**
+ * Check if the listener is locked for the user. Listeners may be invoked
+ * within or outside of a Guild, so check if the user has the required role
+ * within the available guilds.
+ * @param {Listener} listener
+ * @param {User} user
+ * @returns {Promise<boolean>}
+ */
 export async function checkAllowedUser(listener, user) {
   if (!Utilities.checkJestTest()) {
     Utilities.throwType(User, user);
