@@ -1,4 +1,4 @@
-import { ApplicationCommandType, ChannelType, ContextMenuCommandBuilder, InteractionContextType, SlashCommandBuilder, User } from "discord.js";
+import { ApplicationCommandType, ChannelType, ContextMenuCommandBuilder, InteractionContextType, SlashCommandBuilder } from "discord.js";
 import { DeploymentTypes, IsDeploymentType } from "./DeploymentTypes.js";
 import { Utilities } from "../services/utilities.js"
 import fs from "fs-extra";
