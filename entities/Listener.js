@@ -56,7 +56,8 @@ export default class Listener {
 
   /**
    * The context menu or slash command builder to be included in the deployment
-   * POST request to Discord.
+   * POST request to Discord. If no context types were set then all the context
+   * types will be used (Guild<0>, BotDM<1>, PrivateChannel<2>).
    * @returns {ContextMenuCommandBuilder|SlashCommandBuilder|null}
    */
   get builder() {
