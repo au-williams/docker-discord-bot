@@ -390,7 +390,7 @@ export function getCompositeKey(userId, messageId, attachmentIndex) {
  * @param {Listener} param.listener
  */
 export async function initializeCaturdayImageCaches({ listener }) {
-  for (const item of config.discord_caturday_ids) {
+  for (const item of config.announcement_caturday_ids) {
     const split = item.split(",");
 
     const userId = split[0];
@@ -464,10 +464,10 @@ export async function onCaturdayButtonComponentBase(interaction, listener, callb
   const userId = selectedUsers.get(attachmentUrl) || message.author.id;
   const compositeKey = getCompositeKey(userId, message.id, attachmentIndex);
 
-  const btn1 = config.discord_caturday_ids.includes(compositeKey) ? removeImageButton : selectImageButton;
+  const btn1 = config.announcement_caturday_ids.includes(compositeKey) ? removeImageButton : selectImageButton;
   const btn2 = backButton.setDisabled(isBackDisabled);
   const btn3 = nextButton.setDisabled(isNextDisabled);
-  const menu = getSelectMenuUser(userId).setDisabled(config.discord_caturday_ids.includes(compositeKey));
+  const menu = getSelectMenuUser(userId).setDisabled(config.announcement_caturday_ids.includes(compositeKey));
 
   const row1 = new ActionRowBuilder().addComponents(menu);
   const row2 = new ActionRowBuilder().addComponents(btn1, btn2, btn3, Emitter.moreInfoButton);
@@ -530,9 +530,9 @@ export async function onButtonComponentOlderImage({ interaction, listener }) {
  * @param {Listener} listener
  */
 export function onButtonComponentRemoveImageBase(compositeKey, listener) {
-  if (config.discord_caturday_ids.includes(compositeKey)) {
-    const i = config.discord_caturday_ids.indexOf(compositeKey);
-    config.discord_caturday_ids.splice(i, 1);
+  if (config.announcement_caturday_ids.includes(compositeKey)) {
+    const i = config.announcement_caturday_ids.indexOf(compositeKey);
+    config.announcement_caturday_ids.splice(i, 1);
     config.save();
     logger.info(`Deleted "${compositeKey}" from config file.`, listener);
   }
@@ -641,8 +641,8 @@ export async function onButtonComponentSelectImageDirectMessage({ interaction, l
   const attachmentIndex = attachments.findIndex(item => item.url === attachmentUrl);
   const compositeKey = getCompositeKey(message.author.id, message.id, attachmentIndex);
 
-  if (!config.discord_caturday_ids.includes(compositeKey)) {
-    config.discord_caturday_ids.push(compositeKey);
+  if (!config.announcement_caturday_ids.includes(compositeKey)) {
+    config.announcement_caturday_ids.push(compositeKey);
     config.save();
 
     const isExistingReply = Messages.some(item =>
@@ -716,8 +716,8 @@ export async function onButtonComponentSelectImageGuildText({ interaction, liste
   const attachmentIndex = attachments.findIndex(item => item.url === attachmentUrl);
   const compositeKey = getCompositeKey(userId, message.id, attachmentIndex);
 
-  if (!config.discord_caturday_ids.includes(compositeKey)) {
-    config.discord_caturday_ids.push(compositeKey);
+  if (!config.announcement_caturday_ids.includes(compositeKey)) {
+    config.announcement_caturday_ids.push(compositeKey);
     config.save();
   }
 
@@ -760,10 +760,10 @@ export async function onChatInputCommandCaturday({ interaction, listener }) {
   const userId = selectedUsers.get(attachmentUrl) || message.author.id;
   const compositeKey = getCompositeKey(userId, message.id, attachmentIndex);
 
-  const btn1 = config.discord_caturday_ids.includes(compositeKey) ? removeImageButton : selectImageButton;
+  const btn1 = config.announcement_caturday_ids.includes(compositeKey) ? removeImageButton : selectImageButton;
   const btn2 = backButton.setDisabled(true);
   const btn3 = nextButton.setDisabled(!attachmentIndex && !messages[1]);
-  const menu = getSelectMenuUser(userId).setDisabled(config.discord_caturday_ids.includes(compositeKey));
+  const menu = getSelectMenuUser(userId).setDisabled(config.announcement_caturday_ids.includes(compositeKey));
 
   const row1 = new ActionRowBuilder().addComponents(menu);
   const row2 = new ActionRowBuilder().addComponents(btn1, btn2, btn3, Emitter.moreInfoButton);
@@ -796,14 +796,14 @@ export async function onContextMenuCommandCollectCatTaxes({ client, interaction,
   }
 
   // Get count of times target user is an author.
-  const count = config.discord_caturday_ids.reduce((total, item) => {
+  const count = config.announcement_caturday_ids.reduce((total, item) => {
     const message = Messages.get({ messageId: item.split(",")[1] });
     if (message?.author.id === user.id) total += 1;
     return total;
   }, 0);
 
   const percent =
-    Math.round(Utilities.getPercentage(count, config.discord_caturday_ids.length));
+    Math.round(Utilities.getPercentage(count, config.announcement_caturday_ids.length));
 
   const messageContent =
     `### :coin: Hello ${user}! You've been asked to pay your cat tax.`
@@ -894,9 +894,9 @@ export async function onDirectMessageDelete({ client, listener, message }) {
 
     const compositeKey = getCompositeKey(message.author.id, message.id, i);
 
-    if (config.discord_caturday_ids.includes(compositeKey)) {
-      const i = config.discord_caturday_ids.indexOf(compositeKey);
-      config.discord_caturday_ids.splice(i, 1);
+    if (config.announcement_caturday_ids.includes(compositeKey)) {
+      const i = config.announcement_caturday_ids.indexOf(compositeKey);
+      config.announcement_caturday_ids.splice(i, 1);
       config.save();
       logger.info(`Deleted "${compositeKey}" from Caturday config file.`, listener);
     }
@@ -956,14 +956,14 @@ export async function sendCatTaxDirectMessage({ member, listener }) {
   if (member.user.bot) return;
 
   // Get count of times target user is an author.
-  const count = config.discord_caturday_ids.reduce((total, item) => {
+  const count = config.announcement_caturday_ids.reduce((total, item) => {
     const message = Messages.get({ messageId: item.split(",")[1] });
     if (message?.author.id === member.id) total += 1;
     return total;
   }, 0);
 
   const percent =
-    Math.round(Utilities.getPercentage(count, config.discord_caturday_ids.length));
+    Math.round(Utilities.getPercentage(count, config.announcement_caturday_ids.length));
 
   const messageContent =
     `### :coin: Hello ${member}! You've been asked to pay your cat tax.`

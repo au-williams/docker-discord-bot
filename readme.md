@@ -53,7 +53,11 @@ The bot is a framework meant to automate many code-heavy tasks working with the 
 ```js
 import CronJob from "../entities/CronJob.js";
 
-export const CronJobs = new Set([new CronJob().setExpression("* * * * *").setFunction(myFunction)]);
+export const CronJobs = new Set([
+  new CronJob()
+    .setExpression("* * * * *")
+    .setFunction(myFunction)
+]);
 ```
 
 [Cron](https://en.wikipedia.org/wiki/Cron#CRON_expression) is a job scheduler that runs functions on an [expression](https://devhints.io/cron), like every 20 minutes or every Saturday at 9 AM. The bot framework will automatically schedule the Cron jobs you create here. You can extend the Cron jobs with the following setters. 📚
@@ -155,14 +159,12 @@ This JavaScript file sends a picture of a users pet to the announcement channel 
 
 ### 🛠️ plugins/caturday_scheduler.json
 
-| Key                                | Description | Required |
-| :--------------------------------- | :---------- | :------- |
-| "announcement_cron_job_expression" |             | `true`   |
-| "announcement_discord_channel_id"  |             | `true`   |
-| "maintenance_cron_job_expression"  |             | `true`   |
-| "discord_caturday_ids"             |             | `true`   |
-
-<!-- (TODO: Rename plugin admin roles and use bot admins) -->
+| Key                                | Description                                                                                                                                                     | Required |
+| :--------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------- | :------- |
+| "announcement_caturday_ids"        | The saved Caturday ID(s). This is set by the plugin.                                                                                                            | `true`   |
+| "announcement_cron_job_expression" | The Cron job expression to send announcement messages.                                                                                                          | `true`   |
+| "announcement_discord_channel_id"  | The Discord channel ID to send messages to. [(how to find)](https://support.discord.com/hc/en-us/articles/206346498-Where-can-I-find-my-User-Server-Message-ID) | `true`   |
+| "maintenance_cron_job_expression"  | The Cron job expression to perform maintenance tasks.                                                                                                           | `true`   |
 
 </details>
 
@@ -255,7 +257,7 @@ This JavaScript file sends a message reply in response to a message with a media
 
 <img src="assets/qbittorrent_webui_manager.gif" style="height: 180px;"></img>
 
-This JavaScript file manages the host [qBittorrent](https://www.qbittorrent.org/) client by fetching the [qBittorrent WebUI API](https://github.com/qbittorrent/qBittorrent/wiki/WebUI-API-(qBittorrent-4.1)). `/qbittorrent` privately sends the author a message with the current session's info. Clicking `🧲 Add Magnet` opens a popup to add a magnet link to the download queue. Clicking `⏱️ Speed limit` displays a select menu to create, update, or remove the speed limit. The speed limit is automatically removed once the configured time elapses.
+This JavaScript file manages the host [qBittorrent](https://www.qbittorrent.org/) client by fetching the [qBittorrent WebUI API](<https://github.com/qbittorrent/qBittorrent/wiki/WebUI-API-(qBittorrent-4.1)>). `/qbittorrent` privately sends the author a message with the current session's info. Clicking `🧲 Add Magnet` opens a popup to add a magnet link to the download queue. Clicking `⏱️ Speed limit` displays a select menu to create, update, or remove the speed limit. The speed limit is automatically removed once the configured time elapses.
 
 ### 🛠️ plugins/qbittorrent_webui_manager.json
 

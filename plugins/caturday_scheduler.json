@@ -1,7 +1,6 @@
 {
+  "announcement_caturday_ids": [],
   "announcement_cron_job_expression": "0 9 * * SAT",
   "announcement_discord_channel_id": "",
-  "maintenance_cron_job_expression": "0 * * * *",
-  "discord_admin_role_ids": [],
-  "discord_caturday_ids": []
+  "maintenance_cron_job_expression": "0 * * * *"
 }
