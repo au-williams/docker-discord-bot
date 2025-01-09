@@ -109,7 +109,7 @@ Listeners handle actions. The property key is a Discord event or interaction fro
 | setDescription          | Sets the text displayed when describing functionality to the user.    | `false`  |
 | setEnabled              | Sets the enabled state of the listener (typically for debugging).     | `false`  |
 | setFunction             | Sets the function to execute when the listener is authorized.         | `true`   |
-| setLockedUserFunction   | Sets the function to execute when the listener is not authorized.     | `false`  |
+| setLockedFunction       | Sets the function to execute when the listener is not authorized.     | `false`  |
 | setRequiredChannels     | Sets the channel ID(s) required for the listener to be executed.      | `false`  |
 | setRequiredChannelTypes | Sets the channel type(s) required for the listener to be executed.    | `false`  |
 | setRequiredRoles        | Sets the role ID(s) a user must possess one of to be authorized.      | `false`  |

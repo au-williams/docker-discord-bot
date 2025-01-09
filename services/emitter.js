@@ -345,7 +345,7 @@ async function executeListener(params) {
   if (!isAllowedUser) {
     try {
       logger.warn("Listener is locked for user. Executing locked user function.", listener);
-      await listener.lockedUserFunc(params);
+      await listener.lockedFunc(params);
       return;
     }
     catch(error) {
@@ -367,7 +367,7 @@ async function executeListener(params) {
   if (isBusyInteraction) {
     try {
       logger.warn("Interaction is busy. Executing busy function.", listener);
-      await listener.busyInteractionFunc(params);
+      await listener.busyFunc(params);
       return;
     }
     catch(error) {

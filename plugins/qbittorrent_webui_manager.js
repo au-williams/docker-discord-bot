@@ -1,4 +1,4 @@
-import { ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, Events, StringSelectMenuBuilder, StringSelectMenuOptionBuilder } from "discord.js";
+import { ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, Events, InteractionContextType, StringSelectMenuBuilder, StringSelectMenuOptionBuilder } from "discord.js";
 import { Config } from "../services/config.js";
 import { DeploymentTypes } from "../entities/DeploymentTypes.js";
 import { Emitter } from "../services/emitter.js";
@@ -60,6 +60,7 @@ export const Listeners = Object.freeze({
     .setFunction(onButtonSaveChanges)
     .setRequiredRoles(config.discord_required_role_ids),
   [Interactions.ChatInputCommandQbittorrent]: new Listener()
+    .setContextTypes(InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel)
     .setDeploymentType(DeploymentTypes.ChatInputCommand)
     .setDescription("Sends you a message to manage the qBittorrent WebUI. 🌐")
     .setFunction(onChatInputCommandQbittorrent)

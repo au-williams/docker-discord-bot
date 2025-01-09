@@ -1,4 +1,4 @@
-import { ApplicationCommandType, BaseChannel, ChannelType, ContextMenuCommandBuilder, InteractionContextType, SlashCommandBuilder, User } from "discord.js";
+import { ApplicationCommandType, ChannelType, ContextMenuCommandBuilder, InteractionContextType, SlashCommandBuilder, User } from "discord.js";
 import { DeploymentTypes, IsDeploymentType } from "./DeploymentTypes.js";
 import { Utilities } from "../services/utilities.js"
 import fs from "fs-extra";
@@ -6,15 +6,14 @@ import fs from "fs-extra";
 const { discord_bot_admin_user_ids } = fs.readJsonSync("config.json");
 
 /**
- *
+ * The Listener class. These are defined in plugins and services before they're
+ * imported by the Emitter class to dispatch events and interactions.
  */
 export default class Listener {
-  /**
-   *
-   */
+  /** */
   constructor() {
     this.commandName = "";
-    this.contexts = null;
+    this.contextTypes = null;
     this.customId = "";
     this.description = "";
     this.deploymentType = null;
@@ -35,22 +34,13 @@ export default class Listener {
       throw new Error("Function is not implemented.");
     };
 
-    this.busyInteractionFunc = async ({ interaction, listener }) => {
+    this.busyFunc = async ({ interaction, listener }) => {
       const content = "I'm busy with your request. Please wait for me to finish.";
       const reply = await interaction.reply({ content, ephemeral: true, fetchReply: true });
       Utilities.LogPresets.SentReply(reply, listener);
     };
 
-    this.lockedChannelFunc = async ({ interaction, listener }) => {
-      const joinedAdmins = Utilities.getJoinedArrayWithOr(discord_bot_admin_user_ids.map(item => `<@${item}>`));
-      const channelLabel = Utilities.getPluralizedString("channel", listener.requiredChannelLinks.length);
-      const channelValue = Utilities.getJoinedArrayWithOr(listener.requiredChannelLinks);
-      const content = `\`🔐 Locked\` Sorry but you need to be in the ${channelValue} ${channelLabel} to use this! Please contact ${joinedAdmins} if you think this was in error. 🧑‍🔧`;
-      const reply = await interaction.reply({ content, ephemeral: true, fetchReply: true });
-      Utilities.LogPresets.SentReply(reply, listener);
-    };
-
-    this.lockedUserFunc = async ({ interaction, listener }) => {
+    this.lockedFunc = async ({ interaction, listener }) => {
       const joinedAdmins = Utilities.getJoinedArrayWithOr(discord_bot_admin_user_ids.map(item => `<@${item}>`));
       const content = `\`🔐 Locked\` Sorry but you're not allowed to use this! Please contact ${joinedAdmins} if you think this was in error. 🧑‍🔧`;
       const reply = await interaction.reply({ content, ephemeral: true, fetchReply: true });
@@ -58,16 +48,20 @@ export default class Listener {
     };
   }
 
-  // ----------------------------------------------------------------------- //
-  // >> HANDLER GETTERS                                                   << //
-  // ----------------------------------------------------------------------- //
+  /////////////////////////////////////////////////////////////////////////////
+  // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ //
+  // #region LISTENER GETTERS                                                //
+  // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ //
+  /////////////////////////////////////////////////////////////////////////////
 
   /**
-   *
+   * The context menu or slash command builder to be included in the deployment
+   * POST request to Discord.
+   * @returns {ContextMenuCommandBuilder|SlashCommandBuilder|null}
    */
   get builder() {
     if (IsDeploymentType(this.deploymentType)) {
-      this.contexts ??= [
+      this.contextTypes ??= [
         InteractionContextType.Guild,
         InteractionContextType.BotDM,
         InteractionContextType.PrivateChannel
@@ -77,25 +71,26 @@ export default class Listener {
     switch(this.deploymentType) {
       case DeploymentTypes.ChatInputCommand:
         return new SlashCommandBuilder()
-          .setContexts(...this.contexts)
+          .setContexts(...this.contextTypes)
           .setDescription(this.description)
           .setName(this.id)
           .setNSFW(false);
       case DeploymentTypes.UserContextMenuCommand:
         return new ContextMenuCommandBuilder()
-          .setContexts(...this.contexts)
+          .setContexts(...this.contextTypes)
           .setName(this.id)
-          .setType(ApplicationCommandType.User); // TODO: https://discordjs.guide/interactions/context-menus.html#registering-context-menu-commands
+          .setType(ApplicationCommandType.User);
       default:
         return null;
     }
   }
 
   /**
-   * Get the RequiredChannelIds formatted as clickable channels in Discord.
+   * Get the requiredChannelIds text formatted as clickable channel links in
+   * Discord. This should be inserted into a message's content.
    * @type {string[]}
    */
-  get requiredChannelLinks() {
+  get requiredChannelsAsLinks() {
     return this.requiredChannelIds.map(id => `<#${id}>`);
   }
 
@@ -103,18 +98,20 @@ export default class Listener {
    * Get the RequiredRoleIds for the guild the interaction happened in. This
    * is required because the Discord API is questionable at best and doesn't
    * allow linking roles outside of the guild owning them. Wow - so amazing!
+   * In short, if the roles "A" "B" and "C" are required by the listener but
+   * only "B" and "C" are in the guild then only "B" and "C" are returned.
    * @param {BaseInteraction} interaction
    * @returns {string[]}
    */
   getRequiredRoleIdsForGuild(interaction) {
-    return this.requiredRoleIds.filter(item => interaction.guild?.roles.cache.has(item));//.map(item => `<@&${item}>`);
+    return this.requiredRoleIds.filter(item => interaction.guild?.roles.cache.has(item));
   }
 
   /**
    * Get the RequiredRoleIds for the guild mapped as clickable roles. This
    * only works for roles owned by the interaction guild. Roles outside of
    * the interaction guild display as @unknown-role because of limitations
-   * in the Discord API (shocking, I know).
+   * created by the Discord API (shocking, I know).
    * @param {BaseInteraction} interaction
    * @returns {string[]}
    */
@@ -124,9 +121,17 @@ export default class Listener {
     return Utilities.getJoinedArrayWithOr(requiredRoleLinks);
   }
 
-  // ----------------------------------------------------------------------- //
-  // >> HANDLER SETTERS                                                   << //
-  // ----------------------------------------------------------------------- //
+  /////////////////////////////////////////////////////////////////////////////
+  // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ //
+  // #endregion LISTENER GETTERS                                             //
+  // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ //
+  /////////////////////////////////////////////////////////////////////////////
+
+  /////////////////////////////////////////////////////////////////////////////
+  // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ //
+  // #region LISTENER SETTERS                                                //
+  // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ //
+  /////////////////////////////////////////////////////////////////////////////
 
   /**
    * Set the action to perform when the listener is executed while busy.
@@ -151,17 +156,23 @@ export default class Listener {
   }
 
   /**
-   *
+   * Set the context types to be deployed via POST to the Discord API.
+   * @throws On unexpected type of contextTypes
+   * @param {...InteractionContextType} contextTypes
+   * @returns {Listener}
    */
-  setContexts(...contexts) {
+  setContextTypes(...contextTypes) {
     const isType = item => Object.values(InteractionContextType).includes(item);
-    contexts.forEach(item => { if(!isType(item)) { throw new Error("Unexpected context type."); }});
-    this.contexts = contexts;
+    contextTypes.forEach(item => { if(!isType(item)) { throw new Error("Unexpected context type."); }});
+    this.contextTypes = contextTypes;
     return this;
   }
 
   /**
-   *
+   * Set the type of deployment to use when deploying to the Discord API.
+   * @throws On unexpected type of deploymentType
+   * @param {DeploymentTypes} deploymentType
+   * @returns {Listener}
    */
   setDeploymentType(deploymentType) {
     if (!IsDeploymentType(deploymentType)) throw new Error("Unexpected deployment type.");
@@ -170,19 +181,22 @@ export default class Listener {
   }
 
   /**
-   * Set the description (commands deployed via POST to the Discord API).
-   * TODO: set char limit https://github.com/discord/discord-api-docs/discussions/4070
+   * Set the description to use when deploying to the Discord API. This is also
+   * displayed when pressing the "more info" button attached to component rows.
    * @param {string} description
    * @returns {Listener}
    */
   setDescription(description) {
+    // TODO: set char limit
+    // https://github.com/discord/discord-api-docs/discussions/4070
     Utilities.throwType("string", description);
     this.description = description;
     return this;
   }
 
   /**
-   * Set if the CronJob should be enabled. This is typically for debug / dependency purposes.
+   * Set if the Listener should be enabled. This is typically used for debug or
+   * missing dependency purposes such as when the Messages service is disabled.
    * @param {boolean|Function|Promise<boolean>} isEnabled
    * @returns {Listener}
    */
@@ -193,7 +207,7 @@ export default class Listener {
   }
 
   /**
-   * Set the action to perform when the listener is executed.
+   * Set the function to invoke when the listener is executed.
    * @param {Function|Promise} func
    * @returns {Listener}
    */
@@ -204,18 +218,21 @@ export default class Listener {
   }
 
   /**
-   * Set the action to perform when the listener is executed while locked.
-   * @param {Function} lockedUserFunc
+   * Set the function to invoke when the listener is executed while locked for
+   * the user.
+   * @param {Function} lockedFunc
    * @returns {Listener}
    */
-  setLockedUserFunction(lockedUserFunc) {
-    Utilities.throwTypes(["Function", "AsyncFunction"], lockedUserFunc);
-    this.lockedUserFunc = lockedUserFunc;
+  setLockedFunction(lockedFunc) {
+    Utilities.throwTypes(["Function", "AsyncFunction"], lockedFunc);
+    this.lockedFunc = lockedFunc;
     return this;
   }
 
   /**
-   * Set Discord channels required for the listener to execute.
+   * Set Discord channels required for the listener to execute in. The listener
+   * will silently ignore requests sent from non-required channels.
+   * @throws On unexpected type of resolvedChannelIds
    * @param {string[]|string|Function} requiredChannelIds Channel ids as a string or string array
    * @returns {Listener}
    */
@@ -244,7 +261,12 @@ export default class Listener {
   }
 
   /**
-   *
+   * Set Discord channel types required for the listener to execute in. The
+   * listener will silently ignore requests sent from non-required channel
+   * types.
+   * @throws On unexpected type of channelTypes
+   * @param {...ChannelType} channelTypes
+   * @returns {Listener}
    */
   setRequiredChannelTypes(...channelTypes) {
     if (Array.isArray(channelTypes[0])) channelTypes = channelTypes[0];
@@ -255,7 +277,10 @@ export default class Listener {
   }
 
   /**
-   * Set Discord roles a member must possess at least one of to be authorized for the listener
+   * Set Discord guild roles a user must possess at least one of to be allowed
+   * to execute the listener function. When the requiredRoleIds aren't met the
+   * lockedFunc will be executed instead (overridable with setLockedFunction).
+   * @throws On unexpected type of resolvedRoleIds
    * @param {string[]|string|Function} requiredRoleIds Role ids as a string or string array
    * @returns {Listener}
    */
@@ -284,6 +309,12 @@ export default class Listener {
   }
 
   /**
+   * Set Discord users a user must be one of to be allowed to execute the
+   * listener function. When the requiredUserIds aren't met the lockedFunc will
+   * be executed instead (overridable with setLockedFunction).
+   * @throws On unexpected type of resolvedUserIds
+   * @param {string[]|string|Function} requiredUserIds User ids as a string or string array
+   * @returns {Listener}
    */
   setRequiredUsers(requiredUserIds) {
     let resolvedUserIds = requiredUserIds;
@@ -323,4 +354,10 @@ export default class Listener {
     this.runOrder = runOrder;
     return this;
   }
+
+  /////////////////////////////////////////////////////////////////////////////
+  // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ //
+  // #endregion LISTENER SETTERS                                             //
+  // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ //
+  /////////////////////////////////////////////////////////////////////////////
 }
