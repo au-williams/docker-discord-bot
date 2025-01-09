@@ -79,24 +79,24 @@ export const Listeners = Object.freeze({
       .setDescription("Removes the image from future Caturday announcements.")
       .setFunction(onButtonComponentRemoveImageDirectMessage)
       .setRequiredChannelTypes(ChannelType.DM)
-      .setRequiredRoles(config.discord_admin_role_ids),
+      .setRequiredUsers(config.discord_bot_admin_user_ids),
     new Listener()
       .setDescription("Removes the image from future Caturday announcements.")
       .setFunction(onButtonComponentRemoveImageGuildText)
       .setRequiredChannelTypes(ChannelType.GuildText)
-      .setRequiredRoles(config.discord_admin_role_ids)
+      .setRequiredUsers(config.discord_bot_admin_user_ids)
   ],
   [Interactions.ButtonComponentSelectImage]: [
     new Listener()
       .setDescription("Includes the image in future Caturday announcements.")
       .setFunction(onButtonComponentSelectImageDirectMessage)
       .setRequiredChannelTypes(ChannelType.DM)
-      .setRequiredRoles(config.discord_admin_role_ids),
+      .setRequiredUsers(config.discord_bot_admin_user_ids),
     new Listener()
       .setDescription("Includes the image in future Caturday announcements.")
       .setFunction(onButtonComponentSelectImageGuildText)
       .setRequiredChannelTypes(ChannelType.GuildText)
-      .setRequiredRoles(config.discord_admin_role_ids)
+      .setRequiredUsers(config.discord_bot_admin_user_ids)
   ],
   [Interactions.SelectMenuUploader]: new Listener()
     .setDescription("Chooses the user that should be attributed for the image.")
@@ -105,13 +105,12 @@ export const Listeners = Object.freeze({
     .setContextTypes(InteractionContextType.Guild, InteractionContextType.PrivateChannel)
     .setDeploymentType(DeploymentTypes.ChatInputCommand)
     .setDescription("Privately shows a file selector to submit channel pictures for #caturday 🐱")
-    .setFunction(onChatInputCommandCaturday)
-    .setRequiredRoles(config.discord_admin_role_ids),
+    .setFunction(onChatInputCommandCaturday),
   [Interactions.ContextMenuCommandCollectCatTaxes]: new Listener()
     .setContextTypes(InteractionContextType.Guild, InteractionContextType.PrivateChannel)
     .setDeploymentType(DeploymentTypes.UserContextMenuCommand)
     .setFunction(onContextMenuCommandCollectCatTaxes)
-    .setRequiredRoles(config.discord_admin_role_ids)
+    .setRequiredUsers(config.discord_bot_admin_user_ids),
 });
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -857,17 +856,12 @@ export async function onDirectMessageCreate({ client, listener, message }) {
     messages.push({ content: `${content}(${attachmentUrl})`, components });
   }
 
-  for(const roleId of config.discord_admin_role_ids) {
-    const guilds = client.guilds.cache.filter(guild => guild.roles.cache.some(role => role.id === roleId));
-    const members = guilds.map(guild => [...guild.roles.cache.get(roleId).members.values()]).flat();
-
-    for(const member of members) {
-      for(const message of messages) {
-        member.user
-          .send(message)
-          .then(message => Utilities.LogPresets.SentMessage(message, listener))
-          .catch(error => logger.error(error, listener));
-      }
+  for(const userId of config.discord_bot_admin_user_ids) {
+    for(const message of messages) {
+      client.users.cache.get(userId)
+        .send(message)
+        .then(message => Utilities.LogPresets.SentMessage(message, listener))
+        .catch(error => logger.error(error, listener));
     }
   }
 

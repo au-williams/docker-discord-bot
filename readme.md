@@ -160,7 +160,6 @@ This JavaScript file sends a picture of a users pet to the announcement channel 
 | "announcement_cron_job_expression" |             | `true`   |
 | "announcement_discord_channel_id"  |             | `true`   |
 | "maintenance_cron_job_expression"  |             | `true`   |
-| "discord_admin_role_ids"           |             | `true`   |
 | "discord_caturday_ids"             |             | `true`   |
 
 <!-- (TODO: Rename plugin admin roles and use bot admins) -->
