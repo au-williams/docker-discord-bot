@@ -32,16 +32,16 @@ export const Interactions = Object.freeze({
 export const Listeners = Object.freeze({
   [Events.MessageCreate]: new Listener()
     .setFunction(onDirectMessageCreate)
-    .setRequiredChannelType(ChannelType.DM),
+    .setRequiredChannelTypes(ChannelType.DM),
   [Interactions.ButtonComponentHideMessage]: new Listener()
     .setDescription("Hides / deletes the message from your direct messages.")
     .setFunction(({ interaction, listener }) => interaction.message.delete().catch(error => logger.error(error, listener)))
-    .setRequiredChannelType(ChannelType.DM),
+    .setRequiredChannelTypes(ChannelType.DM),
   [Interactions.ButtonComponentSendReply]: new Listener()
     .setDescription("Sends a reply as the bot to the message author.")
     .setEnabled(Messages.isServiceEnabled)
     .setFunction(onButtonComponentSendReply)
-    .setRequiredChannelType(ChannelType.DM),
+    .setRequiredChannelTypes(ChannelType.DM),
   [Interactions.ModalSubmitSendReply]: new Listener()
     .setFunction(onModalSubmitSendReply)
 });

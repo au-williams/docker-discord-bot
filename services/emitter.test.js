@@ -1,9 +1,8 @@
+import { ChannelType } from "discord.js";
 import { checkAllowedChannel, checkAllowedChannelType, checkAllowedUser, Emitter, getBusyInteractionCompositeKey, importCronJob } from "./emitter.js";
+import { jest } from "@jest/globals"
 import CronJob from "../entities/CronJob.js";
 import Listener from "../entities/Listener.js";
-import { jest } from "@jest/globals"
-import { ChannelType } from "discord.js";
-
 
 describe("checkAllowedChannel", () => {
   it("returns true when listener has no requiredChannelIds", async () => {
@@ -52,28 +51,28 @@ describe("checkAllowedChannelType", () => {
     expect(result).toBe(true);
   });
 
-  test("returns false if channel type does not match any in requiredChannelTypes <...string>", () => {
+  it("returns false if channel type does not match any in requiredChannelTypes <...string>", () => {
     const listener = new Listener().setRequiredChannelTypes(ChannelType.DM, ChannelType.GuildText);
     const channel = { type: ChannelType.PrivateThread };
     const result = checkAllowedChannelType(listener, channel);
     expect(result).toBe(false);
   });
 
-  test("returns false if channel type does not match any in requiredChannelTypes <string[]>", () => {
+  it("returns false if channel type does not match any in requiredChannelTypes <string[]>", () => {
     const listener = new Listener().setRequiredChannelTypes([ChannelType.DM, ChannelType.GuildText]);
     const channel = { type: ChannelType.PrivateThread };
     const result = checkAllowedChannelType(listener, channel);
     expect(result).toBe(false);
   });
 
-  test("returns false if setRequiredChannelType is an empty array", () => {
+  it("returns false if setRequiredChannelType is an empty array", () => {
     const listener = new Listener().setRequiredChannelTypes([]);
     const channel = { type: ChannelType.PrivateThread };
     const result = checkAllowedChannelType(listener, channel);
     expect(result).toBe(false);
   });
 
-  test("returns false if setRequiredChannelType has no parameter", () => {
+  it("returns false if setRequiredChannelType has no parameter", () => {
     const listener = new Listener().setRequiredChannelTypes();
     const channel = { type: ChannelType.PrivateThread };
     const result = checkAllowedChannelType(listener, channel);
@@ -169,10 +168,6 @@ describe("importCronJob", () => {
       && item.isService === true
       && item.runOrder === cronJob.runOrder
     )).toBe(true);
-
-    // Emitter.scheduleCronJob = jest.fn();
-    // Emitter.listeners[0].func();
-    // expect(Emitter.scheduleCronJob).toHaveBeenCalledTimes(1);
   });
 
   it("correctly maps an enabled plugin cron job", () => {
@@ -182,6 +177,14 @@ describe("importCronJob", () => {
 
     Emitter._importedListeners = new Map();
     importCronJob(cronJob, filepath, isService);
+
+    ///////////////////////////////////////////////////////////////
+    // Verify the scheduler is invoked                           //
+    ///////////////////////////////////////////////////////////////
+    // Emitter.scheduleCronJob = jest.fn();                      //
+    // Emitter.listeners[0].func();                              //
+    // expect(Emitter.scheduleCronJob).toHaveBeenCalledTimes(1); //
+    ///////////////////////////////////////////////////////////////
 
     expect(Emitter.listeners.some(item =>
       item.filename === "test_plugin.js"

@@ -172,10 +172,16 @@ export class Emitter {
    * @param {boolean} value
    */
   static setBusy(interaction, value) {
-    const compositeKey = getBusyInteractionCompositeKey(interaction);
-    Emitter._busyInteractions.set(compositeKey, value);
-    const loggerLabel = value ? "busy" : "not busy";
-    logger.debug(`Set ${compositeKey} as ${loggerLabel} (${value}).`);
+    if (interaction) {
+      const compositeKey = getBusyInteractionCompositeKey(interaction);
+      Emitter._busyInteractions.set(compositeKey, value);
+      const loggerLabel = value ? "busy" : "not busy";
+      logger.debug(`Set ${compositeKey} as ${loggerLabel} (${value}).`);
+    }
+    else {
+      const loggerLabel = value ? "busy" : "not busy";
+      logger.warn(`No interaction to set as ${loggerLabel} (${value})`);
+    }
   }
 
   /**
@@ -267,12 +273,14 @@ export function checkAllowedChannelType(listener, channel) {
   return listener.requiredChannelTypes.some(type => type === channel.type);
 }
 
-/**
- * @throws On unexpected type of user.
- * @param {Listener} listener
- * @param {User} user
- * @returns {Promise<boolean>}
- */
+  /**
+   * Check if the listener is locked for the user. Listeners may be
+   * invoked within or outside of a Guild, so check if the user has
+   * the required role within each available guild.
+   * @param {Listener} listener
+   * @param {User} user
+   * @returns {Promise<boolean>}
+   */
 export async function checkAllowedUser(listener, user) {
   if (!Utilities.checkJestTest()) {
     Utilities.throwType(User, user);
@@ -306,97 +314,79 @@ export async function checkAllowedUser(listener, user) {
  */
 async function executeListener(params) {
   const { interaction, listener, message, newMessage, oldMessage } = params;
-  const instance = message || newMessage || oldMessage || interaction;
+  const instance = message || newMessage || oldMessage || interaction || {};
+  const { channel, user } = instance;
 
-  // ------------------------ //
-  // Handle disabled listener //
-  // ------------------------ //
+  // ----------------------------------- //
+  // End if the listener is not enabled. //
+  // ----------------------------------- //
 
-  if (!listener.isEnabled) {
-    logger.warn("Listener is not enabled. Skipping code execution.", listener);
-  }
+  const isListenerEnabled = listener.isEnabled;
+  if (!isListenerEnabled) return;
 
-  // --------------------------- //
-  // Handle invalid channel type //
-  // --------------------------- //
+  // --------------------------------------------------- //
+  // End if the channel is not allowed for the listener. //
+  // --------------------------------------------------- //
 
-  else if (listener.checkInvalidChannelType(instance?.channel)) {
-    const log = "Listener is invalid for channel type.";
-    logger.debug(log, listener);
-  }
+  const isAllowedChannel = checkAllowedChannel(listener, channel);
+  if (!isAllowedChannel) return;
 
-  // --------------------- //
-  // Handle locked channel //
-  // --------------------- //
+  const isAllowedChannelType = checkAllowedChannelType(listener, channel);
+  if (!isAllowedChannelType) return;
 
-  else if (await listener.checkLockedChannel(instance?.channel)) {
-    const log = "Listener is locked for channel.";
+  // ------------------------------------------------ //
+  // End if the user is not allowed for the listener. //
+  // ------------------------------------------------ //
 
-    if (!interaction) {
-      logger.debug(log, listener);
-      return;
-    }
+  const isAllowedUser = user
+    ? await checkAllowedUser(listener, user)
+    : true; // ClientReady has no user, etc.
+
+  if (!isAllowedUser) {
     try {
-      logger.warn(`${log} Executing locked channel listener.`, listener);
-      await listener.lockedChannelFunc(params);
-    }
-    catch(error) {
-      if (listener.isService) throw error;
-      await handleListenerError({ ...params, error });
-    }
-  }
-
-  // ------------------ //
-  // Handle locked user //
-  // ------------------ //
-
-  else if (instance?.user && await listener.checkLockedUser(instance.user)) {
-    const log = "Listener is locked for user.";
-
-    if (!interaction) {
-      logger.debug(log, listener);
-      return;
-    }
-    try {
-      logger.warn(`${log} Executing locked user listener.`, listener);
+      logger.warn("Listener is locked for user. Executing locked user function.", listener);
       await listener.lockedUserFunc(params);
+      return;
     }
     catch(error) {
       if (listener.isService) throw error;
       await handleListenerError({ ...params, error });
+      return;
     }
   }
 
-  // ----------------------- //
-  // Handle busy interaction //
-  // ----------------------- //
+  // ------------------------------------------ //
+  // End if the interaction's listener is busy. //
+  // (Events can't be busy. Only interactions!) //
+  // ------------------------------------------ //
 
-  else if (interaction && Emitter.isBusy(interaction)) {
-    logger.warn("Listener is busy. Executing busy listener.", listener);
+  const isBusyInteraction = interaction
+    ? Emitter.isBusy(interaction)
+    : false;
 
+  if (isBusyInteraction) {
     try {
-      if (!interaction) return;
-      // Only call function for interactions
+      logger.warn("Interaction is busy. Executing busy function.", listener);
       await listener.busyInteractionFunc(params);
+      return;
     }
     catch(error) {
       if (listener.isService) throw error;
       await handleListenerError({ ...params, error });
+      return;
     }
   }
 
-  // --------------- //
-  // Invoke listener //
-  // --------------- //
+  // ------------------------------ //
+  // Execute the listener function. //
+  // ------------------------------ //
 
-  else {
-    try {
-      await listener.func(params);
-    }
-    catch(error) {
-      if (listener.isService) throw error;
-      await handleListenerError({ ...params, error })
-    }
+  try {
+    await listener.func(params);
+  }
+  catch(error) {
+    if (listener.isService) throw error;
+    await handleListenerError({ ...params, error });
   }
 }
 
@@ -579,7 +569,7 @@ export async function sendButtonInfoReply({ listener, interaction }) {
       emoji = "🧩"//"🔲"//"🧩"//"🪧";
     }
 
-    const roles = await listener.checkLockedUser(interaction)
+    const roles = checkAllowedUser(listener, interaction.user)
       ? `\`🔐 Locked\` ${listener.getRequiredRoleLinksForGuild(interaction)}`
       : `\`🔓 Unlocked\` ${listener.getRequiredRoleLinksForGuild(interaction)}`;
 

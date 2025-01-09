@@ -58,14 +58,14 @@ export const Listeners = Object.freeze({
     sendCatTaxDirectMessage,
   [Events.MessageCreate]: new Listener()
     .setFunction(onDirectMessageCreate)
-    .setRequiredChannelType(ChannelType.DM),
+    .setRequiredChannelTypes(ChannelType.DM),
   [Events.MessageDelete]: new Listener()
     .setFunction(onDirectMessageDelete)
-    .setRequiredChannelType(ChannelType.DM),
+    .setRequiredChannelTypes(ChannelType.DM),
   [Interactions.ButtonComponentHideMessage]: new Listener()
     .setDescription("Hides / deletes the message from your direct messages.")
     .setFunction(({ interaction, listener }) => interaction.message.delete().catch(error => logger.error(error, listener)))
-    .setRequiredChannelType(ChannelType.DM),
+    .setRequiredChannelTypes(ChannelType.DM),
   [Interactions.ButtonComponentMissingImage]: new Listener()
     .setDescription("This button is disabled because the image was deleted."),
   [Interactions.ButtonComponentNewerImage]: new Listener()
@@ -78,24 +78,24 @@ export const Listeners = Object.freeze({
     new Listener()
       .setDescription("Removes the image from future Caturday announcements.")
       .setFunction(onButtonComponentRemoveImageDirectMessage)
-      .setRequiredChannelType(ChannelType.DM)
+      .setRequiredChannelTypes(ChannelType.DM)
       .setRequiredRoles(config.discord_admin_role_ids),
     new Listener()
       .setDescription("Removes the image from future Caturday announcements.")
       .setFunction(onButtonComponentRemoveImageGuildText)
-      .setRequiredChannelType(ChannelType.GuildText)
+      .setRequiredChannelTypes(ChannelType.GuildText)
       .setRequiredRoles(config.discord_admin_role_ids)
   ],
   [Interactions.ButtonComponentSelectImage]: [
     new Listener()
       .setDescription("Includes the image in future Caturday announcements.")
       .setFunction(onButtonComponentSelectImageDirectMessage)
-      .setRequiredChannelType(ChannelType.DM)
+      .setRequiredChannelTypes(ChannelType.DM)
       .setRequiredRoles(config.discord_admin_role_ids),
     new Listener()
       .setDescription("Includes the image in future Caturday announcements.")
       .setFunction(onButtonComponentSelectImageGuildText)
-      .setRequiredChannelType(ChannelType.GuildText)
+      .setRequiredChannelTypes(ChannelType.GuildText)
       .setRequiredRoles(config.discord_admin_role_ids)
   ],
   [Interactions.SelectMenuUploader]: new Listener()

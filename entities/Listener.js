@@ -26,7 +26,7 @@ export default class Listener {
     this.isEnabled = true;
     this.isService = false;
     this.requiredChannelIds = [];
-    this.requiredChannelType = null;
+    this.requiredChannelTypes = null;
     this.requiredRoleIds = [];
     this.requiredUserIds = [];
     this.runOrder = 0;
@@ -97,64 +97,6 @@ export default class Listener {
    */
   get requiredChannelLinks() {
     return this.requiredChannelIds.map(id => `<#${id}>`);
-  }
-
-  /**
-   * Check if the listener is locked for the channel.
-   * @throws On unexpected type of interaction or channel.
-   * @param {(BaseInteraction|BaseChannel)} interactionOrChannel
-   * @returns {boolean}
-   */
-  async checkLockedChannel(interactionOrChannel) {
-    if (!this.requiredChannelIds.length || !interactionOrChannel) return false;
-    let channel = interactionOrChannel.channel || interactionOrChannel;
-    const isThreadChannel = channel.type === ChannelType.PublicThread || channel.type === ChannelType.PrivateThread;
-    if (isThreadChannel) channel = await channel.fetchStarterMessage().then(result => result.channel);
-    Utilities.throwType(BaseChannel, channel);
-    return !this.requiredChannelIds.some(id => id === channel.id);
-  }
-
-  /**
-   * Check if the listener is locked for the user. Listeners may be
-   * invoked within or outside of a Guild, so check if the user has
-   * the required role within each guild.
-   * @param {(BaseInteraction|User)} interactionOrUser
-   * @returns {boolean}
-   */
-  async checkLockedUser(interactionOrUser) {
-    const user = interactionOrUser.user || interactionOrUser;
-    Utilities.throwType(User, user);
-
-    let isRequiredUser = !this.requiredUserIds.length;
-    let isRequiredRole = !this.requiredRoleIds.length;
-
-    if (isRequiredUser && isRequiredRole) {
-      return false;
-    }
-
-    if (this.requiredRoleIds.length) {
-      for (const guild of user.client.guilds.cache.values()) {
-        const member = await guild.members.fetch({ user });
-        const some = this.requiredRoleIds.some(id => member.roles.cache.has(id));
-        if (some) isRequiredRole = true;
-        if (some) break;
-      }
-    }
-
-    if (this.requiredUserIds.length) {
-      isRequiredUser = this.requiredUserIds.includes(user.id);
-    }
-
-    return !isRequiredRole || !isRequiredUser;
-  }
-
-  /**
-   *
-   */
-  checkInvalidChannelType(interactionOrChannel) {
-    if (!Number.isInteger(this.requiredChannelType) || !interactionOrChannel) return false;
-    let channel = interactionOrChannel.channel || interactionOrChannel;
-    return channel.type !== this.requiredChannelType;
   }
 
   /**
@@ -304,9 +246,11 @@ export default class Listener {
   /**
    *
    */
-  setRequiredChannelType(channelType) {
-    if (!Object.values(ChannelType).includes(channelType)) throw new Error("Unexpected channel type.");
-    this.requiredChannelType = channelType;
+  setRequiredChannelTypes(...channelTypes) {
+    if (Array.isArray(channelTypes[0])) channelTypes = channelTypes[0];
+    const some = channelTypes.some(item => !Object.values(ChannelType).includes(item));
+    if (some) throw new Error("Unexpected channel type.");
+    this.requiredChannelTypes = channelTypes;
     return this;
   }
 
@@ -341,29 +285,29 @@ export default class Listener {
 
   /**
    */
-    setRequiredUsers(requiredUserIds) {
-      let resolvedUserIds = requiredUserIds;
+  setRequiredUsers(requiredUserIds) {
+    let resolvedUserIds = requiredUserIds;
 
-      // Unpack the parameter
-      if (Utilities.checkType("function", resolvedUserIds)) {
-        resolvedUserIds = resolvedUserIds();
-      }
-      if (Utilities.checkType("string", resolvedUserIds)) {
-        resolvedUserIds = [resolvedUserIds];
-      }
-
-      // Validate the result
-      if (!Array.isArray(resolvedUserIds)) {
-        throw new Error(`Expected type string[]. Received ${typeof resolvedChannelIds}.`)
-      }
-      else if (resolvedUserIds.some(item => !item || !Utilities.checkType("string", item))) {
-        const channelId = resolvedUserIds.find(item => !Utilities.checkType("string", item));
-        throw new Error(`Expected type string. Received ${typeof channelId}.`);
-      }
-
-      this.requiredUserIds = resolvedUserIds;
-      return this;
+    // Unpack the parameter
+    if (Utilities.checkType("function", resolvedUserIds)) {
+      resolvedUserIds = resolvedUserIds();
     }
+    if (Utilities.checkType("string", resolvedUserIds)) {
+      resolvedUserIds = [resolvedUserIds];
+    }
+
+    // Validate the result
+    if (!Array.isArray(resolvedUserIds)) {
+      throw new Error(`Expected type string[]. Received ${typeof resolvedChannelIds}.`)
+    }
+    else if (resolvedUserIds.some(item => !item || !Utilities.checkType("string", item))) {
+      const channelId = resolvedUserIds.find(item => !Utilities.checkType("string", item));
+      throw new Error(`Expected type string. Received ${typeof channelId}.`);
+    }
+
+    this.requiredUserIds = resolvedUserIds;
+    return this;
+  }
 
   /**
    * Set the order in which this listener sorts alongside other listeners of its kind.

@@ -102,18 +102,18 @@ export const Listeners = Object.freeze({
 
 Listeners handle actions. The property key is a Discord event or interaction from the `Interactions` object. The value is a `Listener` object that will be executed when the key is emitted by Discord. Listeners that only set a function can use that function as the value and the bot framework will automatically wrap it in a Listener. You can use an array to create multiple Listener values for a single key. You can customize the Listener with the following setters. 📚
 
-| Name                   | Description                                                           | Required |
-| :--------------------- | :-------------------------------------------------------------------- | :------- |
-| setBusyFunction        | Sets the function to execute when the interaction is flagged as busy. | `false`  |
-| setDeploymentType      | Sets the type of POST request to use when deploying to Discord.       | `false`  |
-| setDescription         | Sets the text displayed when describing functionality to the user.    | `false`  |
-| setEnabled             | Sets the enabled state of the listener (typically for debugging).     | `false`  |
-| setFunction            | Sets the function to execute when the listener is authorized.         | `true`   |
-| setLockedUserFunction  | Sets the function to execute when the listener is not authorized.     | `false`  |
-| setRequiredChannels    | Sets the channel ID(s) required for the listener to be executed.      | `false`  |
-| setRequiredChannelType | Sets the channel type required for the listener to be executed.       | `false`  |
-| setRequiredRoles       | Sets the role ID(s) a user must possess one of to be authorized.      | `false`  |
-| setRunOrder            | Sets the order this listener runs with others to avoid race issues.   | `false`  |
+| Name                    | Description                                                           | Required |
+| :---------------------- | :-------------------------------------------------------------------- | :------- |
+| setBusyFunction         | Sets the function to execute when the interaction is flagged as busy. | `false`  |
+| setDeploymentType       | Sets the type of POST request to use when deploying to Discord.       | `false`  |
+| setDescription          | Sets the text displayed when describing functionality to the user.    | `false`  |
+| setEnabled              | Sets the enabled state of the listener (typically for debugging).     | `false`  |
+| setFunction             | Sets the function to execute when the listener is authorized.         | `true`   |
+| setLockedUserFunction   | Sets the function to execute when the listener is not authorized.     | `false`  |
+| setRequiredChannels     | Sets the channel ID(s) required for the listener to be executed.      | `false`  |
+| setRequiredChannelTypes | Sets the channel type(s) required for the listener to be executed.    | `false`  |
+| setRequiredRoles        | Sets the role ID(s) a user must possess one of to be authorized.      | `false`  |
+| setRunOrder             | Sets the order this listener runs with others to avoid race issues.   | `false`  |
 
 </details>
 
