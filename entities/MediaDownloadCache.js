@@ -214,7 +214,11 @@ function mapGenre(input) {
 
   switch(true) {
     case (inputIncludes("lofi")): return "Lo-Fi";
+    case (inputIncludes("punkrock")): return "Punk Rock";
+    case (inputIncludes("punk")): return "Punk";
+    case (inputIncludes("folk")): return "Folk";
     case (inputIncludes("hiphop")): return "Hip-Hop";
+    case (inputIncludes("rap")): return "Rap";
     case (inputIncludes("breakcore")): return "Breakcore";
     case (inputIncludes("chillstep")): return "Chillstep";
     case (inputIncludes("citypop")): return "City Pop";
@@ -223,7 +227,6 @@ function mapGenre(input) {
     case (inputIncludes("edm")): return "EDM";
     case (inputIncludes("electronicdancemusic")): return "EDM";
     case (inputIncludes("d&b")): return "Drum and Bass";
-    case (inputIncludes("folk")): return "Folk";
     case (inputIncludes("futurebass")): return "Future Bass";
     case (inputIncludes("dnb")): return "Drum and Bass";
     case (inputIncludes("drum&bass")): return "Drum and Bass";
