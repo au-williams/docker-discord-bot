@@ -433,11 +433,31 @@ export async function handleListenerError({ interaction, listener, error }) {
   try {
     logger.error(error, listener);
 
+    // ---------------------------------- //
+    // End if there is nothing to update. //
+    // ---------------------------------- //
+
     if (!interaction) return;
+
+    // ---------------------------------- //
+    // Defer so it can be followed up to. //
+    // ---------------------------------- //
 
     if (!interaction.deferred) {
       await interaction.deferUpdate();
     }
+
+    // ------------------------------------ //
+    // Reset busy so it can be tried again. //
+    // ------------------------------------ //
+
+    if (Emitter.isBusy(interaction)) {
+      Emitter.setBusy(interaction, false);
+    }
+
+    // ---------------------------------- //
+    // Send follow up message with error. //
+    // ---------------------------------- //
 
     if (error.toString().includes("DiscordAPIError[40005]")) {
       const content = `I'm not able to upload your file because the size exceeds the limit set by Discord. Please try again with a smaller file.\n\`\`\`${error}\`\`\``;
