@@ -231,19 +231,16 @@ This JavaScript file sends a message reply in response to a message with a media
 
 ### 🛠️ plugins/plex_music_downloader.json
 
-| Key                                | Description | Required |
-| :--------------------------------- | :---------- | :------- |
-| "cron_job_announcement_expression" |             | `true`   |
-| "discord_admin_role_id"            |             | `true`   |
-| "discord_allowed_channel_ids"      |             | `true`   |
-| "discord_plex_emoji"               |             | `true`   |
-| "discord_youtube_emoji"            |             | `true`   |
-| "plex_authentication_token"        |             | `true`   |
-| "plex_audio_download_directory"    |             | `true`   |
-| "plex_video_download_directory"    |             | `true`   |
-| "plex_example_genres"              |             | `true`   |
-| "plex_library_section_id"          |             | `true`   |
-| "plex_server_ip_address"           |             | `true`   |
+| Key                             | Description                                                                                                                                                    | Required |
+| :------------------------------ | :------------------------------------------------------------------------------------------------------------------------------------------------------------- | :------- |
+| "discord_plex_emoji"            | The custom emoji in `<:NAME:ID>` format. [(how to find)](https://www.pythondiscord.com/pages/guides/pydis-guides/contributing/obtaining-discord-ids/#emoji-id) | `true`   |
+| "discord_youtube_emoji"         | The custom emoji in `<:NAME:ID>` format. [(how to find)](https://www.pythondiscord.com/pages/guides/pydis-guides/contributing/obtaining-discord-ids/#emoji-id) | `true`   |
+| "plex_authentication_token"     | The Plex authentication token used by the bot. [(how to find)](https://support.plex.tv/articles/204059436-finding-an-authentication-token-x-plex-token/)       | `true`   |
+| "plex_download_directory_audio" | The Plex download directory path for audio files.                                                                                                              | `true`   |
+| "plex_download_directory_video" | The Plex download directory path for video files.                                                                                                              | `true`   |
+| "plex_library_section_id_audio" | The Plex audio library section ID. [(how to find)](https://support.plex.tv/articles/201242707-plex-media-scanner-via-command-line)                             | `true`   |
+| "plex_library_section_id_video" | The Plex video library section ID. [(how to find)](https://support.plex.tv/articles/201242707-plex-media-scanner-via-command-line)                             | `true`   |
+| "plex_media_server_host_url"    | The host URL. `127.0.0.1` or `host.docker.internal` on `:32400`.                                                                                               | `true`   |
 
 </details>
 

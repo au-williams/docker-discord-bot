@@ -84,19 +84,19 @@ export const Listeners = Object.freeze({
   [Interactions.ButtonManagePlexAudio]: new Listener()
     .setDescription("Manages this media in the host's Plex server. New audio files can be imported in to the music library. Existing files can be deleted from the music library. Requires an admin role to use.")
     .setFunction(async params => await onButtonManagePlex({ ...params, contentType: contentTypes.audio }))
-    .setRequiredRoles(config.discord_admin_role_id),
+    .setRequiredRoles(config.discord_bot_admin_user_ids),
   [Interactions.ButtonManagePlexVideo]: new Listener()
     .setDescription("Manages this media in the host's Plex server. New video files can be imported in to the video library. Existing files can be deleted from the video library. Requires an admin role to use.")
     .setFunction(async params => await onButtonManagePlex({ ...params, contentType: contentTypes.video }))
-    .setRequiredRoles(config.discord_admin_role_id),
+    .setRequiredRoles(config.discord_bot_admin_user_ids),
   [Interactions.ButtonPlexStartImportAudio]: new Listener()
     .setDescription("Starts the file import into Plex. The audio will be downloaded to the server host before being added to the Plex library. Your wait times will be influenced by the size of the source content.")
     .setFunction(async params => await showMetadataModal({ ...params, contentType: contentTypes.audio, customId: Interactions.ModalSubmitStartPlexImportAudio, modalLabel: "Import" }))
-    .setRequiredRoles(config.discord_admin_role_id),
+    .setRequiredRoles(config.discord_bot_admin_user_ids),
   [Interactions.ButtonPlexStartImportVideo]: new Listener()
     .setDescription("Starts the file import into Plex. The video will be downloaded to the server host before being added to the Plex library. Your wait times will be influenced by the size of the source content.")
     .setFunction(async params => await showMetadataModal({ ...params, contentType: contentTypes.video, customId: Interactions.ModalSubmitStartPlexImportVideo, modalLabel: "Import" }))
-    .setRequiredRoles(config.discord_admin_role_id),
+    .setRequiredRoles(config.discord_bot_admin_user_ids),
   [Interactions.ButtonSelectAllChaptersAudio]: new Listener()
     .setDescription("Selects all chapters instead of selecting each chapter one by one. Pressing this again deselects them. Includes chapters not shown in the select menu when exceeding Discord's select menu item limit of 25 items.")
     .setFunction(async params => await onButtonChaptersSelectAll({ ...params, contentType: contentTypes.audio })),
@@ -341,12 +341,12 @@ function getSelectMenuPlexFiles(contentType, customId, downloadCache, filenames,
   switch(contentType) {
     case contentTypes.audio: {
       aOrAnLabel = "an";
-      directory = config.plex_audio_download_directory;
+      directory = config.plex_download_directory_audio;
       break;
     }
     case contentTypes.video: {
       aOrAnLabel = "a";
-      directory = `${config.plex_video_download_directory}/${downloadCache.uploader}`; break;
+      directory = `${config.plex_download_directory_video}/${downloadCache.uploader}`; break;
     }
     default: {
       throw new Error(`Unexpected contentType "${contentType}"`);
@@ -520,6 +520,29 @@ function getTextInputTitle(populatedValue) {
 const contentTypes = Object.freeze({ audio: "audio", video: "video" });
 
 /**
+ * The music genres suggested at random when a genre is not prepopulated.
+ * @type {string[]}
+ */
+const exampleMusicGenres = [
+  "Alternative",
+  "Commentary",
+  "Country",
+  "Dubstep",
+  "EDM",
+  "Folk",
+  "Hip-Hop",
+  "House",
+  "Lo-Fi",
+  "Metal",
+  "Phonk",
+  "Rap",
+  "Rock",
+  "Soundtrack",
+  "Synthwave",
+  "Trance",
+];
+
+/**
  * A collection of media download caches. Key is the link without parameters.
  * @type {Map<string, MediaDownloadCache>}
  */
@@ -546,8 +569,8 @@ const selectedChapters = new Map();
  * @param {string} outputFilepath
  */
 export async function callbackImportPlexFileAudio(downloadCache, interaction, listener, outputFilename, outputFilepath) {
-  const destinationFilename = Utilities.getAvailableFilename(`${config.plex_audio_download_directory}/${outputFilename}`);
-  const destinationFilepath = resolve(`${config.plex_audio_download_directory}/${destinationFilename}`);
+  const destinationFilename = Utilities.getAvailableFilename(`${config.plex_download_directory_audio}/${outputFilename}`);
+  const destinationFilepath = resolve(`${config.plex_download_directory_audio}/${destinationFilename}`);
   await fs.move(outputFilepath, destinationFilepath);
   logger.info(`Imported "${outputFilename}" into Plex`);
   startPlexAudioLibraryScan().catch(error => logger.error(error, listener));
@@ -562,7 +585,7 @@ export async function callbackImportPlexFileAudio(downloadCache, interaction, li
  * @param {string} outputFilepath
  */
 export async function callbackImportPlexFileVideo(downloadCache, interaction, listener, outputFilename, outputFilepath) {
-  const destinationDirectory = `${config.plex_video_download_directory}/${Utilities.getSanitizedFilename(downloadCache.uploader)}`;
+  const destinationDirectory = `${config.plex_download_directory_video}/${Utilities.getSanitizedFilename(downloadCache.uploader)}`;
   const destinationFilename = Utilities.getAvailableFilename(`${destinationDirectory}/${outputFilename}`);
   const destinationFilepath = resolve(`${destinationDirectory}/${destinationFilename}`);
   await fs.move(outputFilepath, destinationFilepath);
@@ -637,6 +660,7 @@ export async function downloadLinkAndExecuteCallback({ callback, contentType, in
 
   const options = {
     embedMetadata: true,
+    // todo: ffmpeg escape issue https://stackoverflow.com/questions/10725225/ffmpeg-single-quote-in-drawtext
     // todo: web client https formats require a PO Token which was not provided
     // extractorArgs: "youtube:player_client=android,web",
     noPlaylist: true,
@@ -644,11 +668,11 @@ export async function downloadLinkAndExecuteCallback({ callback, contentType, in
     postprocessorArgs: "ffmpeg:"
       + " -metadata album='Downloads'"
       + " -metadata album_artist='Various Artists'"
-      + ` -metadata artist='${Utilities.getSanitizedFfmpeg(inputArtist)}'`
+      + ` -metadata artist='${inputArtist.trim().replaceAll("'", "'/''")}'`
       + ` -metadata comment='${downloadCache.cleanLink}'`
       + " -metadata date=''" // remove unwanted ID3 tag
       + ` -metadata genre='${inputGenre ? inputGenre : ""}'`
-      + ` -metadata title='${Utilities.getSanitizedFfmpeg(inputTitle)}'`
+      + ` -metadata title='${inputTitle.trim().replaceAll("'", "'/''")}'`
       + " -metadata track=''" // remove unwanted ID3 tag
   }
 
@@ -730,8 +754,8 @@ export function getExistingPlexFilenames(contentType, downloadCache) {
   let directory;
 
   switch(contentType) {
-    case contentTypes.audio: directory = config.plex_audio_download_directory; break;
-    case contentTypes.video: directory = `${config.plex_video_download_directory}/${downloadCache.uploader}`; break;
+    case contentTypes.audio: directory = config.plex_download_directory_audio; break;
+    case contentTypes.video: directory = `${config.plex_download_directory_video}/${downloadCache.uploader}`; break;
     default: throw new Error(`Unexpected contentType "${contentType}"`);
   }
 
@@ -1640,7 +1664,7 @@ export async function showMetadataModal({ contentType, customId, interaction, li
     : Utilities.getShortTimestamp(downloadCache.endTime);
 
   const [titleValue, artistValue] = downloadCache.trackTitleArtistValues;
-  const genre = downloadCache.genre ?? randomItem(config.discord_example_genres);
+  const genre = downloadCache.genre ?? randomItem(exampleMusicGenres);
 
   let fileFormat;
 
@@ -1674,7 +1698,7 @@ export async function showMetadataModal({ contentType, customId, interaction, li
  * TODO: Library is for audio, should add a video library too...
  */
 async function startPlexAudioLibraryScan() {
-  const address = `http://${config.plex_server_ip_address}:32400/library/sections/${config.plex_audio_library_section_id}/refresh`;
+  const address = `http://${config.plex_media_server_host_url}/library/sections/${config.plex_library_section_id_audio}/refresh`;
   const options = { headers: { "X-Plex-Token": config.plex_authentication_token }, method: "GET" };
   await fetch(address, options);
   logger.info("Started Plex library scan");
