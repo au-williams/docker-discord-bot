@@ -17,17 +17,19 @@ import randomItem from "random-item";
 import youtubedl from "youtube-dl-exec";
 date.plugin(meridiem);
 
-/*-------------------------------------------*\
-| TODO:                                       |
-| - Add logic for ButtonPlexDeleteFileAudio   |
-| - Add logic for ButtonPlexDeleteFileVideo   |
-| - Add logic for startPlexVideoLibraryScan() |
-| - Add support for X / Twitter               |
-| - Add support for Bandcamp                  |
-| - Add support for Reddit                    |
-| - Processing / Uploading button labels      |
-| https://www.youtube.com/watch?v=PaZXPx1kdtg |
-\*-------------------------------------------*/
+// TODO: ///////////////////////////////////////////////////////
+// - On plex import w/ no file, do not show menu              //
+// - On plex import w/ one file, show enabled delete button   //
+// - On plex import w/ n files, show menu and disabled button //
+// - Add logic for ButtonPlexDeleteFileAudio                  //
+// - Add logic for ButtonPlexDeleteFileVideo                  //
+// - Add logic for startPlexVideoLibraryScan()                //
+// - Add support for X / Twitter                              //
+// - Add support for Bandcamp                                 //
+// - Add support for Reddit                                   //
+// - Processing / Uploading button labels                     //
+// https://www.youtube.com/watch?v=PaZXPx1kdtg                //
+////////////////////////////////////////////////////////////////
 
 const config = new Config(import.meta.filename);
 const logger = new Logger(import.meta.filename);
