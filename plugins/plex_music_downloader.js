@@ -83,12 +83,12 @@ export const Listeners = Object.freeze({
     .setFunction(async params => await onButtonDownload({ ...params, contentType: contentTypes.video })),
   [Interactions.ButtonManagePlexAudio]: new Listener()
     .setDescription("Manages this media in the host's Plex server. New audio files can be imported in to the music library. Existing files can be deleted from the music library. Requires an admin role to use.")
-    .setFunction(async params => await onButtonManagePlex({ ...params, contentType: contentTypes.audio })
-    .setRequiredRoles(config.discord_admin_role_id)),
+    .setFunction(async params => await onButtonManagePlex({ ...params, contentType: contentTypes.audio }))
+    .setRequiredRoles(config.discord_admin_role_id),
   [Interactions.ButtonManagePlexVideo]: new Listener()
     .setDescription("Manages this media in the host's Plex server. New video files can be imported in to the video library. Existing files can be deleted from the video library. Requires an admin role to use.")
-    .setFunction(async params => await onButtonManagePlex({ ...params, contentType: contentTypes.video })
-    .setRequiredRoles(config.discord_admin_role_id)),
+    .setFunction(async params => await onButtonManagePlex({ ...params, contentType: contentTypes.video }))
+    .setRequiredRoles(config.discord_admin_role_id),
   [Interactions.ButtonPlexStartImportAudio]: new Listener()
     .setDescription("Starts the file import into Plex. The audio will be downloaded to the server host before being added to the Plex library. Your wait times will be influenced by the size of the source content.")
     .setFunction(async params => await showMetadataModal({ ...params, contentType: contentTypes.audio, customId: Interactions.ModalSubmitStartPlexImportAudio, modalLabel: "Import" }))

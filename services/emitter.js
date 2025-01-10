@@ -12,6 +12,7 @@ const logger = new Logger(import.meta.filename);
 
 // TODO: ///////////////////////////////////////////
 // - Allow multiple SetFunctions with ChannelType //
+// - Require unique listener ids on initialize    //
 // - Clean up more info button rendering          //
 // - .setDismountOnError()                        //
 // - [Event ☉] [Interaction ☇] [Command ☄]       //
@@ -524,80 +525,80 @@ export function importListener(value, key, filepath, isService) {
 export async function sendButtonInfoReply({ listener, interaction }) {
   await interaction.deferReply({ ephemeral: true });
 
-  const responseBody = [];
+  const components = [...interaction.message.components]
+    .map(item => item.components)
+    .flat()
+    .filter(item =>
+      item.data.custom_id !== Interactions.ButtonComponentInfo
+      && (item instanceof ButtonComponent || item instanceof BaseSelectMenuComponent)
+    );
 
-  const siblingButtonComponents =
-    [...interaction.message.components]
-      .map(item => item.components)
-      .flat()
-      .filter(item =>
-        (item instanceof ButtonComponent || item instanceof BaseSelectMenuComponent) &&
-        item.data.custom_id !== Interactions.ButtonComponentInfo
-      );
+  const response = [];
 
-  let buttonCount = 1;
-  let selectMenuCount = 1;
+  let isAnyLocked = false;
+  let isAnyUnlocked = false;
 
-  for (const { data } of siblingButtonComponents) {
-    // TODO: Require unique interaction ids on initialize?
-    const listener = Emitter._importedListeners.get(data.custom_id)?.[0];
+  let unnamedButtonCount = 0;
+  let unnamedSelectMenuCount = 0;
 
-    if (!listener) {
-      logger.error(`Could not find listener for ${data.custom_id}.`);
+  for (const { data } of components) {
+    if (!Emitter._importedListeners.has(data.custom_id)) {
+      logger.error(`Couldn't find more info for "${data.custom_id}" listener.`);
       continue;
     }
 
-    let description = listener.description || "No description is set for this button.";
+    const listener = Emitter._importedListeners.get(data.custom_id)?.[0];
 
-    if (description.includes("${message_author}")) {
-      const author = interaction.message?.author?.displayName;
-      if (!author) logger.error("Could not get author name for interaction.");
-      else description = description.replaceAll("${message_author}", author);
-    }
-
-    let label = data.label;
+    const description = listener.description || "No description is set for this component.";
 
     let emoji = data.emoji?.id
       ? `<:${data.emoji.name}:${data.emoji.id}>`
-      : data.emoji?.name || "◽";
+      : data.emoji?.name;
 
-    if (data.type == ComponentType.Button && !label) {
-      label = "Button";
+    let label = data.label;
+
+    switch(data.type) {
+      case ComponentType.Button: {
+        if (!label) unnamedButtonCount += 1;
+        label ??= `Button #${unnamedButtonCount}`;
+        emoji ??= "◽";
+        break;
+      }
+      case ComponentType.StringSelect: {
+        if (!label) unnamedSelectMenuCount += 1;
+        label ??= `Select menu #${unnamedSelectMenuCount}`;
+        emoji ??= "🪧"; //"🔲"//"🧩"//"🪧";
+        break;
+      }
     }
 
-    if (data.type == ComponentType.StringSelect) {
-      label = "Select menu";
-      if (selectMenuCount > 1) label += ` #${selectMenuCount}`
-      selectMenuCount += 1;
-      emoji = "🧩"//"🔲"//"🧩"//"🪧";
+    const isAllowedUser = await checkAllowedUser(listener, interaction.user);
+    let roles = listener.getRequiredRoleLinksForGuild(interaction);
+
+    if (isAllowedUser) {
+      isAnyUnlocked = true;
+      roles = "`🔓 Unlocked` " + roles;
+    }
+    else {
+      isAnyLocked = true;
+      roles = "`🔐 Locked` " + roles;
     }
 
-    const roles = checkAllowedUser(listener, interaction.user)
-      ? `\`🔐 Locked\` ${listener.getRequiredRoleLinksForGuild(interaction)}`
-      : `\`🔓 Unlocked\` ${listener.getRequiredRoleLinksForGuild(interaction)}`;
-
-    responseBody.push(`${emoji} **${label}** ${roles}\n\`\`\`${description}\`\`\``);
+    response.push(`${emoji} **${label}** ${roles}\n\`\`\`${description}\`\`\``);
   }
-
-  const isAnyLocked = responseBody.some(item => item.includes("`🔐 Locked`"));
-  const isAnyUnlocked = responseBody.some(item => item.includes("`🔓 Unlocked`"));
 
   let responseFooter = "";
 
   if (isAnyLocked && isAnyUnlocked) {
     const joinedAdmins = Utilities.getJoinedArrayWithOr(discord_bot_admin_user_ids.map(item => `<@${item}>`));
     responseFooter = `You can only use some of these components. Please contact ${joinedAdmins} if you think this was in error. 🧑‍🔧`;
-    // responseFooter = `You're only authorized to use some of these components. Please contact ${joinedAdmins} if you think this was in error.`;
   }
   else if (isAnyUnlocked) {
     responseFooter = "You can use all of these components. Go ahead and give some a try! 🧑‍🔬";
-    // responseFooter = "All of these components are unlocked. Go ahead and give them a try! 🧑‍🔬";
-    // responseFooter = "You're authorized to use all of these components. Go ahead and give them a try! 🧑‍🔬";
   }
   else if (isAnyLocked) {
     const joinedAdmins = Utilities.getJoinedArrayWithOr(discord_bot_admin_user_ids.map(item => `<@${item}>`));
     responseFooter = `You can't use these components. Please contact ${joinedAdmins} if you think this was in error. 🧑‍🔧`;
-    // responseFooter = `You aren't authorized to use any of these components. Please contact ${joinedAdmins} if you think this was in error.`;
   }
   else {
     throw new Error("Unexpected value was processed.");
@@ -606,7 +607,7 @@ export async function sendButtonInfoReply({ listener, interaction }) {
   const reply = await interaction.editReply({ content:
     "Here's what I know about this form. 📚 You're allowed to use unlocked " +
     "components, but locked components may need you to have more permissions " +
-    "before their usage.\n\n" + `${responseBody.join("\n")}\n${responseFooter}`
+    "before their usage.\n\n" + `${response.join("\n")}\n${responseFooter}`
   });
 
   Utilities.LogPresets.SentReply(reply, listener);
