@@ -1,7 +1,7 @@
 {
   "cron_job_date": "",
-  "discord_required_role_ids": [],
-  "qbittorrent_host_url": "",
+  "discord_required_role_ids": [""],
+  "qbittorrent_host_url": "host.docker.internal:8080",
   "qbittorrent_username": "",
   "qbittorrent_password": ""
 }
