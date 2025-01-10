@@ -18,8 +18,7 @@ import youtubedl from "youtube-dl-exec";
 date.plugin(meridiem);
 
 // TODO: ///////////////////////////////////////////////////////
-// - On plex import w/ no file, do not show menu              //
-// - On plex import w/ one file, show enabled delete button   //
+// - On plex import w/ no file, open straight to input modal  //
 // - On plex import w/ n files, show menu and disabled button //
 // - Add logic for ButtonPlexDeleteFileAudio                  //
 // - Add logic for ButtonPlexDeleteFileVideo                  //
