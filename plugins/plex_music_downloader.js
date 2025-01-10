@@ -84,19 +84,19 @@ export const Listeners = Object.freeze({
   [Interactions.ButtonManagePlexAudio]: new Listener()
     .setDescription("Manages this media in the host's Plex server. New audio files can be imported in to the music library. Existing files can be deleted from the music library. Requires an admin role to use.")
     .setFunction(async params => await onButtonManagePlex({ ...params, contentType: contentTypes.audio }))
-    .setRequiredRoles(config.discord_bot_admin_user_ids),
+    .setRequiredUsers(config.discord_bot_admin_user_ids),
   [Interactions.ButtonManagePlexVideo]: new Listener()
     .setDescription("Manages this media in the host's Plex server. New video files can be imported in to the video library. Existing files can be deleted from the video library. Requires an admin role to use.")
     .setFunction(async params => await onButtonManagePlex({ ...params, contentType: contentTypes.video }))
-    .setRequiredRoles(config.discord_bot_admin_user_ids),
+    .setRequiredUsers(config.discord_bot_admin_user_ids),
   [Interactions.ButtonPlexStartImportAudio]: new Listener()
     .setDescription("Starts the file import into Plex. The audio will be downloaded to the server host before being added to the Plex library. Your wait times will be influenced by the size of the source content.")
     .setFunction(async params => await showMetadataModal({ ...params, contentType: contentTypes.audio, customId: Interactions.ModalSubmitStartPlexImportAudio, modalLabel: "Import" }))
-    .setRequiredRoles(config.discord_bot_admin_user_ids),
+    .setRequiredUsers(config.discord_bot_admin_user_ids),
   [Interactions.ButtonPlexStartImportVideo]: new Listener()
     .setDescription("Starts the file import into Plex. The video will be downloaded to the server host before being added to the Plex library. Your wait times will be influenced by the size of the source content.")
     .setFunction(async params => await showMetadataModal({ ...params, contentType: contentTypes.video, customId: Interactions.ModalSubmitStartPlexImportVideo, modalLabel: "Import" }))
-    .setRequiredRoles(config.discord_bot_admin_user_ids),
+    .setRequiredUsers(config.discord_bot_admin_user_ids),
   [Interactions.ButtonSelectAllChaptersAudio]: new Listener()
     .setDescription("Selects all chapters instead of selecting each chapter one by one. Pressing this again deselects them. Includes chapters not shown in the select menu when exceeding Discord's select menu item limit of 25 items.")
     .setFunction(async params => await onButtonChaptersSelectAll({ ...params, contentType: contentTypes.audio })),
