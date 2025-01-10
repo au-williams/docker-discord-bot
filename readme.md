@@ -234,7 +234,6 @@ This JavaScript file sends a message reply in response to a message with a media
 | Key                             | Description                                                                                                                                                    | Required |
 | :------------------------------ | :------------------------------------------------------------------------------------------------------------------------------------------------------------- | :------- |
 | "discord_plex_emoji"            | The custom emoji in `<:NAME:ID>` format. [(how to find)](https://www.pythondiscord.com/pages/guides/pydis-guides/contributing/obtaining-discord-ids/#emoji-id) | `true`   |
-| "discord_youtube_emoji"         | The custom emoji in `<:NAME:ID>` format. [(how to find)](https://www.pythondiscord.com/pages/guides/pydis-guides/contributing/obtaining-discord-ids/#emoji-id) | `true`   |
 | "plex_authentication_token"     | The Plex authentication token used by the bot. [(how to find)](https://support.plex.tv/articles/204059436-finding-an-authentication-token-x-plex-token/)       | `true`   |
 | "plex_download_directory_audio" | The Plex download directory path for audio files.                                                                                                              | `true`   |
 | "plex_download_directory_video" | The Plex download directory path for video files.                                                                                                              | `true`   |
