@@ -326,7 +326,10 @@ async function executeListener(params) {
   // ----------------------------------- //
 
   const isListenerEnabled = listener.isEnabled;
-  if (!isListenerEnabled) return;
+  if (!isListenerEnabled) {
+    logger.warn(`Listener "${listener.id}" is not enabled. Skipping scheduling.`, listener);
+    return;
+  }
 
   // --------------------------------------------------- //
   // End if the channel is not allowed for the listener. //
