@@ -244,6 +244,7 @@ function mapGenre(input) {
     case (inputIncludes("trance")): return "Trance";
     case (inputIncludes("happyhardcore")): return "Trance";
     case (inputIncludes("electronic")): return "Electronic";
+    case (inputIncludes("soundtrack")): return "Soundtrack";
     default: return null;
   }
 }
