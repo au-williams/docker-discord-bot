@@ -1,4 +1,4 @@
-import { ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, Events, Message, MessageFlags, ModalBuilder, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, TextInputBuilder, TextInputStyle, ThreadChannel } from "discord.js";
+import { ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonInteraction, ButtonStyle, EmbedBuilder, Events, Message, MessageFlags, ModalBuilder, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, TextInputBuilder, TextInputStyle, ThreadChannel } from "discord.js";
 import { Config } from "../services/config.js";
 import { Emitter } from "../services/emitter.js";
 import { extname, resolve } from "path";
@@ -20,6 +20,8 @@ date.plugin(meridiem);
 // TODO: ///////////////////////////////////////////////////////
 // - On plex import w/ no file, open straight to input modal  //
 // - On plex import w/ n files, show menu and disabled button //
+// - On plex file select, auto upload the selected file       //
+// - On plex file import, auto upload the selected file       //
 // - Add logic for ButtonPlexDeleteFileAudio                  //
 // - Add logic for ButtonPlexDeleteFileVideo                  //
 // - Add logic for startPlexVideoLibraryScan()                //
@@ -50,8 +52,7 @@ export const Interactions = Object.freeze({
   ButtonPlexDeleteFileVideo: "PLEX_BUTTON_PLEX_DELETE_FILE_VIDEO",
   ButtonPlexStartImportAudio: "PLEX_BUTTON_PLEX_START_IMPORT_AUDIO",
   ButtonPlexStartImportVideo: "PLEX_BUTTON_PLEX_START_IMPORT_VIDEO",
-  ButtonSelectAllChaptersAudio: "PLEX_BUTTON_SELECT_ALL_CHAPTERS_AUDIO",
-  ButtonSelectAllChaptersVideo: "PLEX_BUTTON_SELECT_ALL_CHAPTERS_VIDEO",
+  ButtonSelectAllChapters: "PLEX_BUTTON_SELECT_ALL_CHAPTERS",
   ButtonStartDownloadAudio: "PLEX_BUTTON_START_DOWNLOAD_AUDIO",
   ButtonStartDownloadVideo: "PLEX_BUTTON_START_DOWNLOAD_VIDEO",
   ModalSubmitStartDownloadAudio: "PLEX_MODAL_SUBMIT_START_DOWNLOAD_AUDIO",
@@ -72,52 +73,54 @@ export const Listeners = Object.freeze({
     onEventMessageCreate,
   [Interactions.ButtonContinueChaptersAudio]: new Listener()
     .setDescription("Shows a download message for each selected chapter, or one download message for the entire audio.")
-    .setFunction(async params => await onButtonChaptersContinue({ ...params, contentType: contentTypes.audio })),
+    .setFunction(onButtonChaptersContinue),
   [Interactions.ButtonContinueChaptersVideo]: new Listener()
     .setDescription("Shows a download message for each selected chapter, or one download message for the entire video.")
-    .setFunction(async params => await onButtonChaptersContinue({ ...params, contentType: contentTypes.video })),
+    .setFunction(onButtonChaptersContinue),
   [Interactions.ButtonDownloadAudio]: new Listener()
     .setDescription("Uploads the audio from this link to Discord as a file that you can stream or download. Admins can import, delete, or modify the audio files from this link in the host's Plex library.")
-    .setFunction(async params => await onButtonDownload({ ...params, contentType: contentTypes.audio })),
+    .setFunction(onButtonDownload),
   [Interactions.ButtonDownloadVideo]: new Listener()
     .setDescription("Uploads the video from this link to Discord as a file that you can stream or download. Admins can import, delete, or modify the video files from this link in the host's Plex library.")
-    .setFunction(async params => await onButtonDownload({ ...params, contentType: contentTypes.video })),
+    .setFunction(onButtonDownload),
   [Interactions.ButtonManagePlexAudio]: new Listener()
     .setDescription("Manages this media in the host's Plex server. New audio files can be imported in to the music library. Existing files can be deleted from the music library. Requires an admin role to use.")
-    .setFunction(async params => await onButtonManagePlex({ ...params, contentType: contentTypes.audio }))
+    .setFunction(onButtonManagePlex)
     .setRequiredUsers(config.discord_bot_admin_user_ids),
   [Interactions.ButtonManagePlexVideo]: new Listener()
     .setDescription("Manages this media in the host's Plex server. New video files can be imported in to the video library. Existing files can be deleted from the video library. Requires an admin role to use.")
-    .setFunction(async params => await onButtonManagePlex({ ...params, contentType: contentTypes.video }))
+    .setFunction(onButtonManagePlex)
     .setRequiredUsers(config.discord_bot_admin_user_ids),
+  [Interactions.ButtonPlexDeleteFileAudio]: new Listener()
+    .setFunction(() => { throw new Error("Not implemented") })
+    .setRequiredRoles(config.discord_bot_admin_user_ids),
+  [Interactions.ButtonPlexDeleteFileVideo]: new Listener()
+    .setFunction(() => { throw new Error("Not implemented") })
+    .setRequiredRoles(config.discord_bot_admin_user_ids),
   [Interactions.ButtonPlexStartImportAudio]: new Listener()
     .setDescription("Starts the file import into Plex. The audio will be downloaded to the server host before being added to the Plex library. Your wait times will be influenced by the size of the source content.")
-    .setFunction(async params => await showMetadataModal({ ...params, contentType: contentTypes.audio, customId: Interactions.ModalSubmitStartPlexImportAudio, modalLabel: "Import" }))
+    .setFunction(params => showMetadataModal({ ...params, customId: Interactions.ModalSubmitStartPlexImportAudio, modalLabel: "Import" }))
     .setRequiredUsers(config.discord_bot_admin_user_ids),
   [Interactions.ButtonPlexStartImportVideo]: new Listener()
     .setDescription("Starts the file import into Plex. The video will be downloaded to the server host before being added to the Plex library. Your wait times will be influenced by the size of the source content.")
-    .setFunction(async params => await showMetadataModal({ ...params, contentType: contentTypes.video, customId: Interactions.ModalSubmitStartPlexImportVideo, modalLabel: "Import" }))
+    .setFunction(params => showMetadataModal({ ...params, customId: Interactions.ModalSubmitStartPlexImportVideo, modalLabel: "Import" }))
     .setRequiredUsers(config.discord_bot_admin_user_ids),
-  [Interactions.ButtonSelectAllChaptersAudio]: new Listener()
+  [Interactions.ButtonSelectAllChapters]: new Listener()
     .setDescription("Selects all chapters instead of selecting each chapter one by one. Pressing this again deselects them. Includes chapters not shown in the select menu when exceeding Discord's select menu item limit of 25 items.")
-    .setFunction(async params => await onButtonChaptersSelectAll({ ...params, contentType: contentTypes.audio })),
-  [Interactions.ButtonSelectAllChaptersVideo]: new Listener()
-    .setDescription("Selects all chapters instead of selecting each chapter one by one. Pressing this again deselects them. Includes chapters not shown in the select menu when exceeding Discord's select menu item limit of 25 items.")
-    .setFunction(async params => await onButtonChaptersSelectAll({ ...params, contentType: contentTypes.video })),
+    .setFunction(onButtonChaptersSelectAll),
   [Interactions.ButtonStartDownloadAudio]: new Listener()
     .setDescription("Starts the audio download. It must be downloaded to the server host before being uploaded as a file to Discord. Your wait times will be influenced by the size of the source content.")
-    .setFunction(async params => await showMetadataModal({ ...params, contentType: contentTypes.audio, customId: Interactions.ModalSubmitStartDownloadAudio, modalLabel: "Download" })),
+    .setFunction(params => showMetadataModal({ ...params, customId: Interactions.ModalSubmitStartDownloadAudio, modalLabel: "Download" })),
   [Interactions.ButtonStartDownloadVideo]: new Listener()
     .setDescription("Starts the video download. It must be downloaded to the server host before being uploaded as a file to Discord. Your wait times will be influenced by the size of the source content.")
-    .setFunction(async params => await showMetadataModal({ ...params, contentType: contentTypes.video, customId: Interactions.ModalSubmitStartDownloadVideo, modalLabel: "Download" })),
-  [Interactions.ModalSubmitStartDownloadAudio]:
-    async params => await onModalSubmitStartDownload({ ...params, contentType: contentTypes.audio }),
-  [Interactions.ModalSubmitStartDownloadVideo]:
-    async params => await onModalSubmitStartDownload({ ...params, contentType: contentTypes.video }),
-  [Interactions.ModalSubmitStartPlexImportAudio]:
-    async params => await onModalSubmitStartPlexImport({ ...params, contentType: contentTypes.audio }),
-  [Interactions.ModalSubmitStartPlexImportVideo]:
-    async params => await onModalSubmitStartPlexImport({ ...params, contentType: contentTypes.video }),
+    .setFunction(params => showMetadataModal({ ...params, customId: Interactions.ModalSubmitStartDownloadVideo, modalLabel: "Download" })),
+
+  // TODO: uncleaned
+
+  [Interactions.ModalSubmitStartDownloadAudio]: onModalSubmitStartDownload,
+  [Interactions.ModalSubmitStartDownloadVideo]: onModalSubmitStartDownload,
+  [Interactions.ModalSubmitStartPlexImportAudio]: onModalSubmitStartPlexImport,
+  [Interactions.ModalSubmitStartPlexImportVideo]: onModalSubmitStartPlexImport,
   [Interactions.SelectMenuFileFormatAudio]: new Listener()
     .setDescription("Chooses the file type. OPUS is recommended because of the high audio quality and small file size. MP3 should be used if your device isn't compatible with OPUS.")
     .setFunction(async params => await onSelectMenuFileFormat({ ...params, contentType: contentTypes.audio })),
@@ -126,10 +129,10 @@ export const Listeners = Object.freeze({
     .setFunction(async params => await onSelectMenuFileFormat({ ...params, contentType: contentTypes.video })),
   [Interactions.SelectMenuPlexFilesAudio]: new Listener()
     .setDescription("Chooses an imported audio file to edit or delete after pressing the modify file button.")
-    .setFunction(async params => await onSelectMenuPlexFiles({ ...params, contentType: contentTypes.audio })),
+    .setFunction(onSelectMenuPlexFiles),
   [Interactions.SelectMenuPlexFilesVideo]: new Listener()
     .setDescription("Chooses an imported video file to edit or delete after pressing the modify file button.")
-    .setFunction(async params => await onSelectMenuPlexFiles({ ...params, contentType: contentTypes.video })),
+    .setFunction(onSelectMenuPlexFiles),
   [Interactions.SelectMenuSelectChapters]: new Listener()
     .setDescription("Chooses which chapters to download. This is optional and the entire audio is selected by default.")
     .setFunction(onSelectMenuSelectChapters),
@@ -203,14 +206,14 @@ const buttonManagePlexVideo = new ButtonBuilder()
   .setLabel("Manage Plex")
   .setStyle(ButtonStyle.Secondary);
 
-const ButtonPlexDeleteFileAudio = new ButtonBuilder()
+const buttonPlexDeleteFileAudio = new ButtonBuilder()
   .setCustomId(Interactions.ButtonPlexDeleteFileAudio)
   .setDisabled(true)
   .setEmoji("🗑️")
   .setLabel("Delete file")
   .setStyle(ButtonStyle.Secondary);
 
-const ButtonPlexDeleteFileVideo = new ButtonBuilder()
+const buttonPlexDeleteFileVideo = new ButtonBuilder()
   .setCustomId(Interactions.ButtonPlexDeleteFileVideo)
   .setDisabled(true)
   .setEmoji("🗑️")
@@ -220,23 +223,17 @@ const ButtonPlexDeleteFileVideo = new ButtonBuilder()
 const buttonPlexStartImportAudio = new ButtonBuilder()
   .setCustomId(Interactions.ButtonPlexStartImportAudio)
   .setEmoji("📦")
-  .setLabel("Start new import")
+  .setLabel("Start file import")
   .setStyle(ButtonStyle.Success);
 
 const buttonPlexStartImportVideo = new ButtonBuilder()
   .setCustomId(Interactions.ButtonPlexStartImportVideo)
   .setEmoji("📦")
-  .setLabel("Start new import")
+  .setLabel("Start file import")
   .setStyle(ButtonStyle.Success);
 
-const buttonSelectAllChaptersAudio = new ButtonBuilder()
-  .setCustomId(Interactions.ButtonSelectAllChaptersAudio)
-  .setEmoji("🗃️")
-  .setLabel("Select all chapters")
-  .setStyle(ButtonStyle.Secondary);
-
-const buttonSelectAllChaptersVideo = new ButtonBuilder()
-  .setCustomId(Interactions.ButtonSelectAllChaptersVideo)
+const buttonSelectAllChapters = new ButtonBuilder()
+  .setCustomId(Interactions.ButtonSelectAllChapters)
   .setEmoji("🗃️")
   .setLabel("Select all chapters")
   .setStyle(ButtonStyle.Secondary);
@@ -283,7 +280,7 @@ function getSelectMenuAudioFormat(selectedValue) {
  * @returns {StringSelectMenuBuilder}
  * TODO: does this need selected indexes?
  */
-function getSelectMenuChapterSelect(contentType, downloadCache, selectedIndexes = []) {
+function getSelectMenuChapterSelect(downloadCache, selectedIndexes = []) {
   const options = downloadCache.chapters.slice(0, 25).map((item, index) => new StringSelectMenuOptionBuilder()
     .setDefault(selectedIndexes.includes(index))
     .setDescription(`${Utilities.getShortTimestamp(item.startTime)}-${Utilities.getShortTimestamp(item.endTime)}`)
@@ -296,7 +293,7 @@ function getSelectMenuChapterSelect(contentType, downloadCache, selectedIndexes 
     .setMaxValues(Math.min(downloadCache.chapters.length, 25))
     .setMinValues(0)
     .addOptions(...options)
-    .setPlaceholder(`Download entire ${contentType} as one file (recommended)`);
+    .setPlaceholder("Download entire content as one file (recommended)");
 }
 
 /**
@@ -335,22 +332,31 @@ function getSelectMenuAudioFade(selectedValue) {
  * @param {number} selectedPlexFileIndex
  * @returns {StringSelectMenuBuilder}
  */
-function getSelectMenuPlexFiles(contentType, customId, downloadCache, filenames, selectedPlexFileIndex) {
-  let aOrAnLabel;
+function getSelectMenuPlexFiles(customId, downloadCache, filenames, listener, selectedPlexFileIndex) {
   let directory;
+  let pluralLabel;
+  let singularLabel;
 
-  switch(contentType) {
-    case contentTypes.audio: {
-      aOrAnLabel = "an";
+  switch(listener.id) {
+    case Interactions.ButtonManagePlexAudio:
+    case Interactions.ModalSubmitStartPlexImportAudio:
+    case Interactions.SelectMenuPlexFilesAudio: {
       directory = config.plex_download_directory_audio;
+      pluralLabel = "audio files";
+      singularLabel = "an audio file";
       break;
     }
-    case contentTypes.video: {
-      aOrAnLabel = "a";
-      directory = `${config.plex_download_directory_video}/${downloadCache.uploader}`; break;
+    case Interactions.ButtonManagePlexVideo:
+    case Interactions.ModalSubmitStartPlexImportVideo:
+    case Interactions.SelectMenuPlexFilesVideo: {
+      // todo: directory = `${config.plex_download_directory_video}/${downloadCache.uploader}`;
+      directory = config.plex_download_directory_video;
+      pluralLabel = "video files";
+      singularLabel = "a video file";
+      break;
     }
     default: {
-      throw new Error(`Unexpected contentType "${contentType}"`);
+      throw new Error(`Unexpected listener.id "${listener.id}"`);
     }
   }
 
@@ -362,7 +368,7 @@ function getSelectMenuPlexFiles(contentType, customId, downloadCache, filenames,
     if (fs.existsSync(filepath)) {
       const { ctime, size } = fs.statSync(filepath);
       const megabytes = (size / (1024*1024)).toFixed(2);
-      description = `${date.format(ctime, "M/D/YYYY h:mm AA").replaceAll(".", "")} • ${megabytes} MB`;
+      description = `Imported ${date.format(ctime, "M/D/YYYY h:mm AA").replaceAll(".", "")} • ${megabytes} MB size`;
     }
 
     return new StringSelectMenuOptionBuilder()
@@ -372,11 +378,13 @@ function getSelectMenuPlexFiles(contentType, customId, downloadCache, filenames,
       .setValue(`${index}`)
   })
 
+  console.log(directory);
+
   return new StringSelectMenuBuilder()
     .setCustomId(customId)
     .setDisabled(!filenames?.length)
     .addOptions(...options)
-    .setPlaceholder(filenames?.length ? `Select ${aOrAnLabel} ${contentType} file to delete` : `No ${contentType} files are imported`);
+    .setPlaceholder(filenames?.length ? `Select ${singularLabel} to delete` : `No ${pluralLabel} are imported`);
 }
 
 /**
@@ -586,9 +594,8 @@ export async function callbackImportPlexFileAudio(downloadCache, interaction, li
  * @param {string} outputFilepath
  */
 export async function callbackImportPlexFileVideo(downloadCache, interaction, listener, outputFilename, outputFilepath) {
-  const destinationDirectory = `${config.plex_download_directory_video}/${Utilities.getSanitizedFilename(downloadCache.uploader)}`;
-  const destinationFilename = Utilities.getAvailableFilename(`${destinationDirectory}/${outputFilename}`);
-  const destinationFilepath = resolve(`${destinationDirectory}/${destinationFilename}`);
+  const destinationFilename = Utilities.getAvailableFilename(`${config.plex_download_directory_video}/${outputFilename}`);
+  const destinationFilepath = resolve(`${config.plex_download_directory_video}/${destinationFilename}`);
   await fs.move(outputFilepath, destinationFilepath);
   logger.info(`Imported "${outputFilename}" into Plex`);
   // TODO: startPlexVideoLibraryScan().catch(error => logger.error(error, listener));
@@ -633,11 +640,10 @@ export function checkYoutubeLink(link) {
  * Download audio from the link and execute the callback function.
  * @param {object} param
  * @param {Function} param.callback
- * @param {string} param.contentType
  * @param {BaseInteraction} param.interaction
  * @param {Listener} param.listener
  */
-export async function downloadLinkAndExecuteCallback({ callback, contentType, interaction, listener }) {
+export async function downloadLinkAndExecuteCallback({ callback, interaction, listener }) {
   const downloadCache = await fetchDownloadCache(interaction);
   const downloadConfig = await fetchDownloadConfig(interaction);
 
@@ -646,6 +652,11 @@ export async function downloadLinkAndExecuteCallback({ callback, contentType, in
   const inputGenre = interaction.fields.getTextInputValue("genre")?.trim();
   const inputStartTime = interaction.fields.getTextInputValue("start")?.trim();
   const inputTitle = interaction.fields.getTextInputValue("title")?.trim();
+
+  const audioIds = [Interactions.ModalSubmitStartDownloadAudio, Interactions.ModalSubmitStartPlexImportAudio];
+  const videoIds = [Interactions.ModalSubmitStartDownloadVideo, Interactions.ModalSubmitStartPlexImportVideo];
+  const isAudioFile = audioIds.includes(listener.id);
+  const isVideoFile = videoIds.includes(listener.id);
 
   // ------------------------------------------------------------------ //
   // compile the options consumed by YoutubeDL with optional parameters //
@@ -657,11 +668,10 @@ export async function downloadLinkAndExecuteCallback({ callback, contentType, in
   const outputId = " [%(id)s]";
   const outputResolution = ` (${downloadConfig.videoResolution}p)`
   const outputTimestamp = ` {${Utilities.getFilenameTimestamp(inputStartTime)}-${Utilities.getFilenameTimestamp(inputEndTime)}}`;
-  const outputFilename = `${outputArtistTitle}${(contentType === contentTypes.video ? outputResolution : "")}${outputId}${outputTimestamp}`;
+  const outputFilename = `${outputArtistTitle}${(isVideoFile ? outputResolution : "")}${outputId}${outputTimestamp}`;
 
   const options = {
     embedMetadata: true,
-    // todo: ffmpeg escape issue https://stackoverflow.com/questions/10725225/ffmpeg-single-quote-in-drawtext
     // todo: web client https formats require a PO Token which was not provided
     // extractorArgs: "youtube:player_client=android,web",
     noPlaylist: true,
@@ -669,22 +679,22 @@ export async function downloadLinkAndExecuteCallback({ callback, contentType, in
     postprocessorArgs: "ffmpeg:"
       + " -metadata album='Downloads'"
       + " -metadata album_artist='Various Artists'"
-      + ` -metadata artist='${inputArtist.trim().replaceAll("'", "'/''")}'`
+      + ` -metadata artist='${inputArtist.trim().replaceAll("'", "'\\''")}'`
       + ` -metadata comment='${downloadCache.cleanLink}'`
       + " -metadata date=''" // remove unwanted ID3 tag
       + ` -metadata genre='${inputGenre ? inputGenre : ""}'`
-      + ` -metadata title='${inputTitle.trim().replaceAll("'", "'/''")}'`
+      + ` -metadata title='${inputTitle.trim().replaceAll("'", "'\\''")}'`
       + " -metadata track=''" // remove unwanted ID3 tag
   }
 
-  if (contentType === contentTypes.audio) {
+  if (isAudioFile) {
     options["audioFormat"] = downloadConfig.audioFileFormat;
     options["audioQuality"] = 0;
     options["extractAudio"] = true;
     options["format"] = "bestaudio/best";
   }
 
-  if (contentType === contentTypes.video) {
+  if (isVideoFile) {
     options["formatSort"] = `height:${downloadConfig.videoResolution}`;
   }
 
@@ -704,7 +714,7 @@ export async function downloadLinkAndExecuteCallback({ callback, contentType, in
     options["forceKeyframesAtCuts"] = true;
   }
 
-  if (contentType === contentTypes.audio && downloadConfig.audioFadeDuration) {
+  if (isAudioFile && downloadConfig.audioFadeDuration) {
     const outputTotalSeconds = inputEndTimeTotalSeconds - inputStartTimeTotalSeconds;
     const outputMinimumSeconds = downloadConfig.audioFadeDuration * 4;
     const fadeTotalSeconds = outputTotalSeconds >= outputMinimumSeconds ? downloadConfig.audioFadeDuration : outputTotalSeconds / 4;
@@ -751,15 +761,7 @@ export function getArtistTitleFromFilename(filename) {
  * @param {MediaDownloadCache} downloadCache
  * @returns {string[]}
  */
-export function getExistingPlexFilenames(contentType, downloadCache) {
-  let directory;
-
-  switch(contentType) {
-    case contentTypes.audio: directory = config.plex_download_directory_audio; break;
-    case contentTypes.video: directory = `${config.plex_download_directory_video}/${downloadCache.uploader}`; break;
-    default: throw new Error(`Unexpected contentType "${contentType}"`);
-  }
-
+export function getExistingPlexFilenames(directory, downloadCache) {
   if (!fs.existsSync(directory)) return [];
   return fs.readdirSync(directory).filter(filename => getIdFromFilename(filename) === downloadCache.id);
 }
@@ -777,13 +779,13 @@ export function getIdFromFilename(filename) {
 
 /**
  * Get the manage plex message content.
- * @param {string} contentType
- * @param {string[]} plexFilenames
+ * @param {string} label
+ * @param {number} count
  * @returns {string}
  */
-export function getManagePlexContent(contentType, plexFilenames) {
-  return (plexFilenames.length ? `I found ${plexFilenames.length}` : "I didn't find any") +
-  ` ${contentType} ${Utilities.getPluralizedString("file", plexFilenames)} imported into Plex from this link.` +
+export function getManagePlexContent(label, count) {
+  return (count ? `I found ${count}` : "I didn't find any") +
+  ` ${label} ${Utilities.getPluralizedString("file", count)} imported into Plex from this link.` +
   " Your selections made in the referenced message will be applied to your file import too.";
 }
 
@@ -1044,27 +1046,18 @@ export async function fetchDownloadConfig(interactionOrMessage) {
  * When pressing 'Continue' load the selected chapters from the indexes bound
  * to the ephemeral message and pass each one to 'sendStartDownloadMessage'.
  * @param {object} param
- * @param {string} param.contentType
- * @param {BaseInteraction} param.interaction
+ * @param {ButtonInteraction} param.interaction
  * @param {Listener} param.listener
  */
-export async function onButtonChaptersContinue({ contentType, interaction, listener }) {
+export async function onButtonChaptersContinue({ interaction, listener }) {
   await interaction.deferUpdate();
 
   const downloadCache = await fetchDownloadCache(interaction);
   let chapters = selectedChapters.get(interaction.message.id)?.map(i => downloadCache.chapters[i]);
   if (!chapters || !chapters.length) chapters = [downloadCache];
 
-  let callback;
-
-  switch(contentType) {
-    case contentTypes.audio: callback = sendStartDownloadMessageAudio; break;
-    case contentTypes.video: callback = sendStartDownloadMessageVideo; break;
-    default: throw new Error(`Unexpected contentType "${contentType}"`);
-  }
-
   for(const chapter of chapters) {
-    await callback(chapter, interaction, listener);
+    sendStartDownloadMessage(chapter, interaction, listener);
   }
 }
 
@@ -1078,7 +1071,7 @@ export async function onButtonChaptersContinue({ contentType, interaction, liste
  * @param {BaseInteraction} param.interaction
  * @param {Listener} param.listener
  */
-export async function onButtonChaptersSelectAll({ contentType, interaction, listener }) {
+export async function onButtonChaptersSelectAll({ interaction, listener }) {
   await interaction.deferUpdate();
 
   const downloadCache = await fetchDownloadCache(interaction);
@@ -1091,7 +1084,8 @@ export async function onButtonChaptersSelectAll({ contentType, interaction, list
   selectedChapters.set(interaction.message.id, indexes);
   Utilities.LogPresets.DebugSetValue("selectedChapters", indexes, listener);
 
-  const actionRow1 = new ActionRowBuilder().addComponents(getSelectMenuChapterSelect(contentType, downloadCache, indexes));
+  const selectMenu = getSelectMenuChapterSelect(downloadCache, indexes);
+  const actionRow1 = new ActionRowBuilder().addComponents(selectMenu);
   const actionRow2 = ActionRowBuilder.from(interaction.message.components[1]);
 
   interaction
@@ -1104,40 +1098,19 @@ export async function onButtonChaptersSelectAll({ contentType, interaction, list
  * Fetch the download cache for the link and reply with the download or select chapters message.
  * @throws `Unexpected contentType`
  * @param {object} param
- * @param {string} param.contentType
  * @param {BaseInteraction} param.interaction
  * @param {Listener} param.listener
  */
-export async function onButtonDownload({ contentType, interaction, listener }) {
+export async function onButtonDownload({ interaction, listener }) {
   Emitter.setBusy(interaction, true);
 
   await interaction.deferReply({ ephemeral: true });
   const downloadCache = await fetchDownloadCache(interaction);
   await interaction.deleteReply();
-  // TODO: Utilities.LogPresets.DeletedReply
-
-  let callback1;
-  let callback2;
-
-  switch(contentType) {
-    case contentTypes.audio: {
-      callback1 = sendStartDownloadMessageAudio;
-      callback2 = sendSelectChaptersMessageAudio;
-      break;
-    }
-    case contentTypes.video: {
-      callback1 = sendStartDownloadMessageVideo;
-      callback2 = sendSelectChaptersMessageVideo;
-      break;
-    }
-    default: {
-      throw new Error(`Unexpected contentType "${contentType}"`);
-    }
-  }
 
   downloadCache.chapters.length <= 1
-    ? await callback1(downloadCache, interaction, listener)
-    : callback2(downloadCache, interaction, listener);
+    ? sendStartDownloadMessage(downloadCache, interaction, listener)
+    : sendSelectChaptersMessage(downloadCache, interaction, listener);
 
   Emitter.setBusy(interaction, false);
 }
@@ -1146,45 +1119,78 @@ export async function onButtonDownload({ contentType, interaction, listener }) {
  * Send a reply with the manage plex message for the link.
  * @throws `Unexpected contentType`
  * @param {object} param
- * @param {string} param.contentType
  * @param {BaseInteraction} param.interaction
  * @param {Listener} param.listener
  */
-export async function onButtonManagePlex({ contentType, interaction, listener }) {
+export async function onButtonManagePlex({ interaction, listener }) {
   const downloadCache = await fetchDownloadCache(interaction);
-  const filenames = getExistingPlexFilenames(contentType, downloadCache);
-  const content = getManagePlexContent(contentType, filenames);
+  const components = [];
 
-  let button1;
-  let button2;
-  let customId;
+  let filenames;
 
-  switch(contentType) {
-    case contentTypes.audio: {
-      button1 = buttonPlexStartImportAudio;
-      button2 = ButtonPlexDeleteFileAudio;
-      customId = Interactions.SelectMenuPlexFilesAudio;
+  switch(listener.id) {
+    case Interactions.ButtonManagePlexAudio: {
+      filenames = getExistingPlexFilenames(config.plex_download_directory_audio, downloadCache);
       break;
     }
-    case contentTypes.video: {
-      button1 = buttonPlexStartImportVideo;
-      button2 = ButtonPlexDeleteFileVideo;
-      customId = Interactions.SelectMenuPlexFilesVideo;
+    case Interactions.ButtonManagePlexVideo: {
+      filenames = getExistingPlexFilenames(config.plex_download_directory_video, downloadCache);
       break;
     }
     default: {
-      throw new Error(`Unexpected contentType "${contentType}"`);
+      throw new Error("Unhandled listener id");
     }
   }
 
-  const actionRow1 = new ActionRowBuilder().addComponents(getSelectMenuPlexFiles(contentType, customId, downloadCache, filenames));
-  const actionRow2 = new ActionRowBuilder().addComponents(button1, button2, Emitter.moreInfoButton);
-  const components = [actionRow1, actionRow2];
+  if (filenames.length) {
+    let content = null;
 
-  interaction
-    .reply({ components, content, ephemeral: true, fetchReply: true })
-    .then(result => Utilities.LogPresets.SentReply(result, listener))
-    .catch(error => logger.error(error, listener));
+    switch(listener.id) {
+      case Interactions.ButtonManagePlexAudio: {
+        const customId = Interactions.SelectMenuPlexFilesAudio;
+        components.push(new ActionRowBuilder().addComponents(getSelectMenuPlexFiles(customId, downloadCache, filenames, listener)));
+        components.push(new ActionRowBuilder().addComponents(buttonPlexStartImportAudio, buttonPlexDeleteFileAudio, Emitter.moreInfoButton));
+        content = getManagePlexContent("audio", filenames.length);
+        break;
+      }
+      case Interactions.ButtonManagePlexVideo: {
+        const customId = Interactions.SelectMenuPlexFilesVideo;
+        components.push(new ActionRowBuilder().addComponents(getSelectMenuPlexFiles(customId, downloadCache, filenames, listener)));
+        components.push(new ActionRowBuilder().addComponents(buttonPlexStartImportVideo, buttonPlexDeleteFileVideo, Emitter.moreInfoButton));
+        content = getManagePlexContent("video", filenames.length);
+        break;
+      }
+      default: {
+        throw new Error("Unhandled listener id");
+      }
+    }
+
+    interaction
+      .reply({ components, content, ephemeral: true, fetchReply: true })
+      .then(result => Utilities.LogPresets.SentReply(result, listener))
+      .catch(error => logger.error(error, listener));
+  }
+  else {
+    let customId = null;
+
+    switch(listener.id) {
+      case Interactions.ButtonManagePlexAudio: {
+        customId = Interactions.ModalSubmitStartPlexImportAudio;
+        break;
+      }
+      case Interactions.ButtonManagePlexVideo: {
+        customId = Interactions.ModalSubmitStartPlexImportVideo;
+        break;
+      }
+      default: {
+        throw new Error("Unhandled listener id");
+      }
+    }
+
+    showMetadataModal({ customId, interaction, listener, modalLabel: "Import" })
+      .then(() => Utilities.LogPresets.ShowedModal(interaction, listener))
+      .catch(error => logger.error(error, listener));
+  }
 }
 
 /**
@@ -1305,24 +1311,31 @@ export async function onEventMessageCreate({ listener, message }) {
  * @param {ModalSubmitInteraction} param.interaction
  * @param {Listener} param.listener
  */
-export async function onModalSubmitStartDownload({ contentType, interaction, listener }) {
+export async function onModalSubmitStartDownload({ interaction, listener }) {
   await interaction.deferUpdate();
 
   const downloadCache = await fetchDownloadCache(interaction);
   const downloadConfig = await fetchDownloadConfig(interaction);
 
+  const isInputValidated =
+    await validateInputTimestamps({ downloadCache, interaction, listener });
+
+  if (!isInputValidated) return;
+
   const components = [];
   let downloadButton;
 
-  switch(contentType) {
-    case contentTypes.audio: {
+  switch(listener.id) {
+    case Interactions.ModalSubmitStartDownloadAudio:
+    case Interactions.ModalSubmitStartPlexImportAudio: {
       components.push(new ActionRowBuilder().addComponents(getSelectMenuAudioFormat(downloadConfig.audioFileFormat).setDisabled(true)));
       components.push(new ActionRowBuilder().addComponents(getSelectMenuAudioFade(downloadConfig.audioFadeDuration).setDisabled(true)));
       components.push(new ActionRowBuilder().addComponents(buttonDownloading, buttonManagePlexAudio, Emitter.moreInfoButton));
       downloadButton = buttonStartDownloadAudio;
       break;
     }
-    case contentTypes.video: {
+    case Interactions.ModalSubmitStartDownloadVideo:
+    case Interactions.ModalSubmitStartPlexImportVideo: {
       components.push(new ActionRowBuilder().addComponents(getSelectMenuVideoFormat(downloadConfig.videoFileFormat).setDisabled(true)));
       components.push(new ActionRowBuilder().addComponents(getSelectMenuVideoResolution(downloadCache.videoFormats, downloadConfig.videoResolution).setDisabled(true)));
       components.push(new ActionRowBuilder().addComponents(buttonDownloading, buttonManagePlexVideo, Emitter.moreInfoButton));
@@ -1330,20 +1343,16 @@ export async function onModalSubmitStartDownload({ contentType, interaction, lis
       break;
     }
     default: {
-      throw new Error(`Unexpected contentType "${contentType}"`);
+      throw new Error(`Unexpected listener id "${listener.id}"`);
     }
   }
 
   const reply = await interaction.editReply({ components, fetchReply: true });
   Utilities.LogPresets.EditedReply(reply, listener);
 
-  const isInputValidated =
-    await validateInputTimestamps({ downloadCache, interaction, listener });
-
   try {
-    if (isInputValidated) {
-      await downloadLinkAndExecuteCallback({ callback: callbackUploadDiscordFile, contentType, interaction, listener });
-    }
+    const callback = callbackUploadDiscordFile;
+    await downloadLinkAndExecuteCallback({ callback, interaction, listener });
   }
   finally {
     components[0].components[0].setDisabled(false);
@@ -1365,64 +1374,113 @@ export async function onModalSubmitStartDownload({ contentType, interaction, lis
  * @param {ModalSubmitInteraction} param.interaction
  * @param {Listener} param.listener
  */
-export async function onModalSubmitStartPlexImport({ contentType, interaction, listener }) {
-  await interaction.deferUpdate();
-
+export async function onModalSubmitStartPlexImport({ interaction, listener }) {
   const downloadCache = await fetchDownloadCache(interaction);
   const downloadConfig = await fetchDownloadConfig(interaction);
 
-  let callback;
-  let customId;
-  let importButton;
+  const isValidInput = await validateInputTimestamps({ downloadCache, interaction, listener });
+  if (!isValidInput) return;
 
-  switch(contentType) {
-    case contentTypes.audio: {
-      callback = callbackImportPlexFileAudio;
-      customId = Interactions.SelectMenuPlexFilesAudio;
-      importButton = buttonPlexStartImportAudio;
+  let directory;
+
+  switch(listener.id) {
+    case Interactions.ModalSubmitStartPlexImportAudio: {
+      directory = config.plex_download_directory_audio;
       break;
     }
-    case contentTypes.video: {
-      callback = callbackImportPlexFileVideo;
-      customId = Interactions.SelectMenuPlexFilesVideo;
-      importButton = buttonPlexStartImportVideo;
+    case Interactions.ModalSubmitStartPlexImportVideo: {
+      directory = config.plex_download_directory_video;
       break;
     }
     default: {
-      throw new Error(`Unexpected contentType "${contentType}"`);
+      throw new Error(`Unexpected listener id "${listener.id}"`);
     }
   }
 
-  let filenames = getExistingPlexFilenames(contentType, downloadCache);
+  let filenames = getExistingPlexFilenames(directory, downloadCache);
 
-  const actionRow1 = new ActionRowBuilder().addComponents(getSelectMenuPlexFiles(contentType, customId, downloadCache, filenames, downloadConfig.plexFileIndex).setDisabled(true));
-  const actionRow2 = ActionRowBuilder.from(interaction.message.components[1]);
+  if (filenames.length) {
+    // existing files, edit reply
+    await interaction.deferUpdate();
+  }
+  else {
+    // new reply, defer and dont edit
+    await interaction.deferReply({ ephemeral: true });
+  }
 
-  const isDeleteDisabled = interaction.message.components[1].components[1].disabled;
-  actionRow2.components[0] = buttonImportingFile;
-  actionRow2.components[1].setDisabled(true);
+  const components = [];
 
-  const reply = await interaction.editReply({ components: [actionRow1, actionRow2], fetchReply: true });
-  Utilities.LogPresets.EditedReply(reply, listener);
+  let isDisabled = filenames.length
+    ? interaction.message.components[1]?.components[1].disabled : true;
 
-  const isInputValidated =
-    await validateInputTimestamps({ downloadCache, interaction, listener });
+  switch(listener.id) {
+    case Interactions.ModalSubmitStartPlexImportAudio: {
+      const customId = Interactions.SelectMenuPlexFilesAudio;
+      const selectMenu = getSelectMenuPlexFiles(customId, downloadCache, filenames, listener, downloadConfig.plexFileIndex);
+      components.push(new ActionRowBuilder().addComponents(selectMenu.setDisabled(true)));
+      components.push(new ActionRowBuilder().addComponents(buttonImportingFile, buttonPlexDeleteFileAudio, Emitter.moreInfoButton));
+      break;
+    }
+    case Interactions.ModalSubmitStartPlexImportVideo: {
+      const customId = Interactions.SelectMenuPlexFilesVideo;
+      const selectMenu = getSelectMenuPlexFiles(customId, downloadCache, filenames, listener, downloadConfig.plexFileIndex);
+      components.push(new ActionRowBuilder().addComponents(selectMenu.setDisabled(true)));
+      components.push(new ActionRowBuilder().addComponents(buttonImportingFile, buttonPlexDeleteFileVideo, Emitter.moreInfoButton));
+      break;
+    }
+    default: {
+      throw new Error(`Unexpected listener id "${listener.id}"`);
+    }
+  }
+
+  if (filenames.length) {
+    const reply = await interaction.editReply({ components, fetchReply: true });
+    Utilities.LogPresets.EditedReply(reply, listener);
+  }
+
+  let content;
 
   try {
-    if (isInputValidated) {
-      await downloadLinkAndExecuteCallback({ callback, contentType, interaction, listener });
+    switch(listener.id) {
+      case Interactions.ModalSubmitStartPlexImportAudio: {
+        const callback = callbackImportPlexFileAudio;
+        await downloadLinkAndExecuteCallback({ callback, interaction, listener });
+        break;
+      }
+      case Interactions.ModalSubmitStartPlexImportVideo: {
+        const callback = callbackImportPlexFileVideo;
+        await downloadLinkAndExecuteCallback({ callback, interaction, listener });
+        break;
+      }
     }
   }
   finally {
-    filenames = getExistingPlexFilenames(contentType, downloadCache);
+    switch(listener.id) {
+      case Interactions.ModalSubmitStartPlexImportAudio: {
+        const customId = Interactions.SelectMenuPlexFilesAudio;
+        const directory = config.plex_download_directory_audio;
+        const filenames = getExistingPlexFilenames(directory, downloadCache);
+        content = getManagePlexContent("audio", filenames.length);
+        components[0].components[0] = getSelectMenuPlexFiles(customId, downloadCache, filenames, listener, downloadConfig.plexFileIndex);
+        components[1].components[0] = buttonPlexStartImportAudio;
+        break;
+      }
+      case Interactions.ModalSubmitStartPlexImportVideo: {
+        const customId = Interactions.SelectMenuPlexFilesVideo;
+        const directory = config.plex_download_directory_video;
+        const filenames = getExistingPlexFilenames(directory, downloadCache);
+        content = getManagePlexContent("video", filenames.length);
+        components[0].components[0] = getSelectMenuPlexFiles(customId, downloadCache, filenames, listener, downloadConfig.plexFileIndex);
+        components[1].components[0] = buttonPlexStartImportVideo;
+        break;
+      }
+    }
 
-    const content = getManagePlexContent(contentType, filenames);
-    actionRow1.components[0] = getSelectMenuPlexFiles(contentType, customId, downloadCache, filenames, downloadConfig.plexFileIndex);
-    actionRow2.components[0] = importButton;
-    actionRow2.components[1].setDisabled(isDeleteDisabled);
+    components[1].components[1].setDisabled(isDisabled);
+    components[1].components[1].setStyle(isDisabled ? ButtonStyle.Secondary : ButtonStyle.Danger);
 
     interaction
-      .editReply({ components: [actionRow1, actionRow2], content, fetchReply: true })
+      .editReply({ components, content, fetchReply: true })
       .then(result => Utilities.LogPresets.EditedReply(result, listener))
       .catch(error => logger.error(error, listener));
   }
@@ -1458,7 +1516,7 @@ export async function onSelectMenuFileFormat({ contentType, interaction, listene
  * @param {StringSelectMenuInteraction} param.interaction
  * @param {Listener} param.listener
  */
-export async function onSelectMenuPlexFiles({ contentType, interaction, listener }) {
+export async function onSelectMenuPlexFiles({ interaction, listener }) {
   await interaction.deferUpdate();
 
   const downloadCache = await fetchDownloadCache(interaction);
@@ -1470,23 +1528,25 @@ export async function onSelectMenuPlexFiles({ contentType, interaction, listener
   let customId;
   let filenames;
 
-  switch (contentType) {
-    case contentTypes.audio: {
+  switch (listener.id) {
+    case Interactions.SelectMenuPlexFilesAudio: {
       customId = Interactions.SelectMenuPlexFilesAudio;
-      filenames = getExistingPlexFilenames(contentType, downloadCache);
+      const directory = config.plex_download_directory_audio;
+      filenames = getExistingPlexFilenames(directory, downloadCache);
       break;
     }
-    case contentTypes.video: {
+    case Interactions.SelectMenuPlexFilesVideo: {
       customId = Interactions.SelectMenuPlexFilesVideo;
-      filenames = getExistingPlexFilenames(contentType, downloadCache);
+      const directory = config.plex_download_directory_video;
+      filenames = getExistingPlexFilenames(directory, downloadCache);
       break;
     }
     default: {
-      throw new Error(`Unexpected contentType "${contentType}"`);
+      throw new Error(`Unexpected listener.id "${listener.id}"`);
     }
   }
 
-  const actionRow1 = new ActionRowBuilder().addComponents(getSelectMenuPlexFiles(contentType, customId, downloadCache, filenames, downloadConfig.plexFileIndex));
+  const actionRow1 = new ActionRowBuilder().addComponents(getSelectMenuPlexFiles(customId, downloadCache, filenames, listener, downloadConfig.plexFileIndex));
   const actionRow2 = ActionRowBuilder.from(interaction.message.components[1]);
 
   actionRow2.components[1].setDisabled(!interaction.values.length);
@@ -1538,53 +1598,77 @@ export async function onSelectMenuVolumeFade({ interaction, listener }) {
 /**
  * Send the message with the 'Select Chapters' button. Includes a select menu
  * to select none or many chapters found within the contents description.
- * @param {string} contentType
- * @param {ButtonBuilder} continueButton
  * @param {MediaDownloadCache} downloadCache
  * @param {BaseInteraction} interaction
  * @param {Listener} listener
- * @param {ButtonBuilder} selectAllChaptersButton
  */
-export function sendSelectChaptersMessageBase(contentType, continueButton, downloadCache, interaction, listener, selectAllChaptersButton) {
-  const actionRow1 = new ActionRowBuilder().addComponents(getSelectMenuChapterSelect(contentType, downloadCache));
-  const actionRow2 = new ActionRowBuilder().addComponents(continueButton, selectAllChaptersButton, Emitter.moreInfoButton);
+export function sendSelectChaptersMessage(downloadCache, interaction, listener) {
+  let buttons = [buttonSelectAllChapters, Emitter.moreInfoButton];
 
-  let content = `I found ${downloadCache.chapters.length} chapters as timestamps in the description. You may select one or more chapters to download them as separate files. Selecting no chapters will download your entire ${contentType} as one file.`;
+  switch(listener.id) {
+    case Interactions.ButtonDownloadAudio: {
+      buttons.unshift(buttonContinueChaptersAudio)
+      break;
+    }
+    case Interactions.ButtonDownloadVideo: {
+      buttons.unshift(buttonContinueChaptersVideo)
+      break;
+    }
+    default: {
+      throw new Error(`Unexpected listener.id "${listener.id}"`);
+    }
+  }
+
+  const selectMenu = getSelectMenuChapterSelect(downloadCache);
+  const actionRow1 = new ActionRowBuilder().addComponents(selectMenu);
+  const actionRow2 = new ActionRowBuilder().addComponents(...buttons);
+
+  const components = [actionRow1, actionRow2];
+  let content = `I found ${downloadCache.chapters.length} chapters as timestamps in the description. You may select one or more chapters to download them as separate files. Selecting no chapters will download your entire content as one file.`;
   if (downloadCache.chapters.length > 25) content += ` Only the first 25 chapters are shown due to Discord limitations, but all ${downloadCache.chapters.length} chapters will be downloadable when selecting all chapters.`;
-  content += " Press continue when you are ready."
+  content += " Press continue when you are ready.";
 
   interaction
-    .followUp({ content, components: [actionRow1, actionRow2], ephemeral: true, fetchReply: true })
+    .followUp({ content, components, ephemeral: true, fetchReply: true })
     .then(result => Utilities.LogPresets.SentFollowUp(result, listener))
     .catch(error => logger.error(error, listener));
 }
 
 /**
- * Send the message with the 'Select Chapters' button. Includes a select menu
- * to select none or many chapters found within the contents description.
+ * Send the message with the 'Start Download' button. Includes select menus for the download options.
  * @param {MediaDownloadCache} downloadCache
  * @param {BaseInteraction} interaction
  * @param {Listener} listener
  */
-export function sendSelectChaptersMessageAudio(downloadCache, interaction, listener) {
-  sendSelectChaptersMessageBase("audio", buttonContinueChaptersAudio, downloadCache, interaction, listener, buttonSelectAllChaptersAudio);
-}
+export function sendStartDownloadMessage(downloadCache, interaction, listener) {
+  const downloadConfig = new MediaDownloadConfig();
+  downloadConfig.cacheKey = downloadCache.cleanLink;
+  downloadConfig.chapterIndex = downloadCache.chapterIndex;
 
-/**
- * Send the message with the 'Select Chapters' button. Includes a select menu
- * to select none or many chapters found within the contents description.
- * @param {MediaDownloadCache} downloadCache
- * @param {BaseInteraction} interaction
- * @param {Listener} listener
- */
-export function sendSelectChaptersMessageVideo(downloadCache, interaction, listener) {
-  sendSelectChaptersMessageBase("video", buttonContinueChaptersVideo, downloadCache, interaction, listener, buttonSelectAllChaptersVideo);
-}
+  let actionRow1;
+  let actionRow2;
+  let actionRow3;
 
-/**
- *
- */
-export async function sendStartDownloadMessageBase(components, downloadCache, interaction, listener) {
+  switch(listener.id) {
+    case Interactions.ButtonContinueChaptersAudio:
+    case Interactions.ButtonDownloadAudio: {
+      actionRow1 = new ActionRowBuilder().addComponents(getSelectMenuAudioFormat(downloadConfig.audioFileFormat));
+      actionRow2 = new ActionRowBuilder().addComponents(getSelectMenuAudioFade(downloadConfig.audioFadeDuration));
+      actionRow3 = new ActionRowBuilder().addComponents(buttonStartDownloadAudio, buttonManagePlexAudio, Emitter.moreInfoButton);
+      break;
+    }
+    case Interactions.ButtonContinueChaptersVideo:
+    case Interactions.ButtonDownloadVideo: {
+      actionRow1 = new ActionRowBuilder().addComponents(getSelectMenuVideoFormat(downloadConfig.videoFileFormat));
+      actionRow2 = new ActionRowBuilder().addComponents(getSelectMenuVideoResolution(downloadCache.videoFormats, downloadConfig.videoResolution));
+      actionRow3 = new ActionRowBuilder().addComponents(buttonStartDownloadVideo, buttonManagePlexVideo, Emitter.moreInfoButton);
+      break;
+    }
+    default: {
+      throw new Error(`Unexpected listener.id "${listener.id}"`);
+    }
+  }
+
   const contentEndTime = Utilities.getShortTimestamp(downloadCache.endTime);
   const contentStartTime = Utilities.getShortTimestamp(downloadCache.startTime);
   const contentTitle = Utilities.getTruncatedStringTerminatedByWord(downloadCache.title, 42);
@@ -1593,87 +1677,64 @@ export async function sendStartDownloadMessageBase(components, downloadCache, in
   const startTimeAsSeconds = Utilities.getTimestampAsTotalSeconds(downloadCache.startTime);
   if (startTimeAsSeconds && checkYoutubeLink(downloadCache.cleanLink)) contentLink += `&t=${startTimeAsSeconds}s`;
 
+  const components = [actionRow1, actionRow2, actionRow3];
   const content = `- [**${contentTitle}** (${contentStartTime}-${contentEndTime})](<${contentLink}>)`;
-  const reply = await interaction.followUp({ components, content, ephemeral: true, fetchReply: true });
-  Utilities.LogPresets.SentReply(reply, listener);
 
-  return reply;
-}
-
-/**
- * Send the message with the 'Start Download' button. Includes select menus for the download options.
- * @param {MediaDownloadCache} downloadCache
- * @param {BaseInteraction} interaction
- * @param {Listener} listener
- */
-export async function sendStartDownloadMessageAudio(downloadCache, interaction, listener) {
-  const downloadConfig = new MediaDownloadConfig();
-  downloadConfig.cacheKey = downloadCache.cleanLink;
-  downloadConfig.chapterIndex = downloadCache.chapterIndex;
-
-  const actionRow1 = new ActionRowBuilder().addComponents(getSelectMenuAudioFormat(downloadConfig.audioFileFormat));
-  const actionRow2 = new ActionRowBuilder().addComponents(getSelectMenuAudioFade(downloadConfig.audioFadeDuration));
-  const actionRow3 = new ActionRowBuilder().addComponents(buttonStartDownloadAudio, buttonManagePlexAudio, Emitter.moreInfoButton);
-  const components = [actionRow1, actionRow2, actionRow3];
-
-  const { id } = await sendStartDownloadMessageBase(components, downloadCache, interaction, listener);
-  mediaDownloadConfigs.set(id, downloadConfig);
-}
-
-/**
- * Send the message with the 'Start Download' button. Includes select menus for the download options.
- * @param {MediaDownloadCache} downloadCache
- * @param {BaseInteraction} interaction
- * @param {Listener} listener
- */
-export async function sendStartDownloadMessageVideo(downloadCache, interaction, listener) {
-  const downloadConfig = new MediaDownloadConfig();
-  downloadConfig.cacheKey = downloadCache.cleanLink;
-  downloadConfig.chapterIndex = downloadCache.chapterIndex;
-
-  const actionRow1 = new ActionRowBuilder().addComponents(getSelectMenuVideoFormat(downloadConfig.videoFileFormat));
-  const actionRow2 = new ActionRowBuilder().addComponents(getSelectMenuVideoResolution(downloadCache.videoFormats, downloadConfig.videoResolution));
-  const actionRow3 = new ActionRowBuilder().addComponents(buttonStartDownloadVideo, buttonManagePlexVideo, Emitter.moreInfoButton);
-  const components = [actionRow1, actionRow2, actionRow3];
-
-  const { id } = await sendStartDownloadMessageBase(components, downloadCache, interaction, listener);
-  mediaDownloadConfigs.set(id, downloadConfig);
+  interaction.followUp({ components, content, ephemeral: true, fetchReply: true })
+    .then(result => {
+      Utilities.LogPresets.SentReply(result, listener);
+      mediaDownloadConfigs.set(result.id, downloadConfig);
+    })
+    .catch(error => logger.error(error, listener));
 }
 
 /**
  * Show the metadata modal for the media download or import.
- * @throws `Unexpected contentType`
  * @param {object} param
- * @param {string} param.contentType
  * @param {string} param.customId
  * @param {BaseInteraction} param.interaction
  * @param {Listener} param.listener
  * @param {string} param.modalLabel
  */
-export async function showMetadataModal({ contentType, customId, interaction, listener, modalLabel }) {
+export async function showMetadataModal({ customId, interaction, listener, modalLabel }) {
   const downloadConfig = await fetchDownloadConfig(interaction);
 
   let downloadCache = await fetchDownloadCache(interaction);
   downloadCache = downloadCache.chapters[downloadConfig.chapterIndex] ?? downloadCache;
 
-  const startTime = contentType === contentTypes.audio && downloadCache.chapterIndex === -1 && downloadCache.segments.some(item => item.title === "intro")
+  let fileFormat;
+  let isAudioFormat;
+
+  switch(listener.id) {
+    case Interactions.ButtonManagePlexAudio:
+    case Interactions.ButtonPlexStartImportAudio:
+    case Interactions.ButtonStartDownloadAudio: {
+      fileFormat = downloadConfig.audioFileFormat;
+      isAudioFormat = true;
+      break;
+    }
+    case Interactions.ButtonManagePlexVideo:
+    case Interactions.ButtonPlexStartImportVideo:
+    case Interactions.ButtonStartDownloadVideo: {
+      fileFormat = downloadConfig.videoFileFormat;
+      isAudioFormat = false;
+      break;
+    }
+    default: {
+      throw new Error(`Unexpected listener.id "${listener.id}"`);
+    }
+  }
+
+  const startTime = isAudioFormat && downloadCache.chapterIndex === -1 && downloadCache.segments.some(item => item.title === "intro")
     ? Utilities.getShortTimestamp(downloadCache.segments.find(item => item.title === "intro").endTime)
     : Utilities.getShortTimestamp(downloadCache.startTime);
 
-  const endTime = contentType === contentTypes.audio && downloadCache.chapterIndex === -1 && downloadCache.segments.some(item => item.title === "outro")
+  const endTime = isAudioFormat && downloadCache.chapterIndex === -1 && downloadCache.segments.some(item => item.title === "outro")
     ? Utilities.getShortTimestamp(downloadCache.segments.find(item => item.title === "outro").startTime)
     : Utilities.getShortTimestamp(downloadCache.endTime);
 
   const [titleValue, artistValue] = downloadCache.trackTitleArtistValues;
   const genre = downloadCache.genre ?? randomItem(exampleMusicGenres);
-
-  let fileFormat;
-
-  switch(contentType) {
-    case contentTypes.audio: fileFormat = downloadConfig.audioFileFormat; break;
-    case contentTypes.video: fileFormat = downloadConfig.videoFileFormat; break;
-    default: throw new Error(`Unexpected contentType "${contentType}"`);
-  }
 
   const components = [
     new ActionRowBuilder().addComponents(getTextInputTitle(titleValue)),

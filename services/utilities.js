@@ -248,16 +248,14 @@ export class Utilities {
     const filename = basename(filepath, extension);
     if (!fs.existsSync(filepath)) return filename + extension;
 
-    const directory = dirname(filepath);
-    const nextNumber = fs
-      .readdirSync(directory)
-      .filter(fn => fn.includes(filename))
-      .reduce((prev, fn) => {
-        const match = fn.match(/\((\d+)\)/);
-        return match ? Math.max(prev, match[1]) : prev;
-      }, 0) + 1;
+    const directory = fs.readdirSync(dirname(filepath));
+    let availableFilename = "";
 
-    return `${filename} (${nextNumber})${extension}`;
+    for (var i = 1; i < Infinity; i++) {
+      availableFilename = `${filename} (${i})${extension}`;
+      const isAvailable = !directory.includes(availableFilename);
+      if (isAvailable) return availableFilename;
+    }
   }
 
   /**
@@ -281,13 +279,13 @@ export class Utilities {
    */
   static getCompactNumber(num) {
     if (num >= 1000000000) {
-       return (num / 1000000000).toFixed(1).replace(/\.0$/, '') + 'G';
+      return (num / 1000000000).toFixed(1).replace(/\.0$/, '') + 'G';
     }
     if (num >= 1000000) {
-       return (num / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
+      return (num / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
     }
     if (num >= 1000) {
-       return (num / 1000).toFixed(1).replace(/\.0$/, '') + 'K';
+      return (num / 1000).toFixed(1).replace(/\.0$/, '') + 'K';
     }
     return num;
 }
