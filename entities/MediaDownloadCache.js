@@ -242,6 +242,7 @@ function mapGenre(input) {
     case (inputIncludes("metal")): return "Metal";
     case (inputIncludes("phonk")): return "Phonk";
     case (inputIncludes("trance")): return "Trance";
+    case (inputIncludes("orchestra")): return "Orchestral";
     case (inputIncludes("happyhardcore")): return "Trance";
     case (inputIncludes("electronic")): return "Electronic";
     case (inputIncludes("soundtrack")): return "Soundtrack";
