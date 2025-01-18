@@ -18,10 +18,7 @@ import youtubedl from "youtube-dl-exec";
 date.plugin(meridiem);
 
 // TODO: ///////////////////////////////////////////////////////
-// - On plex import w/ no file, open straight to input modal  //
-// - On plex import w/ n files, show menu and disabled button //
-// - On plex file select, auto upload the selected file       //
-// - On plex file import, auto upload the selected file       //
+// - Set manage plex button as busy on first download         //
 // - Add logic for ButtonPlexDeleteFileAudio                  //
 // - Add logic for ButtonPlexDeleteFileVideo                  //
 // - Add logic for startPlexVideoLibraryScan()                //

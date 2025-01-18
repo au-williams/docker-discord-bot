@@ -222,6 +222,7 @@ function mapGenre(input) {
     case (inputIncludes("breakcore")): return "Breakcore";
     case (inputIncludes("chillstep")): return "Chillstep";
     case (inputIncludes("citypop")): return "City Pop";
+    case (inputIncludes("bluegrass")): return "Bluegrass";
     case (inputIncludes("country")): return "Country";
     case (inputIncludes("postrock")): return "Post-Rock";
     case (inputIncludes("rock")): return "Rock";
@@ -243,7 +244,7 @@ function mapGenre(input) {
     case (inputIncludes("phonk")): return "Phonk";
     case (inputIncludes("trance")): return "Trance";
     case (inputIncludes("orchestra")): return "Orchestral";
-    case (inputIncludes("happyhardcore")): return "Trance";
+    case (inputIncludes("happyhardcore")): return "Happy Hardcore";
     case (inputIncludes("electronic")): return "Electronic";
     case (inputIncludes("soundtrack")): return "Soundtrack";
     default: return null;
