@@ -621,7 +621,7 @@ export async function callbackUploadDiscordFile(downloadCache, interaction, list
 export function checkValidMessage(message) {
   if (!message || message.flags.has(MessageFlags.Ephemeral)) return false;
   const link = Utilities.getLinkWithoutParametersFromString(message.content, true);
-  return link && (checkYoutubeLink(link) || link.includes("soundcloud.com"));
+  return link && (checkYoutubeLink(link) || link.includes("soundcloud.com") || link.includes("reddit.com"));
 }
 
 /**
@@ -1220,7 +1220,7 @@ export async function onEventMessageCreate({ listener, message }) {
 
   const embeds = [new EmbedBuilder()];
   embeds[0].setAuthor({ name: downloadCache.uploader });
-  embeds[0].setColor(message.embeds[0].data.color);
+  embeds[0].setColor(message.embeds[0].data.color || 0);
   embeds[0].setThumbnail(message.embeds[0].data.thumbnail.url);
   embeds[0].setTitle(`${Utilities.getTruncatedStringTerminatedByWord(downloadCache.title, 42)} (${Utilities.getShortTimestamp(downloadCache.endTime)})`);
   embeds[0].setURL(downloadCache.cleanLink);
