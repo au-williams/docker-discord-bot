@@ -414,9 +414,11 @@ function getSelectMenuVideoFormat(selectedValue) {
  */
 function getSelectMenuVideoResolution(videoFormats, selectedValue) {
   const options = videoFormats.map(item => {
+    let label = `📺 Use ${item.resolution} video resolution`;
+    if (item.filesize.trim() !== "~") label += ` (${item.filesize})`;
     return new StringSelectMenuOptionBuilder()
       .setDefault(selectedValue === item.value)
-      .setLabel(`📺 Use ${item.resolution} video resolution (${item.filesize})`)
+      .setLabel(label)
       .setValue(item.value);
   });
 
@@ -1188,6 +1190,42 @@ export async function onButtonManagePlex({ interaction, listener }) {
       .then(() => Utilities.LogPresets.ShowedModal(interaction, listener))
       .catch(error => logger.error(error, listener));
   }
+}
+
+/**
+ *
+ */
+export async function onButtonPlexDeleteFile({ interaction, listener }) {
+  await interaction.deferReply({ ephemeral: true });
+
+  const downloadCache = await fetchDownloadCache(interaction);
+  const downloadConfig = await fetchDownloadConfig(interaction);
+
+  downloadConfig.plexFileIndex;
+
+  let directory;
+  let filenames;
+
+  switch (listener.id) {
+    case Interactions.SelectMenuPlexFilesAudio: {
+      directory = config.plex_download_directory_audio;
+      filenames = getExistingPlexFilenames(directory, downloadCache);
+      break;
+    }
+    case Interactions.SelectMenuPlexFilesVideo: {
+      directory = config.plex_download_directory_video;
+      filenames = getExistingPlexFilenames(directory, downloadCache);
+      break;
+    }
+    default: {
+      throw new Error(`Unexpected listener.id "${listener.id}"`);
+    }
+  }
+
+  await fs.remove(`${directory}/${filenames[downloadConfig.plexFileIndex]}`);
+  logger.info(`Deleted file from Plex: "${filenames[downloadConfig.plexFileIndex]}"`);
+  await interaction.editReply("Your file was successfully deleted from Plex.");
+  // await startPlexLibraryScan();
 }
 
 /**
