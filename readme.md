@@ -1,5 +1,11 @@
 # docker-discord-bot
 
+<!--
+TODO:
+- Add Emitter customId parameters (BUTTON_DOWNLOAD&user_id=0)
+- Github plugin (announce commits, releases, packages, etc)
+-->
+
 My Discord bot made with [discord.js](https://discord.js.org/) for the scalable automation of tasks. [Docker image](https://ghcr.io/au-williams/docker-discord-bot:master) is packaged using [GitHub Actions](https://github.com/au-williams/docker-discord-bot/actions) CI/CD. 🐋📦
 
 <img style="height: 75px" src="assets/readme_logos.png"/>

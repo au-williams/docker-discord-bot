@@ -871,8 +871,7 @@ export async function fetchDownloadCache(interactionOrMessage) {
   let referenceMessageId = interactionOrMessage.reference?.messageId;
 
   while (!linkWithoutParameters && referenceMessageId) {
-    const referenceMessage = interactionOrMessage.channel.messages.cache.get(referenceMessageId);
-    //const referenceMessage = await interactionOrMessage.channel.messages.fetch(referenceMessageId);
+    const referenceMessage = await interactionOrMessage.channel.messages.fetch(referenceMessageId);
     linkWithoutParameters = Utilities.getLinkWithoutParametersFromString(referenceMessage.content, true);
     if (linkWithoutParameters) message = referenceMessage;
     else referenceMessageId = referenceMessage?.reference?.messageId;
