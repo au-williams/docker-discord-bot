@@ -50,7 +50,7 @@ export const Listeners = Object.freeze({
   [Interactions.ButtonAddMagnet]: new Listener()
     .setDescription("Displays a popup to paste a new magnet link for the qBittorrent download queue.")
     .setFunction(() => { throw new Error("Not implemented") })
-    .setRequiredRoles(config.discord_required_role_ids),
+    .setRequiredUsers(config.discord_bot_admin_user_ids),
   [Interactions.ButtonManageSpeedLimit]: new Listener()
     .setDescription("Displays a select menu to create, update, or remove the qBittorrent speed limit.")
     .setFunction(onButtonSpeedLimit)
