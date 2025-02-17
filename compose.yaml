@@ -2,7 +2,7 @@ services:
   client:
     environment:
       - FORCE_COLOR=1
-    build: .
+    image: "ghcr.io/au-williams/docker-discord-bot:master"
     restart: unless-stopped
     volumes:
       - type: bind
@@ -11,16 +11,13 @@ services:
       - type: bind
         source: ./plugins
         target: /usr/src/app/plugins
-      - type: bind
-        source: E:/Music/Plex (Not Tagged)/Various Artists/Downloads
-        target: /usr/src/app/media/audio
 
       ###############################################
       # enable for plugins/plex_music_downloader.js #
       ###############################################
       # - type: bind                                #
       #   source: ~/downloads                       #
-      #   target: /usr/src/app/media/audio          #
+      #   target: /usr/src/app/audio                #
       ###############################################
 
 # steps to deploy new build to server:
