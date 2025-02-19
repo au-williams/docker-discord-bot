@@ -636,7 +636,7 @@ export function checkYoutubeLink(link) {
 }
 
 export function checkFacebookLink(link) {
-  return link.includes("facebook.com/share/v/");
+  return link.includes("facebook.com/share/r/") || link.includes("facebook.com/share/v/");
 }
 
 /**
