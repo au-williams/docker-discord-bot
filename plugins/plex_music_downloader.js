@@ -1,4 +1,4 @@
-import { ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonInteraction, ButtonStyle, EmbedBuilder, Events, Message, MessageFlags, ModalBuilder, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, TextInputBuilder, TextInputStyle, ThreadChannel } from "discord.js";
+import { ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, Events, Message, MessageFlags, ModalBuilder, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, TextInputBuilder, TextInputStyle, ThreadChannel } from "discord.js";
 import { Config } from "../services/config.js";
 import { Emitter } from "../services/emitter.js";
 import { extname, resolve } from "path";
@@ -6,13 +6,13 @@ import { Logger } from "../services/logger.js";
 import { nanoid } from "nanoid";
 import { setTimeout } from "timers/promises";
 import { Utilities } from "../services/utilities.js";
-import * as oembed from "@extractus/oembed-extractor";
 import date from "date-and-time";
 import fs from "fs-extra";
 import Listener from "../entities/Listener.js";
 import MediaDownloadCache from "../entities/MediaDownloadCache.js"
 import MediaDownloadConfig from "../entities/MediaDownloadConfig.js";
 import meridiem from "date-and-time/plugin/meridiem";
+import Papa from "papaparse";
 import randomItem from "random-item";
 import youtubedl from "youtube-dl-exec";
 date.plugin(meridiem);
@@ -623,7 +623,7 @@ export async function callbackUploadDiscordFile(downloadCache, interaction, list
 export function checkValidMessage(message) {
   if (!message || message.flags.has(MessageFlags.Ephemeral)) return false;
   const link = Utilities.getLinkWithoutParametersFromString(message.content, true);
-  return link && (checkYoutubeLink(link) || link.includes("soundcloud.com") || link.includes("reddit.com"));
+  return link && (checkYoutubeLink(link) || link.includes("soundcloud.com") || link.includes("reddit.com") || checkFacebookLink(link));
 }
 
 /**
@@ -633,6 +633,10 @@ export function checkValidMessage(message) {
  */
 export function checkYoutubeLink(link) {
   return link.includes("youtube.com") || link.includes("youtu.be");
+}
+
+export function checkFacebookLink(link) {
+  return link.includes("facebook.com/share/v/");
 }
 
 /**
@@ -733,6 +737,11 @@ export async function downloadLinkAndExecuteCallback({ callback, interaction, li
   logger.debug(await youtubedl(downloadCache.cleanLink, options));
 
   const tempDownloadFilename = fs.readdirSync(tempDownloadDirectory)[0];
+
+  if (!tempDownloadFilename) {
+    throw new Error("Expected an output file but found none. Is the yt-dlp package up-to-date?");
+  }
+
   const tempDownloadFilepath = resolve(`${tempDownloadDirectory}/${tempDownloadFilename}`);
 
   await callback(downloadCache, interaction, listener, tempDownloadFilename, tempDownloadFilepath);
@@ -922,8 +931,8 @@ export async function fetchDownloadCache(interactionOrMessage) {
   }).catch(e => { youtubedlErrorMessage = e.message });
 
   const youtubedlPayload = await youtubedl(linkWithoutParameters, {
-    output: "%(duration>%H:%M:%S)s,%(id)s,%(view_count)s,%(like_count)s,%(upload_date)s, %(genre)s",
-    print: "%(duration>%H:%M:%S)s,%(id)s,%(view_count)s,%(like_count)s,%(upload_date)s, %(genre)s",
+    output: "\"%(duration>%H:%M:%S)s\",\"%(id)s\",\"%(view_count)s\",\"%(like_count)s\",\"%(upload_date)s\",\"%(genre)s\",\"%(title)s\",\"%(uploader)s\"",
+    print: "\"%(duration>%H:%M:%S)s\",\"%(id)s\",\"%(view_count)s\",\"%(like_count)s\",\"%(upload_date)s\",\"%(genre)s\",\"%(title)s\",\"%(uploader)s\"",
     simulate: true,
     skipDownload: true
   }).catch(e => { youtubedlErrorMessage = e.message });
@@ -937,28 +946,25 @@ export async function fetchDownloadCache(interactionOrMessage) {
     throw new Error(`Failed to execute YouTubeDL "${linkWithoutParameters}"`);
   }
 
-  const youtubedlEndTime = Utilities.getLongTimestamp(youtubedlPayload.split(",")[0]);
-  const youtubedlGenre = youtubedlPayload.split(",")[5];
-  const youtubedlId = youtubedlPayload.split(",")[1];
-  const youtubedlLikes = youtubedlPayload.split(",")[3];
-  const youtubedlUploadDate = youtubedlPayload.split(",")[4];
-  const youtubedlViews = youtubedlPayload.split(",")[2];
+  const youtubedlOutput = Papa.parse(youtubedlPayload, { delimiter: ",", quoteChar: "\"" }).data[0];
+
+  const youtubedlEndTime = Utilities.getLongTimestamp(youtubedlOutput[0]);
+  const youtubedlGenre = youtubedlOutput[5];
+  const youtubedlId = youtubedlOutput[1];
+  const youtubedlLikes = youtubedlOutput[3];
+  const youtubedlUploadDate = youtubedlOutput[4];
+  const youtubedlViews = youtubedlOutput[2];
   const youtubedlVideoFormats = getVideoFormatsFromList(youtubedlFormats);
 
-  // --------------------- //
-  // fetch the oembed data //
-  // --------------------- //
+  let youtubedlTitle = youtubedlOutput[6];
 
-  let oembedErrorMessage;
-
-  const oembedPayload = await oembed.extract(linkWithoutParameters).catch(e => {
-    oembedErrorMessage = e.message || "Couldn't extract oembed payload";
-    if (oembedErrorMessage.includes(linkWithoutParameters)) return;
-    oembedErrorMessage += ` "${linkWithoutParameters}"`;
-  });
-
-  if (!oembedPayload) {
-    throw new Error(oembedErrorMessage);
+  if (checkFacebookLink(linkWithoutParameters)) {
+    const splitTitle = youtubedlTitle.split(" | ");
+    const isMetadata = splitTitle[0].includes(" views") && splitTitle[0].includes(" reactions");
+    const isUploader = splitTitle[splitTitle.length - 1].startsWith("By ");
+    if (splitTitle.length > 1 && isMetadata) splitTitle.shift();
+    if (splitTitle.length > 1 && isUploader) splitTitle.pop();
+    youtubedlTitle = splitTitle.join(" | ");
   }
 
   // --------------------------- //
@@ -1000,9 +1006,9 @@ export async function fetchDownloadCache(interactionOrMessage) {
     link: Utilities.getLinkFromString(message.content, true),
     messageId: message.id,
     segments: sponsorblockSegments.sort((a, b) => a.startSeconds - b.startSeconds),
-    title: oembedPayload.title,
+    title: youtubedlTitle || "No title",
     uploadDate: youtubedlUploadDate,
-    uploader: oembedPayload.author_name,
+    uploader: youtubedlOutput[7] || "No uploader",
     videoFormats: youtubedlVideoFormats.sort((a, b) => b.value - a.value),
     views: youtubedlViews
   });
@@ -1258,9 +1264,12 @@ export async function onEventMessageCreate({ listener, message }) {
   const embeds = [new EmbedBuilder()];
   embeds[0].setAuthor({ name: downloadCache.uploader });
   embeds[0].setColor(message.embeds[0].data.color || 0);
-  embeds[0].setThumbnail(message.embeds[0].data.thumbnail.url);
   embeds[0].setTitle(`${Utilities.getTruncatedStringTerminatedByWord(downloadCache.title, 42)} (${Utilities.getShortTimestamp(downloadCache.endTime)})`);
   embeds[0].setURL(downloadCache.cleanLink);
+
+  if (message.embeds[0].data.thumbnail?.url) {
+    embeds[0].setThumbnail(message.embeds[0].data.thumbnail.url);
+  }
 
   if (downloadCache.description) {
     const value = `\`\`\`${downloadCache.cleanDescriptionPreview}\`\`\``;

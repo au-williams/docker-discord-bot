@@ -11,7 +11,6 @@
   "license": "ISC",
   "dependencies": {
     "@distube/ytpl": "^1.2.1",
-    "@extractus/oembed-extractor": "^3.1.9",
     "ascii-fullwidth-halfwidth-convert": "^0.1.1",
     "chalk": "^5.3.0",
     "croner": "^7.0.1",
@@ -27,6 +26,7 @@
     "nanoid": "^5.0.5",
     "node-vibrant": "^3.2.1-alpha.1",
     "nodejs-file-downloader": "^4.12.1",
+    "papaparse": "^5.5.2",
     "probe-image-size": "^7.2.3",
     "random-item": "^4.0.1",
     "sanitize-filename": "^1.6.3",
