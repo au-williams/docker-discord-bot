@@ -439,10 +439,10 @@ function getTextInputArtist(populatedValue) {
   return new TextInputBuilder()
     .setCustomId("artist")
     .setLabel("Artist")
-    .setPlaceholder(populatedValue)
+    .setPlaceholder(Utilities.getTruncatedStringTerminatedByChar(populatedValue, 45))
     .setRequired(true)
     .setStyle(TextInputStyle.Short)
-    .setValue(populatedValue);
+    .setValue(Utilities.getTruncatedStringTerminatedByChar(populatedValue, 45));
 }
 
 /**
@@ -503,10 +503,10 @@ function getTextInputTitle(populatedValue) {
   return new TextInputBuilder()
     .setCustomId("title")
     .setLabel("Title")
-    .setPlaceholder(populatedValue)
+    .setPlaceholder(Utilities.getTruncatedStringTerminatedByChar(populatedValue, 45))
     .setRequired(true)
     .setStyle(TextInputStyle.Short)
-    .setValue(populatedValue);
+    .setValue(Utilities.getTruncatedStringTerminatedByChar(populatedValue, 45));
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -838,6 +838,7 @@ export function getTimestampsFromFilename(filename) {
  */
 export function getVideoFormatsFromList(youtubedlFormats) {
   const formatHeader = youtubedlFormats.split("\n").filter(item => !item.startsWith("["))[0];
+  console.log(youtubedlFormats)
   const fi = formatHeader.indexOf("FILESIZE")
   const ri = formatHeader.indexOf("RESOLUTION");
 
