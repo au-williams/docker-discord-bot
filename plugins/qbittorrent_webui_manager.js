@@ -1,4 +1,4 @@
-import { ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, Events, InteractionContextType, StringSelectMenuBuilder, StringSelectMenuOptionBuilder } from "discord.js";
+import { ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, Events, InteractionContextType, ModalBuilder, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, TextInputBuilder, TextInputStyle } from "discord.js";
 import { Config } from "../services/config.js";
 import { DeploymentTypes } from "../entities/DeploymentTypes.js";
 import { Emitter } from "../services/emitter.js";
@@ -41,6 +41,7 @@ export const Interactions = Object.freeze({
   ButtonManageSpeedLimit: "QB_BUTTON_MANAGE_SPEED_LIMIT",
   ButtonRemoveSpeedLimit: "QB_BUTTON_REMOVE_SPEED_LIMIT",
   ChatInputCommandQbittorrent: "qbittorrent",
+  ModalSubmitAddMagnet: "QB_MODAL_SUBMIT_ADD_MAGNET",
   SelectMenuSpeedLimitDuration: "QB_SELECT_MENU_SPEED_LIMIT_DURATION"
 });
 
@@ -49,7 +50,7 @@ export const Listeners = Object.freeze({
     onClientReady,
   [Interactions.ButtonAddMagnet]: new Listener()
     .setDescription("Displays a popup to paste a new magnet link for the qBittorrent download queue.")
-    .setFunction(() => { throw new Error("Not implemented") })
+    .setFunction(onButtonAddMagnet)
     .setRequiredUsers(config.discord_bot_admin_user_ids),
   [Interactions.ButtonManageSpeedLimit]: new Listener()
     .setDescription("Displays a select menu to create, update, or remove the qBittorrent speed limit.")
@@ -68,6 +69,7 @@ export const Listeners = Object.freeze({
   [Interactions.SelectMenuSpeedLimitDuration]: new Listener()
     .setDescription("Chooses a duration to use the qBittorrent speed limit for. The speed limit will be removed once the duration has been reached.")
     .setFunction(onSelectMenuSpeedLimitDuration),
+  [Interactions.ModalSubmitAddMagnet]: onModalSubmitAddMagnet
 });
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -99,6 +101,12 @@ const buttonSaveChanges = new ButtonBuilder()
   .setEmoji("☑️")
   .setLabel("Save changes")
   .setStyle(ButtonStyle.Secondary);
+
+const textInputMagnet = new TextInputBuilder()
+  .setCustomId("magnet")
+  .setLabel("Magnet Link")
+  .setRequired(true)
+  .setStyle(TextInputStyle.Paragraph)
 
 /**
  * Get the speed limit duration select menu.
@@ -347,6 +355,43 @@ export async function onButtonSaveChanges({ client, interaction, listener }) {
 /**
  *
  */
+export async function onButtonAddMagnet({ interaction, listener }) {
+  const row = new ActionRowBuilder().addComponents(textInputMagnet);
+
+  const modal = new ModalBuilder()
+    .addComponents(row)
+    .setCustomId(Interactions.ModalSubmitAddMagnet)
+    .setTitle("Add magnet");
+
+  interaction
+    .showModal(modal)
+    .then(() => Utilities.LogPresets.ShowedModal(interaction, listener))
+    .catch(error => logger.error(error, listener));
+}
+
+/**
+ *
+ */
+export async function onModalSubmitAddMagnet({ interaction, listener }) {
+  await interaction.deferReply({ ephemeral: true });
+
+  const inputMagnet = interaction.fields.getTextInputValue("magnet")?.trim();
+  const isSuccess = await postQbittorrentAddMagnet(cookie, inputMagnet);
+
+  let content = isSuccess
+    ? "Your magnet was successfully added to the qBittorrent queue."
+    : "Your magnet was rejected because it's invalid or already in the qBittorrent queue.";
+  content += `\`\`\`${inputMagnet}\`\`\``;
+
+  interaction
+    .followUp({ content, fetchReply: true })
+    .then(result => Utilities.LogPresets.SentFollowUp(result, listener))
+    .catch(error => logger.error(error, listener));
+}
+
+/**
+ *
+ */
 export async function onButtonSpeedLimit({ interaction, listener }) {
   await interaction.deferReply({ ephemeral: true });
 
@@ -447,6 +492,38 @@ export async function onSelectMenuSpeedLimitDuration({ listener, interaction }) 
     .catch(error => logger.error(error, listener));
 
   Utilities.LogPresets.DebugSetValue("selectedSpeedLimitDurations", interaction.values[0], listener);
+}
+
+/**
+ *
+ */
+export async function postQbittorrentAddMagnet(cookie, magnetLink) {
+  const url = `http://${config.qbittorrent_host_url}/api/v2/torrents/add`;
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      "Cookie": cookie
+    },
+    body: new URLSearchParams({
+      urls: magnetLink
+    })
+  });
+
+  if (!response.ok) {
+    throw new Error(await response.text());
+  }
+
+  const text = await response.text();
+
+  if (text.toLowerCase().startsWith("ok")) {
+    return true;
+  }
+  if (text.toLowerCase().startsWith("fail")) {
+    return false;
+  }
+  throw new Error(`Received unexpected response: ${text}`);
 }
 
 /**
