@@ -26,7 +26,7 @@ export const CronJobs = new Set([
   new CronJob()
     .setEnabled(Messages.isServiceEnabled)
     .setExpression(config.announcement_cron_job_expression)
-    .setFunction(checkAndAnnounceUpdate)
+    .setFunction(checkAndAnnounceRssUpdate)
     .setTriggered()
 ]);
 
@@ -65,7 +65,7 @@ export function removeTags(str) {
  * @param {Client} param.client The Discord.js client
  * @param {Listener} param.listener
  */
-export async function checkAndAnnounceUpdate({ client, listener }) {
+export async function checkAndAnnounceRssUpdate({ client, listener }) {
   for(const { url, ignored_strings, required_strings } of config.rss_feeds) {
     const rss = await parser.parseURL(url).then(({ items }) =>
       items.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate)).find(item => {
