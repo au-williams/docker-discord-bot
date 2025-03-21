@@ -1,0 +1,11 @@
+{
+  "announcement_cron_job_expression": "*/5 * * * *",
+  "announcement_discord_channel_ids": [""],
+  "rss_feeds": [
+    {
+      "url": "https://store.steampowered.com/feeds/news/collection/steam",
+      "ignored_strings": ["SteamOS", "Steam Deck"],
+      "required_strings": ["sale"]
+    }
+  ]
+}

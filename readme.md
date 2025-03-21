@@ -196,7 +196,7 @@ This JavaScript file sends assignment updates for the video game [Deep Rock Gala
 
 </details>
 
-<!-- plugins/deep_rock_galactic_announcer.js -->
+<!-- plugins/discord_direct_message_manager.js -->
 
 <details>
 
@@ -270,6 +270,14 @@ This JavaScript file manages the host [qBittorrent](https://www.qbittorrent.org/
 | "qbittorrent_host_url"      | The host URL. `127.0.0.1` or `host.docker.internal` on `:8080`.                                                                                                          | `true`   |
 | "qbittorrent_username"      | The qBittorrent WebUI username to authenticate with.                                                                                                                     | `true`   |
 | "qbittorrent_password"      | The qBittorrent WebUI password to authenticate with.                                                                                                                     | `true`   |
+
+</details>
+
+<!-- plugins/rss_feed_announcer.js -->
+
+<details>
+
+<summary>🧩 plugins/rss_feed_announcer.js</summary>
 
 </details>
 
