@@ -777,6 +777,20 @@ export class Utilities {
     return LightMuted?.hex || LightVibrant?.hex || DarkVibrant?.hex || DarkMuted?.hex;
   };
 
+  /**
+   * Removes tags and other markup encoding from raw HTML text.
+   * @static
+   * @param {string} str
+   * @returns {string}
+   */
+  static removeTagsFromEncodedString(str) {
+    return str
+      .replace(/[\u2018\u2019\u201A\u201B\u2032\u2035']/g, "'")
+      .replace(/<h[1-6]>(.*?)<\/h[1-6]>/gi, "$1:")
+      .replace(/(<([^>]+)>)/ig, "")
+      .replace(/\s+/g, " ");
+  }
+
   static LogPresets = {
     CreatedThread: (thread, listener) => logger.info(`Created thread channel "${thread.name}"`, listener),
     DebugSetValue: (property, value, listener) => logger.debug(`Set "${property}" key as "${Utilities.getValueAsString(value)}" ${Utilities.getValueAsType(value)} value.`, listener),

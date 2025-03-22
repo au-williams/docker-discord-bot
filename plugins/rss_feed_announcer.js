@@ -81,8 +81,8 @@ export async function checkAndAnnounceRssUpdate({ client, listener }) {
       const articlePreview = await getLinkPreview(rss.link);
       const websitePreview = await getLinkPreview(`https://${hostName}`);
 
-      const content = rss["content:encoded"] || rss.content;
-      const description = Utilities.getTruncatedStringTerminatedByWord(removeTags(content), 133);
+      const content = Utilities.removeTagsFromEncodedString(rss["content:encoded"] || rss.content);
+      const description = Utilities.getTruncatedStringTerminatedByWord(content, 133);
       const formattedDate = date.format(new Date(rss.pubDate), "MMMM DDD");
       const title = discord_embed_title || websitePreview.siteName || websitePreview.title;
 
@@ -91,7 +91,7 @@ export async function checkAndAnnounceRssUpdate({ client, listener }) {
       const embeds = [new EmbedBuilder()
         .setAuthor({ name: "New RSS announcement", iconURL: "attachment://rss_logo.png" })
         .setColor(0xF26109)
-        .setDescription(`- [**${rss.title}**](${rss.link})\n${`_${description}_`}`)
+        .setDescription(`- [**${rss.title}**](${rss.link})\n_${description}_`)
         .setFooter({ text: `Posted on ${formattedDate}. Click the link to read the full announcement.` })
         .setImage(discord_embed_image || articlePreview.images[0])
         .setThumbnail(discord_embed_thumbnail || websitePreview.images[0])
@@ -111,17 +111,6 @@ export async function checkAndAnnounceRssUpdate({ client, listener }) {
           .catch(error => logger.error(error, listener));
     }
   }
-}
-
-/**
- * TODO: Move this to utils, use in steam plugin
- */
-export function removeTags(str) {
-  return str
-    .replace(/[\u2018\u2019\u201A\u201B\u2032\u2035']/g, "'")
-    .replace(/<h[1-6]>(.*?)<\/h[1-6]>/gi, "$1:")
-    .replace(/(<([^>]+)>)/ig, "")
-    .replace(/\s+/g, " ");
 }
 
 ///////////////////////////////////////////////////////////////////////////////
