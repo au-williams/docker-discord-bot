@@ -279,6 +279,10 @@ This JavaScript file manages the host [qBittorrent](https://www.qbittorrent.org/
 
 <summary>🧩 plugins/rss_feed_announcer.js</summary>
 
+### 🧩 plugins/rss_feed_announcer.js
+
+<img src="assets/readme_rss_feed_announcer.png" style="height: 450px;"></img>
+
 </details>
 
 <!-- plugins/steam_community_announcer.js -->
