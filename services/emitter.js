@@ -191,8 +191,16 @@ export class Emitter {
   static async scheduleCronJob(params) {
     const { cronJob, listener } = params;
 
+    let cronJobName = `${cronJob.func.name} - ${listener.filename}`;
+
+    while (Cron.scheduledJobs.find(job => job.name === cronJobName)) {
+      const split = cronJobName.split(" ");
+      const counter = split.pop().replace("(", "").replace(")", "");
+      cronJobName = Utilities.checkNumericString(counter) ? `${split.join(" ")} (${parseInt(counter) + 1})` : `${cronJobName} (1)`;
+    }
+
     const cronOptions = {
-      name: cronJob.func.name,
+      name: cronJobName,
       paused: true,
       protect: true
     };
@@ -213,7 +221,7 @@ export class Emitter {
     }
     else if (isTriggered) {
       // TODO: parse Cron date, not supported by the library... must do manually using private fields... yikes
-      logger.debug(`CronJob "${cronOptions.name}" triggered for "${cron.getPattern()}" expression.`, listener);
+      logger.debug(`CronJob "${cronJob.func.name}" triggered for "${cron.getPattern()}" expression.`, listener);
       cron.trigger().then(() => cron.resume());
     }
     else {

@@ -26,7 +26,7 @@ export const CronJobs = new Set([
   new CronJob()
     .setEnabled(Messages.isServiceEnabled)
     .setExpression(config.announcement_cron_job_expression)
-    .setFunction(checkAndAnnounceRssUpdate)
+    .setFunction(checkAndAnnounceUpdates)
     .setTriggered()
 ]);
 
@@ -48,53 +48,57 @@ export const CronJobs = new Set([
  * @param {Client} param.client The Discord.js client
  * @param {Listener} param.listener
  */
-export async function checkAndAnnounceRssUpdate({ client, listener }) {
+export async function checkAndAnnounceUpdates({ client, listener }) {
   for(const rss_feed of config.announcement_rss_feeds) {
     const {
-      discord_announcement_channel_ids, discord_embed_image,
-      discord_embed_thumbnail, discord_embed_title, rss_feed_url,
-      rss_content_ignored_strings, rss_content_required_strings,
-      rss_title_ignored_strings, rss_title_required_strings
+      discord_announcement_channel_ids, discord_override_embed_image,
+      discord_override_embed_thumbnail, discord_override_embed_title,
+      rss_feed_url, rss_ignored_strings_content, rss_required_strings_content,
+      rss_ignored_strings_title, rss_required_strings_title
     } = rss_feed;
 
-    const rss = await parser.parseURL(rss_feed_url).then(({ items }) =>
+    // Sort the results by the most recent date and find by config criteria
+    const article = await parser.parseURL(rss_feed_url).then(({ items }) =>
       items.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate)).find(({ content, title }) => {
-        const includes = (source, str) => source.toLowerCase().includes(str.toLowerCase());
-        const isContentIgnoredMet = !rss_content_ignored_strings?.length || !rss_content_ignored_strings.some(str => includes(content, str));
-        const isContentRequirementMet = !rss_content_required_strings?.length || rss_content_required_strings.some(str => includes(content, str));
-        const isTitleIgnoredMet = !rss_title_ignored_strings?.length || !rss_title_ignored_strings.some(str => includes(title, str));
-        const isTitleRequirementMet = !rss_title_required_strings?.length || rss_title_required_strings.some(str => includes(title, str));
-        return isContentIgnoredMet && isContentRequirementMet && isTitleIgnoredMet && isTitleRequirementMet;
+        const includes = (source, str) => str.trim() && source.toLowerCase().includes(str.toLowerCase());
+        const isIgnoredContentValid = !rss_ignored_strings_content?.length || !rss_ignored_strings_content.some(str => includes(content, str));
+        const isIgnoredTitleValid = !rss_ignored_strings_title?.length || !rss_ignored_strings_title.some(str => includes(title, str));
+        const isRequiredContentValid = !rss_required_strings_content?.length || rss_required_strings_content.some(str => includes(content, str));
+        const isRequiredTitleValid = !rss_required_strings_title?.length || rss_required_strings_title.some(str => includes(title, str));
+        return isIgnoredContentValid && isIgnoredTitleValid && isRequiredContentValid && isRequiredTitleValid;
       })
     );
 
-    if (!rss) continue; // No suitable article was found!
+    if (!article) continue; // No suitable article was found!
 
     for(const channel_id of discord_announcement_channel_ids) {
       const existingMessage = Messages
         .get({ channelId: channel_id })
-        .find(message => message.embeds?.[0]?.data.description?.includes(rss.link));
+        .find(message => message.embeds?.[0]?.data.description?.includes(article.link));
 
       if (existingMessage) continue; // Article was already sent!
 
-      const hostName = URL.parse(rss.link).hostname;
-      const articlePreview = await getLinkPreview(rss.link);
+      const hostName = URL.parse(article.link).hostname;
+      const articlePreview = await getLinkPreview(article.link);
       const websitePreview = await getLinkPreview(`https://${hostName}`);
 
-      const content = Utilities.removeTagsFromEncodedString(rss["content:encoded"] || rss.content);
+      const content = Utilities.removeTagsFromEncodedString(article["content:encoded"] || article.content);
       const description = Utilities.getTruncatedStringTerminatedByWord(content, 133);
-      const formattedDate = date.format(new Date(rss.pubDate), "MMMM DDD");
-      const title = discord_embed_title || websitePreview.siteName || websitePreview.title;
+      const formattedDate = date.format(new Date(article.pubDate), "MMMM DDD");
+      const title = discord_override_embed_title || websitePreview.siteName || websitePreview.title;
 
-      // TODO: check if discord_embed_image and discord_embed_thumbnail include "https://" else upload file
+      /* -------------------------------------------------------------------------------- *
+       * TODO: Check if discord_override_embed_image and discord_override_embed_thumbnail *
+       *       include "https://" to determine if an image attachment should be uploaded! *
+       * -------------------------------------------------------------------------------- */
 
       const embeds = [new EmbedBuilder()
         .setAuthor({ name: "New RSS announcement", iconURL: "attachment://rss_logo.png" })
         .setColor(0xF26109)
-        .setDescription(`- [**${rss.title}**](${rss.link})\n_${description}_`)
+        .setDescription(`- [**${article.title}**](${article.link})\n_${description}_`)
         .setFooter({ text: `Posted on ${formattedDate}. Click the link to read the full announcement.` })
-        .setImage(discord_embed_image || articlePreview.images[0])
-        .setThumbnail(discord_embed_thumbnail || websitePreview.images[0])
+        .setImage(discord_override_embed_image || articlePreview.images[0])
+        .setThumbnail(discord_override_embed_thumbnail || websitePreview.images[0])
         .setTitle(title)];
 
         const files = [new AttachmentBuilder("assets/rss_logo.png")];
@@ -103,7 +107,7 @@ export async function checkAndAnnounceRssUpdate({ client, listener }) {
         Utilities.LogPresets.SentMessage(message, listener);
 
         const name =
-          Utilities.getTruncatedStringTerminatedByChar(`💬 ${title} - ${rss.title}`, 100); // maximum thread name size
+          Utilities.getTruncatedStringTerminatedByChar(`💬 ${title} - ${article.title}`, 100); // maximum thread name size
 
         message
           .startThread({ name })

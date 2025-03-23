@@ -3,14 +3,14 @@
   "announcement_rss_feeds": [
     {
       "discord_announcement_channel_ids": [""],
-      "discord_embed_image": "",
-      "discord_embed_thumbnail": "",
-      "discord_embed_title": "",
-      "rss_feed_url": "https://store.steampowered.com/feeds/news/collection/steam/?l=english",
-      "rss_content_ignored_strings": [],
-      "rss_content_required_strings": [],
-      "rss_title_ignored_strings": ["SteamOS", "Steam Deck", "beta"],
-      "rss_title_required_strings": []
+      "discord_override_embed_image": "",
+      "discord_override_embed_thumbnail": "",
+      "discord_override_embed_title": "",
+      "rss_feed_url": "https://discord.com/blog/rss.xml",
+      "rss_ignored_strings_content": [""],
+      "rss_ignored_strings_title": [""],
+      "rss_required_strings_content": [""],
+      "rss_required_strings_title": [""]
     }
   ]
 }
