@@ -85,7 +85,7 @@ export async function checkAndAnnounceUpdates({ client, listener }) {
       const content = Utilities.removeHtmlCodeTags(article["content:encoded"] || article.content);
       const description = Utilities.getTruncatedStringTerminatedByWord(content, 133);
       const formattedDate = date.format(new Date(article.pubDate), "MMMM DDD");
-      const title = discord_override_embed_title.trim() || websitePreview.siteName || websitePreview.title;
+      const title = discord_override_embed_title?.trim() || websitePreview.siteName || websitePreview.title;
 
       /* -------------------------------------------------------------------------------- *
        * TODO: Check if discord_override_embed_image and discord_override_embed_thumbnail *
@@ -97,8 +97,8 @@ export async function checkAndAnnounceUpdates({ client, listener }) {
         .setColor(0xF26109)
         .setDescription(`- [**${article.title}**](${article.link})\n_${description}_`)
         .setFooter({ text: `Posted on ${formattedDate}. Click the link to read the full announcement.` })
-        .setImage(discord_override_embed_image.trim() || articlePreview.images[0])
-        .setThumbnail(discord_override_embed_thumbnail.trim() || websitePreview.images[0])
+        .setImage(discord_override_embed_image?.trim() || articlePreview.images[0])
+        .setThumbnail(discord_override_embed_thumbnail?.trim() || websitePreview.images[0])
         .setTitle(title)];
 
         const files = [new AttachmentBuilder("assets/rss_logo.png")];

@@ -62,6 +62,10 @@ export async function checkAndAnnounceUpdates({ client, listener }) {
       steam_required_strings_content, steam_required_strings_title
     } = steam_app;
 
+    if (!steam_app_id?.trim()) {
+      throw new Error(`Invalid steam_app_id "${steam_app_id}"`);
+    }
+
     const steamAppId = steam_app_id.split(" ")[0].trim();
 
     const steamAppAnnouncement = await fetch(`https://api.steampowered.com/ISteamNews/GetNewsForApp/v2/?appid=${steamAppId}`)
@@ -96,7 +100,7 @@ export async function checkAndAnnounceUpdates({ client, listener }) {
       const parsedDate = new Date(steamAppAnnouncement.date * 1000);
       const formattedDate = date.format(parsedDate, "MMMM DDD");
 
-      const image = discord_override_embed_image.trim()
+      const image = discord_override_embed_image?.trim()
         || await getLandscapeImage(steamAppAnnouncement)
         || steamAppDetailsData.header_image;
 
@@ -106,8 +110,8 @@ export async function checkAndAnnounceUpdates({ client, listener }) {
         .setDescription(`- [**${steamAppAnnouncement.title}**](${steamAppAnnouncement.url})\n_${description}_`)
         .setFooter({ text: `Posted on ${formattedDate}. Click the link to read the full announcement.` })
         .setImage(image)
-        .setThumbnail(discord_override_embed_thumbnail.trim() || steamAppDetailsData.capsule_image)
-        .setTitle(discord_override_embed_title.trim() || steamAppDetailsData.name)];
+        .setThumbnail(discord_override_embed_thumbnail?.trim() || steamAppDetailsData.capsule_image)
+        .setTitle(discord_override_embed_title?.trim() || steamAppDetailsData.name)];
 
       const files = [new AttachmentBuilder("assets/steam_logo.png")];
       const channel = client.channels.cache.get(channel_id);
