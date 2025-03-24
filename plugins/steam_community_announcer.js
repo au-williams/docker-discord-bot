@@ -31,15 +31,9 @@ export const CronJobs = new Set([
   new CronJob()
     .setEnabled(Messages.isServiceEnabled)
     .setExpression(config.announcement_cron_job_expression)
-    .setFunction(checkAndAnnounceUpdate)
+    .setFunction(checkAndAnnounceUpdates)
     .setTriggered()
 ]);
-
-export const Listeners = Object.freeze({
-  [Events.MessageDelete]: new Listener()
-    .setFunction(Utilities.deleteMessageThread)
-    .setRequiredChannels(config.announcement_discord_channel_id)
-});
 
 ///////////////////////////////////////////////////////////////////////////////
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ //
@@ -59,118 +53,94 @@ export const Listeners = Object.freeze({
  * @param {Client} param.client The Discord.js client
  * @param {Listener} param.listener
  */
-export async function checkAndAnnounceUpdate({ client, listener }) {
-  const channel = client.channels.cache.get(config.announcement_discord_channel_id);
+export async function checkAndAnnounceUpdates({ client, listener }) {
+  for (const steam_app of config.announcement_steam_apps) {
+    const {
+      discord_announcement_channel_ids, discord_override_embed_image,
+      discord_override_embed_thumbnail, discord_override_embed_title,
+      steam_app_id, steam_ignored_strings_content, steam_ignored_strings_title,
+      steam_required_strings_content, steam_required_strings_title
+    } = steam_app;
 
-  for (const steam_app_id of config.announcement_steam_app_ids) {
-    // validate steam app id or skip code execution
-    if (!steam_app_id) logger.error("Invalid app_id value in config file", listener);
-    if (!steam_app_id) continue;
+    const steamAppAnnouncement = await fetch(`https://api.steampowered.com/ISteamNews/GetNewsForApp/v2/?appid=${steam_app_id}`)
+      .then(response => response.json())
+      .then(({ appnews }) => appnews?.newsitems.find(({ contents, feed_type, title }) => {
+        if (feed_type !== 1) return false; // "feed_type === 1" are official announcements
+        const includes = (source, str) => str.trim() && source.toLowerCase().includes(str.toLowerCase());
+        const isIgnoredContentValid = !steam_ignored_strings_content?.length || !steam_ignored_strings_content.some(str => includes(contents, str));
+        const isIgnoredTitleValid = !steam_ignored_strings_title?.length || !steam_ignored_strings_title.some(str => includes(title, str));
+        const isRequiredContentValid = !steam_required_strings_content?.length || steam_required_strings_content.some(str => includes(contents, str));
+        const isRequiredTitleValid = !steam_required_strings_title?.length || steam_required_strings_title.some(str => includes(title, str));
+        return isIgnoredContentValid && isIgnoredTitleValid && isRequiredContentValid && isRequiredTitleValid;
+      }));
 
-    // get steam announcement or skip code execution
-    const steamAppAnnouncement = await getSteamAppMostRecentAnnouncement(steam_app_id);
-    if (!steamAppAnnouncement) logger.warn(`Couldn't fetch announcement for app_id "${steam_app_id}"`, listener);
+      console.log("steamAppAnnouncement")
+      console.log(steamAppAnnouncement)
+
     if (!steamAppAnnouncement) continue;
 
-    // get steam app details or skip code execution
-    const steamAppDetailsData = await getSteamAppDetailsData(steam_app_id);
-    if (!steamAppDetailsData) logger.warn(`Couldn't fetch Steam details for app_id "${steam_app_id}"`, listener);
+    const steamAppDetailsData = await fetch(`https://store.steampowered.com/api/appdetails?appids=${steam_app_id}&l=english`)
+      .then(response => response.json())
+      .then(json => json[steam_app_id].data);
+
     if (!steamAppDetailsData) continue;
 
-    // if this message already exists skip code execution
-    const channelMessage = Messages
-      .get({ channelId: config.announcement_discord_channel_id})
-      .find(({ embeds }) => embeds?.[0]?.data?.description?.includes(steamAppAnnouncement.url));
-    if (channelMessage) continue;
+    for (const channel_id of discord_announcement_channel_ids) {
+      const existingMessage = Messages
+        .get({ channelId: channel_id })
+        .find(({ embeds }) => embeds?.[0]?.data?.description?.includes(steamAppAnnouncement.url));
 
-    // format the steam announcement date into a user-readable string
-    // (multiply by 1000 to convert Unix timestamps to milliseconds)
-    const parsedDate = new Date(steamAppAnnouncement.date * 1000);
-    const formattedDate = date.format(parsedDate, "MMMM DDD");
+      if (existingMessage) continue; // Article was already sent!
 
-    const map = match => match[1].replace("{STEAM_CLAN_IMAGE}", "https://clan.akamai.steamstatic.com/images/");
-    const announcementImageUrls = [...steamAppAnnouncement.contents.matchAll(/\[img\](.*?)\[\/img\]/g)].map(map);
+      const content = Utilities.removeHtmlCodeTags(steamAppAnnouncement.contents);
+      const description = Utilities.getTruncatedStringTerminatedByWord(content, 133);
+      const parsedDate = new Date(steamAppAnnouncement.date * 1000);
+      const formattedDate = date.format(parsedDate, "MMMM DDD");
 
-    // JavaScript .find() doesn't support async ... yay code smell! JavaScript is so good. Nobody could have ever predicted a need for async .find()!
-    // const find = async url => await probe(url).then(({ height, width }) => width >= height * 1.25 && width <= height * 4); // validate image size
-    let announcementImageUrl = steamAppDetailsData.header_image;
+      const image = discord_override_embed_image.trim()
+        || await getLandscapeImage(steamAppAnnouncement)
+        || steamAppDetailsData.header_image;
 
-    for(const url of announcementImageUrls) {
-      // why would we ever want to 1 line this when we could use the power of JAVASCRIPT to write a 5 line loop instead?!
-      const isValidSize = await probe(url).then(({ height, width }) => width >= height * 1.25 && width <= height * 4);
-      if (isValidSize) announcementImageUrl = url;
-      if (isValidSize) break;
+      const embeds = [new EmbedBuilder()
+        .setAuthor({ name: "New Steam Community announcement", iconURL: "attachment://steam_logo.png" })
+        .setColor(0x1A9FFF)
+        .setDescription(`- [**${steamAppAnnouncement.title}**](${steamAppAnnouncement.url})\n_${description}_`)
+        .setFooter({ text: `Posted on ${formattedDate}. Click the link to read the full announcement.` })
+        .setImage(image)
+        .setThumbnail(discord_override_embed_thumbnail.trim() || steamAppDetailsData.capsule_image)
+        .setTitle(discord_override_embed_title.trim() || steamAppDetailsData.name)];
+
+      const files = [new AttachmentBuilder("assets/steam_logo.png")];
+      const channel = client.channels.cache.get(channel_id);
+      const message = await channel.send({ embeds, files });
+      Utilities.LogPresets.SentMessage(message, listener);
+
+      const name =
+        Utilities.getTruncatedStringTerminatedByChar(`💬 ${steamAppDetailsData.name} - ${steamAppAnnouncement.title}`, 100); // maximum thread name size
+
+      message
+        .startThread({ name })
+        .then(result => Utilities.LogPresets.CreatedThread(result, listener))
+        .catch(error => logger.error(error, listener));
     }
-
-    const embeds = [new EmbedBuilder()
-      .setAuthor({ name: "New Steam Community announcement", iconURL: "attachment://steam_logo.png" })
-      .setColor(0x1A9FFF)
-      .setDescription(`- [**${steamAppAnnouncement.title}**](${steamAppAnnouncement.url})\n${formatAnnouncementDescription(steamAppAnnouncement)}`)
-      .setFooter({ text: `Posted on ${formattedDate}. Click the link to read the full announcement.` })
-      .setImage(announcementImageUrl)
-      .setThumbnail(steamAppDetailsData.capsule_image)
-      .setTitle(steamAppDetailsData.name)];
-
-    const files = [new AttachmentBuilder("assets/steam_logo.png")];
-    const message = await channel.send({ embeds, files });
-    Utilities.LogPresets.SentMessage(message, listener);
-
-    const name =
-      Utilities.getTruncatedStringTerminatedByChar(`💬 ${steamAppDetailsData.name} - ${steamAppAnnouncement.title}`, 100); // maximum thread name size
-
-    message
-      .startThread({ name })
-      .then(result => Utilities.LogPresets.CreatedThread(result, listener))
-      .catch(error => logger.error(error, listener));
   }
 }
 
 /**
- * Convert Steam announcement description BBCode to markdown for Discord formatting
- * @param {object} steamAnnouncement
- * @returns {string}
+ * Get the first landscape orientation from the announcement contents.
+ * @async
+ * @param {object} steamAppAnnouncement
+ * @returns {string?}
  */
-export function formatAnnouncementDescription(steamAnnouncement) {
-  const contents = steamAnnouncement.contents.split("\n").map(content => {
-    content = content.replaceAll("“", "\"") // replace non-standard quote characters
-    content = content.replaceAll("”", "\"") // replace non-standard quote characters
-    content = content.replaceAll(/\[img\][^[]+\[\/img\]/g, "") // remove [img] tags
-    content = content.replaceAll(/\[\/?[^\]]+\]/g, "") // remove any formatted tags
-    content = content.trim();
-    const emojiMatches = content.match(emojiRegex());
-    const punctuations = [".", ".\"", ",", ";", ":", "!", "?", "-", "(", ")", "[", "]", "{", "}"];
-    const isEndsWithEmoji = emojiMatches?.some(match => content.endsWith(match));
-    const isEndsWithPunctuation = punctuations.some(punctuation => content.endsWith(punctuation));
-    if (content && !isEndsWithEmoji && !isEndsWithPunctuation) content += ".";
-    return content;
-  }).filter(content => content);
+async function getLandscapeImage(steamAppAnnouncement) {
+  // Replace API string symbols with their real value
+  const map = match => match[1].replace("{STEAM_CLAN_IMAGE}", "https://clan.akamai.steamstatic.com/images/");
+  const announcementImageUrls = [...steamAppAnnouncement.contents.matchAll(/\[img\](.*?)\[\/img\]/g)].map(map);
 
-  // drop the duplicate title if it was included in Steams API response
-  const title = Utilities.getStringWithoutEmojis(steamAnnouncement.title).trim();
-  if (contents.length && contents[0].startsWith(title)) contents.shift();
-  return `_${Utilities.getTruncatedStringTerminatedByWord(contents.join(" "), 133)}_`;
-}
-
-/**
- * Get the game data from the Steam API.
- * @param {string} steam_app_id
- * @returns {Promise<object>}
- */
-async function getSteamAppDetailsData(steam_app_id) {
-  return await fetch(`https://store.steampowered.com/api/appdetails?appids=${steam_app_id}&l=english`)
-    .then(response => response.json())
-    .then(json => json[steam_app_id].data);
-}
-
-/**
- * Get the most recent announcement from the Steam API.
- * @param {string} steam_app_id
- * @returns {Promise<object>}
- */
-async function getSteamAppMostRecentAnnouncement(steam_app_id) {
-  return await fetch(`https://api.steampowered.com/ISteamNews/GetNewsForApp/v2/?appid=${steam_app_id}`)
-    .then(response => response.json()) // "feed_type === 1" finds official announcements
-    .then(({ appnews }) => appnews?.newsitems.find(({ feed_type }) => feed_type === 1));
+  for(const url of announcementImageUrls) {
+    const isValidSize = await probe(url).then(({ height, width }) => width >= height * 1.25 && width <= height * 4);
+    if (isValidSize) return url;
+  }
 }
 
 ///////////////////////////////////////////////////////////////////////////////

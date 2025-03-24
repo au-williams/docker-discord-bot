@@ -74,7 +74,7 @@ export async function checkAndAnnounceUpdates({ client, listener }) {
     for(const channel_id of discord_announcement_channel_ids) {
       const existingMessage = Messages
         .get({ channelId: channel_id })
-        .find(message => message.embeds?.[0]?.data.description?.includes(article.link));
+        .find(({ embeds }) => embeds?.[0]?.data.description?.includes(article.link));
 
       if (existingMessage) continue; // Article was already sent!
 
@@ -82,10 +82,10 @@ export async function checkAndAnnounceUpdates({ client, listener }) {
       const articlePreview = await getLinkPreview(article.link);
       const websitePreview = await getLinkPreview(`https://${hostName}`);
 
-      const content = Utilities.removeTagsFromEncodedString(article["content:encoded"] || article.content);
+      const content = Utilities.removeHtmlCodeTags(article["content:encoded"] || article.content);
       const description = Utilities.getTruncatedStringTerminatedByWord(content, 133);
       const formattedDate = date.format(new Date(article.pubDate), "MMMM DDD");
-      const title = discord_override_embed_title || websitePreview.siteName || websitePreview.title;
+      const title = discord_override_embed_title.trim() || websitePreview.siteName || websitePreview.title;
 
       /* -------------------------------------------------------------------------------- *
        * TODO: Check if discord_override_embed_image and discord_override_embed_thumbnail *
@@ -97,8 +97,8 @@ export async function checkAndAnnounceUpdates({ client, listener }) {
         .setColor(0xF26109)
         .setDescription(`- [**${article.title}**](${article.link})\n_${description}_`)
         .setFooter({ text: `Posted on ${formattedDate}. Click the link to read the full announcement.` })
-        .setImage(discord_override_embed_image || articlePreview.images[0])
-        .setThumbnail(discord_override_embed_thumbnail || websitePreview.images[0])
+        .setImage(discord_override_embed_image.trim() || articlePreview.images[0])
+        .setThumbnail(discord_override_embed_thumbnail.trim() || websitePreview.images[0])
         .setTitle(title)];
 
         const files = [new AttachmentBuilder("assets/rss_logo.png")];

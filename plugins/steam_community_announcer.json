@@ -1,5 +1,16 @@
 {
-  "announcement_steam_app_ids": [],
   "announcement_cron_job_expression": "*/5 * * * *",
-  "announcement_discord_channel_id": ""
+  "announcement_steam_apps": [
+    {
+      "discord_announcement_channel_ids": [""],
+      "discord_override_embed_image": "",
+      "discord_override_embed_thumbnail": "",
+      "discord_override_embed_title": "",
+      "steam_app_id": "280680",
+      "steam_ignored_strings_content": [""],
+      "steam_ignored_strings_title": [""],
+      "steam_required_strings_content": [""],
+      "steam_required_strings_title": [""]
+    }
+  ]
 }

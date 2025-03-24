@@ -778,16 +778,34 @@ export class Utilities {
   };
 
   /**
-   * Removes tags and other markup encoding from raw HTML text.
+   * Removes tags and other markup encoding from BBCode text.
    * @static
    * @param {string} str
    * @returns {string}
    */
-  static removeTagsFromEncodedString(str) {
+  static removeBBCodeTags(str) {
     return str
-      .replace(/[\u2018\u2019\u201A\u201B\u2032\u2035']/g, "'")
-      .replace(/<h[1-6]>(.*?)<\/h[1-6]>/gi, "$1:")
-      .replace(/(<([^>]+)>)/ig, "")
+      .replace(/[\u2018\u2019\u201A\u201B\u2032\u2035']/g, "'") // Replace weird apostrophes
+      .replace(/[\u201C\u201D\u201E\u201F]/g, '"') // Replace weird quotes
+      .replace(/<h[1-6]>(.*?)<\/h[1-6]>/gi, "$1: ") // Replace <h> headers with a colon
+      .replace(/(<([^>]+)>)/ig, "") // Remove all <> tags
+      .replace(/\s+/g, " ");
+  }
+
+/**
+ *
+ */
+  static removeHtmlCodeTags(str) {
+    return str
+      .replace(/[\u2018\u2019\u201A\u201B\u2032\u2035']/g, "'") // Replace weird apostrophes
+      .replace(/[\u201C\u201D\u201E\u201F]/g, '"') // Replace weird quotes
+      .replace(/\[h[1-6]\](.*?)\[\/h[1-6]\]/gi, "$1: ") // Replace [h] headers with a colon
+      .replace(/([\w]+)[\.\!\?\:\;]?\s*\[list\]/gi, "$1: ") // Add colons before [list] lists
+      .replace(/\[\*\]\s*(.*?)([\.!\?:,]?)$/gm, "$1;") // Add semicolons to [*] list items
+      .replace(/\[img\].*?\[\/img\]/gi, "") // Remove [img] img tags and their contents
+      .replace(/<a[^>]*>(.*?)<\/a>/gi, "$1") // Remove <a> tags while preserving their text
+      .replace(/(<([^>]+)>)/ig, "") // Remove all <> tags
+      .replace(/\[.*?\]/g, "") // Remove all [] tags
       .replace(/\s+/g, " ");
   }
 
