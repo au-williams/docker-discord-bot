@@ -273,15 +273,15 @@ This JavaScript file manages the host [qBittorrent](https://www.qbittorrent.org/
 
 </details>
 
-<!-- plugins/rss_feed_announcer.js -->
+<!-- plugins/rss_article_announcer.js -->
 
 <details>
 
-<summary>🧩 plugins/rss_feed_announcer.js</summary>
+<summary>🧩 plugins/rss_article_announcer.js</summary>
 
-### 🧩 plugins/rss_feed_announcer.js
+### 🧩 plugins/rss_article_announcer.js
 
-<img src="assets/readme_rss_feed_announcer.png" style="height: 450px;"></img>
+<img src="assets/readme_rss_article_announcer.png" style="height: 450px;"></img>
 
 </details>
 
