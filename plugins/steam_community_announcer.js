@@ -62,7 +62,9 @@ export async function checkAndAnnounceUpdates({ client, listener }) {
       steam_required_strings_content, steam_required_strings_title
     } = steam_app;
 
-    const steamAppAnnouncement = await fetch(`https://api.steampowered.com/ISteamNews/GetNewsForApp/v2/?appid=${steam_app_id}`)
+    const steamAppId = steam_app_id.split(" ")[0].trim();
+
+    const steamAppAnnouncement = await fetch(`https://api.steampowered.com/ISteamNews/GetNewsForApp/v2/?appid=${steamAppId}`)
       .then(response => response.json())
       .then(({ appnews }) => appnews?.newsitems.find(({ contents, feed_type, title }) => {
         if (feed_type !== 1) return false; // "feed_type === 1" are official announcements
@@ -74,14 +76,11 @@ export async function checkAndAnnounceUpdates({ client, listener }) {
         return isIgnoredContentValid && isIgnoredTitleValid && isRequiredContentValid && isRequiredTitleValid;
       }));
 
-      console.log("steamAppAnnouncement")
-      console.log(steamAppAnnouncement)
-
     if (!steamAppAnnouncement) continue;
 
-    const steamAppDetailsData = await fetch(`https://store.steampowered.com/api/appdetails?appids=${steam_app_id}&l=english`)
+    const steamAppDetailsData = await fetch(`https://store.steampowered.com/api/appdetails?appids=${steamAppId}&l=english`)
       .then(response => response.json())
-      .then(json => json[steam_app_id].data);
+      .then(json => json[steamAppId].data);
 
     if (!steamAppDetailsData) continue;
 
