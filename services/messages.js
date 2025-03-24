@@ -111,7 +111,7 @@ export class Messages {
       if (channel instanceof GuildChannel) channelId ??= channel.id;
       if (member instanceof GuildMember) memberId ??= member.id;
       if (user instanceof User) userId ??= user.id;
-      const isChannel = channelId ? (item.channelId === channelId) || (item.channel.type === ChannelType.DM && item.channel.recipientId === channelId) : true;
+      const isChannel = channelId ? (item.channelId === channelId) || (item.channel?.type === ChannelType.DM && item.channel?.recipientId === channelId) : true;
       const isDeleted = includeDeleted ? true : !item.isDeleted;
       const isMember = memberId ? item.author.id === memberId : true;
       const isReference = referenceId ? item.reference?.messageId === referenceId : true;
