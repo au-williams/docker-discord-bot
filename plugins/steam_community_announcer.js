@@ -38,10 +38,10 @@ export const Interactions = Object.freeze({
 
 export const Listeners = Object.freeze({
   [Interactions.ButtonSubscribeMe]: new Listener()
-    .setDescription("Pressing this button adds ${DISPLAYNAME} to the list of users pinged when news for \"${EMBED_TITLE}\" is sent.")
+    .setDescription("Pressing this button adds ${DISPLAYNAME} to the list of users pinged when news for ${EMBED_TITLE} is sent.")
     .setFunction(onButtonSubscribeMe),
   [Interactions.ButtonUnsubscribeMe]: new Listener()
-    .setDescription("Pressing this button removes ${DISPLAYNAME} from the list of users pinged when news for \"${EMBED_TITLE}\" is sent.")
+    .setDescription("Pressing this button removes ${DISPLAYNAME} from the list of users pinged when news for ${EMBED_TITLE} is sent.")
     .setFunction(onButtonUnsubscribeMe),
 });
 
