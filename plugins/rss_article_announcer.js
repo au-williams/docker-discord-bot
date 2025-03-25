@@ -90,10 +90,10 @@ export async function checkAndAnnounceUpdates({ client, listener }) {
     const article = await parser.parseURL(rss_feed_url).then(({ items }) =>
       items.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate)).find(({ content, title }) => {
         const includes = (source, str) => str.trim() && source.toLowerCase().includes(str.toLowerCase());
-        const isIgnoredContentValid = !rss_ignored_strings_content?.length || !rss_ignored_strings_content.some(str => includes(content, str));
-        const isIgnoredTitleValid = !rss_ignored_strings_title?.length || !rss_ignored_strings_title.some(str => includes(title, str));
-        const isRequiredContentValid = !rss_required_strings_content?.length || rss_required_strings_content.some(str => includes(content, str));
-        const isRequiredTitleValid = !rss_required_strings_title?.length || rss_required_strings_title.some(str => includes(title, str));
+        const isIgnoredContentValid = !rss_ignored_strings_content?.filter(Boolean).length || !rss_ignored_strings_content.filter(Boolean).some(str => includes(content, str));
+        const isIgnoredTitleValid = !rss_ignored_strings_title?.filter(Boolean).length || !rss_ignored_strings_title.filter(Boolean).some(str => includes(title, str));
+        const isRequiredContentValid = !rss_required_strings_content?.filter(Boolean).length || rss_required_strings_content.filter(Boolean).some(str => includes(content, str));
+        const isRequiredTitleValid = !rss_required_strings_title?.filter(Boolean).length || rss_required_strings_title.filter(Boolean).some(str => includes(title, str));
         return isIgnoredContentValid && isIgnoredTitleValid && isRequiredContentValid && isRequiredTitleValid;
       })
     );
@@ -148,8 +148,8 @@ export async function checkAndAnnounceUpdates({ client, listener }) {
 
         const subscribers = discord_subscribed_user_ids?.filter(userId => userId.trim()).map(userId => `<@${userId}>`);
         const replyContent = subscribers?.length && `📨 ${subscribers.join(" ")}`;
-        const replyDescription = `Use these buttons to be pinged when new ${embedTitle} announcements are sent. 📬`;
-        const replyEmbeds = [new EmbedBuilder().setColor(0x1E1F22).setDescription(replyDescription)];
+        const replyDescription = `Press the \`🟩🔔 Subscribe me\` button to be alerted when new ${embedTitle} RSS announcements are sent to ${channel}. 📬 `;
+        const replyEmbeds = [new EmbedBuilder().setDescription(replyDescription)];
 
         const replyOptions = { components: replyComponents, embeds: replyEmbeds };
         if (replyContent) replyOptions.content = replyContent;
