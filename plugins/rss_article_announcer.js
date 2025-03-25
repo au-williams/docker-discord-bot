@@ -148,7 +148,7 @@ export async function checkAndAnnounceUpdates({ client, listener }) {
 
         const subscribers = discord_subscribed_user_ids?.filter(userId => userId.trim()).map(userId => `<@${userId}>`);
         const replyContent = subscribers?.length && `📨 ${subscribers.join(" ")}`;
-        const replyDescription = `Use these buttons to be pinged when new \`${embedTitle}\` announcements are sent. 📬`;
+        const replyDescription = `Use these buttons to be pinged when new ${embedTitle} announcements are sent. 📬`;
         const replyEmbeds = [new EmbedBuilder().setColor(0x1E1F22).setDescription(replyDescription)];
 
         const replyOptions = { components: replyComponents, embeds: replyEmbeds };
