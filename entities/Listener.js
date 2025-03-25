@@ -14,6 +14,7 @@ export default class Listener {
   constructor() {
     this.commandName = "";
     this.contextTypes = null;
+    this.customData = {};
     this.customId = "";
     this.description = "";
     this.deploymentType = null;

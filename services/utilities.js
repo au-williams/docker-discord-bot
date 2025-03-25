@@ -439,7 +439,7 @@ export class Utilities {
     threadOptions.name = Utilities.getTruncatedStringTerminatedByChar(threadOptions.name, 100);
     const threadChannel = await message.startThread(threadOptions);
 
-    if (clientOptions.removeMembers) {
+    if (clientOptions?.removeMembers) {
       const fetchedMembers = await threadChannel.members.fetch();
       const removedMemberIds = fetchedMembers.filter(({ user }) => !user.bot).map(({ id }) => id);
       for (const id of removedMemberIds) await threadChannel.members.remove(id);

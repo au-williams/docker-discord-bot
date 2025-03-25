@@ -107,23 +107,45 @@ export class Emitter {
    * @param {object} param.params The parameters provided to the listener function.
    */
   static async emit({ event, interaction, params }) {
-    const key = interaction?.customId || interaction?.commandName || event;
+    let customData = {};
+    let listenerKey = "";
+
+    if (interaction?.customId?.includes("{")) {
+      const { customId } = interaction;
+      const index = customId.indexOf("{");
+      customData = JSON.parse(customId.slice(index));
+      listenerKey = customId.slice(0, index);
+    }
+    else if (interaction?.customId) {
+      listenerKey = interaction.customId;
+    }
+    else if (interaction?.commandName) {
+      listenerKey = interaction.commandName;
+    }
+    else {
+      listenerKey = event;
+    }
+
     Utilities.throwType("string", event);
 
-    if (!Emitter._importedListeners.has(key)) {
+    if (!Emitter._importedListeners.has(listenerKey)) {
       // debug log
       return;
     }
 
-    const listeners = Emitter._importedListeners.get(key);
+    const listeners = Emitter._importedListeners.get(listenerKey);
 
     if (interaction) {
       const { displayName } = interaction.member || interaction.user;
       const listenersLabel = Utilities.getPluralizedString("listener", listeners);
-      logger.info(`${displayName} emitted to ${listeners.length} ${listenersLabel}.`, { id: key });
+      logger.info(`${displayName} emitted to ${listeners.length} ${listenersLabel}.`, { id: listenerKey });
     }
 
     for (const listener of listeners) {
+      listener.commandName = interaction?.commandName;
+      listener.customData = customData;
+      listener.customId = interaction?.customId;
+      listener.event = event;
       await executeListener({ listener, ...params });
     }
   }
@@ -573,12 +595,19 @@ export async function sendButtonInfoReply({ listener, interaction }) {
   let unnamedSelectMenuCount = 0;
 
   for (const { data } of components) {
-    if (!Emitter._importedListeners.has(data.custom_id)) {
-      logger.error(`Couldn't find more info for "${data.custom_id}" listener.`);
+    let customId = data.custom_id;
+
+    if (customId.includes("{")) {
+      const index = customId.indexOf("{");
+      customId = customId.slice(0, index);
+    }
+
+    if (!Emitter._importedListeners.has(customId)) {
+      logger.error(`Couldn't find more info for "${customId}" listener.`);
       continue;
     }
 
-    const listener = Emitter._importedListeners.get(data.custom_id)?.[0];
+    const listener = Emitter._importedListeners.get(customId)?.[0];
 
     let description = listener.description || "No description is set for this component.";
 
@@ -630,7 +659,7 @@ export async function sendButtonInfoReply({ listener, interaction }) {
   }
   else {
     const joinedAdmins = Utilities.getJoinedArrayWithOr(discord_bot_admin_user_ids.map(item => `<@${item}>`));
-    responseFooter = `Locked components need you to have more permissions before they can be used. Please contact ${joinedAdmins} if you think this was in error. 🧑‍🔧`;
+    responseFooter = `Locked components may need you to have more permissions before you can use them. Please contact ${joinedAdmins} if you think this was in error. 🧑‍🔧`;
   }
 
   const content = `Here's what I know about these components. 🔍📚\n\n${response.join("\n")}\n${responseFooter}`;
