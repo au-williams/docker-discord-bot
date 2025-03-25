@@ -139,7 +139,7 @@ export async function checkAndAnnounceUpdates({ client, listener }) {
         const message = await channel.send({ embeds, files });
         Utilities.LogPresets.SentMessage(message, listener);
 
-        const threadOptions = { name: `💬 ${embedTitle} - ${article.title}` };
+        const threadOptions = { name: `💬 ${embedTitle} • ${article.title}` };
         const threadChannel = await Utilities.getOrCreateThreadChannel({ message, threadOptions });
 
         const replyButton1 = buttonSubscribeMe.setCustomId(`${Interactions.ButtonSubscribeMe}${JSON.stringify({ hostName })}`);

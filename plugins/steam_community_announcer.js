@@ -157,7 +157,7 @@ export async function checkAndAnnounceUpdates({ client, listener }) {
       // Create the discussion thread channel. //
       ///////////////////////////////////////////
 
-      const threadOptions = { name: `💬 ${embedTitle} - ${steamAppAnnouncement.title}` };
+      const threadOptions = { name: `💬 ${embedTitle} • ${steamAppAnnouncement.title}` };
       const threadChannel = await Utilities.getOrCreateThreadChannel({ message, threadOptions });
 
       //////////////////////////////////////
