@@ -229,9 +229,10 @@ export async function onButtonSubscribeMe({ interaction, listener }) {
   await interaction.deferReply({ ephemeral: true });
 
   const steam_app = findSteamAppConfig({ interaction, listener });
+  steam_app.discord_subscribed_user_ids ??= [];
   let replyContent = "";
 
-  if (!steam_app.discord_subscribed_user_ids?.includes(interaction.user.id)) {
+  if (!steam_app.discord_subscribed_user_ids.includes(interaction.user.id)) {
     replyContent = "You've been subscribed to these announcements! 🔔";
     steam_app.discord_subscribed_user_ids ??= [];
     steam_app.discord_subscribed_user_ids.push(interaction.user.id);
@@ -260,11 +261,11 @@ export async function onButtonUnsubscribeMe({ interaction, listener }) {
   await interaction.deferReply({ ephemeral: true });
 
   const steam_app = findSteamAppConfig({ interaction, listener });
+  steam_app.discord_subscribed_user_ids ??= [];
   let replyContent = "";
 
-  if (steam_app.discord_subscribed_user_ids?.includes(interaction.user.id)) {
+  if (steam_app.discord_subscribed_user_ids.includes(interaction.user.id)) {
     replyContent = "You've been unsubscribed from these announcements. 🔕";
-    steam_app.discord_subscribed_user_ids ??= [];
     steam_app.discord_subscribed_user_ids = steam_app.discord_subscribed_user_ids.filter(id => id !== interaction.user.id);
     config.save();
   }

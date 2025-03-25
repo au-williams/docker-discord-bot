@@ -6,6 +6,7 @@
       "discord_override_embed_image": "",
       "discord_override_embed_thumbnail": "",
       "discord_override_embed_title": "",
+      "discord_subscribed_user_ids": [""],
       "steam_app_id": "280680",
       "steam_ignored_strings_content": [""],
       "steam_ignored_strings_title": [""],

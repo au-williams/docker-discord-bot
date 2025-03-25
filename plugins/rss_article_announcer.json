@@ -6,6 +6,7 @@
       "discord_override_embed_image": "",
       "discord_override_embed_thumbnail": "",
       "discord_override_embed_title": "",
+      "discord_subscribed_user_ids": [""],
       "rss_feed_url": "https://discord.com/blog/rss.xml",
       "rss_ignored_strings_content": [""],
       "rss_ignored_strings_title": [""],
