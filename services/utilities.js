@@ -883,7 +883,7 @@ export class Utilities {
    */
   static throwTypes(types, value) {
     const some = types.some(type => Utilities.checkType(type, value));
-    if (!some) throw new Error(`Expected types [${types.join("\", \"")}]. Received ${value?.constructor?.name}.`);
+    if (!some) throw new Error(`Expected types ["${types.join("\", \"")}"]. Received ${value?.constructor?.name}.`);
   }
 
   /**

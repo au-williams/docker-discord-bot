@@ -580,7 +580,13 @@ export async function sendButtonInfoReply({ listener, interaction }) {
 
     const listener = Emitter._importedListeners.get(data.custom_id)?.[0];
 
-    const description = listener.description || "No description is set for this component.";
+    let description = listener.description || "No description is set for this component.";
+
+    description = description.replaceAll("${DISPLAYNAME}", interaction?.user.displayName);
+
+    description = description.replaceAll("${EMBED_TITLE}", interaction?.message.channel.isThread
+      ? await interaction?.message?.channel?.fetchStarterMessage().then(x => x.embeds?.[0]?.data.title)
+      : interaction?.message?.embeds?.[0]?.data.title);
 
     let emoji = data.emoji?.id
       ? `<:${data.emoji.name}:${data.emoji.id}>`
@@ -611,7 +617,6 @@ export async function sendButtonInfoReply({ listener, interaction }) {
       roles = "`🔓 Unlocked` " + roles;
     }
     else {
-      isAnyLocked = true;
       roles = "`🔐 Locked` " + roles;
     }
 
@@ -620,27 +625,16 @@ export async function sendButtonInfoReply({ listener, interaction }) {
 
   let responseFooter = "";
 
-  if (isAnyLocked && isAnyUnlocked) {
-    const joinedAdmins = Utilities.getJoinedArrayWithOr(discord_bot_admin_user_ids.map(item => `<@${item}>`));
-    responseFooter = `You can only use some of these components. Please contact ${joinedAdmins} if you think this was in error. 🧑‍🔧`;
-  }
-  else if (isAnyUnlocked) {
-    responseFooter = "You can use all of these components. Go ahead and give some a try! 🧑‍🔬";
-  }
-  else if (isAnyLocked) {
-    const joinedAdmins = Utilities.getJoinedArrayWithOr(discord_bot_admin_user_ids.map(item => `<@${item}>`));
-    responseFooter = `You can't use these components. Please contact ${joinedAdmins} if you think this was in error. 🧑‍🔧`;
+  if (isAnyUnlocked) {
+    responseFooter = "You can use all of these components. Give some a try! 🧑‍🔬";
   }
   else {
-    throw new Error("Unexpected value was processed.");
+    const joinedAdmins = Utilities.getJoinedArrayWithOr(discord_bot_admin_user_ids.map(item => `<@${item}>`));
+    responseFooter = `Locked components need you to have more permissions before they can be used. Please contact ${joinedAdmins} if you think this was in error. 🧑‍🔧`;
   }
 
-  const reply = await interaction.editReply({ content:
-    "Here's what I know about this form. 📚 You're allowed to use unlocked " +
-    "components, but locked components may need you to have more permissions " +
-    "before their usage.\n\n" + `${response.join("\n")}\n${responseFooter}`
-  });
-
+  const content = `Here's what I know about these components. 🔍📚\n\n${response.join("\n")}\n${responseFooter}`;
+  const reply = await interaction.editReply({ content });
   Utilities.LogPresets.SentReply(reply, listener);
 }
 
