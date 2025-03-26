@@ -39,10 +39,10 @@ export const Interactions = Object.freeze({
 
 export const Listeners = Object.freeze({
   [Interactions.ButtonSubscribeMe]: new Listener()
-    .setDescription("Pressing this button adds ${DISPLAYNAME} to the list of users pinged when news for ${EMBED_TITLE} is sent.")
+    .setDescription("Pressing this button adds ${DISPLAYNAME} to the list of users pinged when news for ${EMBED_TITLE} is sent to ${GUILD_NAME} #${CHANNEL_NAME}.")
     .setFunction(onButtonSubscribeMe),
   [Interactions.ButtonUnsubscribeMe]: new Listener()
-    .setDescription("Pressing this button removes ${DISPLAYNAME} from the list of users pinged when news for ${EMBED_TITLE} is sent.")
+    .setDescription("Pressing this button removes ${DISPLAYNAME} from the list of users pinged when news for ${EMBED_TITLE} is sent to ${GUILD_NAME} #${CHANNEL_NAME}.")
     .setFunction(onButtonUnsubscribeMe),
 });
 
@@ -148,7 +148,7 @@ export async function checkAndAnnounceUpdates({ client, listener }) {
 
         const subscribers = discord_subscribed_user_ids?.filter(userId => userId.trim()).map(userId => `<@${userId}>`);
         const replyContent = subscribers?.length && `📨 ${subscribers.join(" ")}`;
-        const replyDescription = `Press the \`🟩🔔 Subscribe me\` button to be alerted when new ${embedTitle} RSS announcements are sent to ${channel}. 📬 `;
+        const replyDescription = `Press the \`🟩🔔 Subscribe me\` button to be alerted when new ${embedTitle} announcements are sent to ${channel}! 📬`;
         const replyEmbeds = [new EmbedBuilder().setDescription(replyDescription)];
 
         const replyOptions = { components: replyComponents, embeds: replyEmbeds };

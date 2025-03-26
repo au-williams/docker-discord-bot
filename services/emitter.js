@@ -588,7 +588,6 @@ export async function sendButtonInfoReply({ listener, interaction }) {
 
   const response = [];
 
-  let isAnyLocked = false;
   let isAnyUnlocked = false;
 
   let unnamedButtonCount = 0;
@@ -611,11 +610,18 @@ export async function sendButtonInfoReply({ listener, interaction }) {
 
     let description = listener.description || "No description is set for this component.";
 
+    description = description.replaceAll("${CHANNEL_NAME}", interaction?.message.channel.isThread
+      ? await interaction?.message?.channel?.fetchStarterMessage().then(x => x.channel.name)
+      : interaction?.message?.channel?.name);
+
     description = description.replaceAll("${DISPLAYNAME}", interaction?.user.displayName);
 
     description = description.replaceAll("${EMBED_TITLE}", interaction?.message.channel.isThread
-      ? await interaction?.message?.channel?.fetchStarterMessage().then(x => x.embeds?.[0]?.data.title)
+      ? await interaction?.message.channel.fetchStarterMessage().then(x => x.embeds?.[0]?.data.title)
       : interaction?.message?.embeds?.[0]?.data.title);
+
+    description = description.replaceAll("${GUILD_NAME}", interaction?.guild?.name);
+
 
     let emoji = data.emoji?.id
       ? `<:${data.emoji.name}:${data.emoji.id}>`
