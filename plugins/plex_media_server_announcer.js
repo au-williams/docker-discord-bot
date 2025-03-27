@@ -200,7 +200,7 @@ export async function checkAndAnnounceUpdates({ client, listener }) {
 
       const subscribers = config.discord_subscribed_users[ratingKey]?.filter(userId => userId.trim()).map(userId => `<@${userId}>`);
       const replyContent = subscribers?.length && `📨 ${subscribers.join(" ")}`;
-      const replyDescription = `Press the \`🟩🔔 Subscribe me\` button to be alerted when new ${plexRecentItem.parentTitle || plexRecentItem.title} (${plexRecentItem.parentYear || plexRecentItem.year}) announcements are sent to ${channel}! 📬`;
+      const replyDescription = `Press the \`🟩🔔 Subscribe me\` button to be alerted when new ${plexRecentItem.parentTitle || plexRecentItem.title} (${plexRecentItem.parentYear || plexRecentItem.year}) announcements are sent to ${channel} 📬`;
       const replyEmbeds = [new EmbedBuilder().setDescription(replyDescription)];
 
       const replyOptions = { components: replyComponents, embeds: replyEmbeds };
