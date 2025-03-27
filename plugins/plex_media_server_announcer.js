@@ -96,9 +96,6 @@ export async function checkAndUpdateActivity({ client, listener }) {
     else if (sessions.size > 1 && !isMusic) updatedActivityName = `${updatedActivityName}s`;
     updatedActivityName += ` to ${sessions.size} ${Utilities.getPluralizedString("client", sessions.size)}`;
 
-    console.log(currentActivityName)
-    console.log(updatedActivityName)
-
     if (currentActivityName !== updatedActivityName) {
       logger.debug(`Setting activity to "${updatedActivityName}"`, listener);
       const activities = [{ name: updatedActivityName, type: ActivityType.Streaming }];
