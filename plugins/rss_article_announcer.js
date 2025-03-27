@@ -133,31 +133,31 @@ export async function checkAndAnnounceUpdates({ client, listener }) {
         .setThumbnail(discord_override_embed_thumbnail?.trim() || websitePreview.images[0])
         .setTitle(embedTitle)];
 
-        const files = [new AttachmentBuilder("assets/rss_logo.png")];
+      const files = [new AttachmentBuilder("assets/rss_logo.png")];
 
-        const channel = client.channels.cache.get(channel_id);
-        const message = await channel.send({ embeds, files });
-        Utilities.LogPresets.SentMessage(message, listener);
+      const channel = client.channels.cache.get(channel_id);
+      const message = await channel.send({ embeds, files });
+      Utilities.LogPresets.SentMessage(message, listener);
 
-        const threadOptions = { name: `💬 ${embedTitle} • ${article.title}` };
-        const threadChannel = await Utilities.getOrCreateThreadChannel({ message, threadOptions });
+      const threadOptions = { name: `💬 ${embedTitle} • ${article.title}` };
+      const threadChannel = await Utilities.getOrCreateThreadChannel({ message, threadOptions });
 
-        const replyButton1 = buttonSubscribeMe.setCustomId(`${Interactions.ButtonSubscribeMe}${JSON.stringify({ hostName })}`);
-        const replyButton2 = buttonUnsubscribeMe.setCustomId(`${Interactions.ButtonUnsubscribeMe}${JSON.stringify({ hostName })}`);
-        const replyComponents = [new ActionRowBuilder().addComponents(replyButton1, replyButton2, Emitter.moreInfoButton)];
+      const replyButton1 = buttonSubscribeMe.setCustomId(`${Interactions.ButtonSubscribeMe}${JSON.stringify({ hostName })}`);
+      const replyButton2 = buttonUnsubscribeMe.setCustomId(`${Interactions.ButtonUnsubscribeMe}${JSON.stringify({ hostName })}`);
+      const replyComponents = [new ActionRowBuilder().addComponents(replyButton1, replyButton2, Emitter.moreInfoButton)];
 
-        const subscribers = discord_subscribed_user_ids?.filter(userId => userId.trim()).map(userId => `<@${userId}>`);
-        const replyContent = subscribers?.length && `📨 ${subscribers.join(" ")}`;
-        const replyDescription = `Press the \`🟩🔔 Subscribe me\` button to be alerted when new ${embedTitle} announcements are sent to ${channel}! 📬`;
-        const replyEmbeds = [new EmbedBuilder().setDescription(replyDescription)];
+      const subscribers = discord_subscribed_user_ids?.filter(userId => userId.trim()).map(userId => `<@${userId}>`);
+      const replyContent = subscribers?.length && `📨 ${subscribers.join(" ")}`;
+      const replyDescription = `Press the \`🟩🔔 Subscribe me\` button to be alerted when new ${embedTitle} announcements are sent to ${channel} 📬`;
+      const replyEmbeds = [new EmbedBuilder().setDescription(replyDescription)];
 
-        const replyOptions = { components: replyComponents, embeds: replyEmbeds };
-        if (replyContent) replyOptions.content = replyContent;
+      const replyOptions = { components: replyComponents, embeds: replyEmbeds };
+      if (replyContent) replyOptions.content = replyContent;
 
-        threadChannel
-          .send(replyOptions)
-          .then(result => Utilities.LogPresets.SentMessage(result, listener))
-          .catch(error => logger.error(error, listener));
+      threadChannel
+        .send(replyOptions)
+        .then(result => Utilities.LogPresets.SentMessage(result, listener))
+        .catch(error => logger.error(error, listener));
     }
   }
 }
