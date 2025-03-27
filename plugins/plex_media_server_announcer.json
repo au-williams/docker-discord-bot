@@ -1,0 +1,7 @@
+{
+  "announcement_cron_job_expression": "*/5 * * * *",
+  "discord_announcement_channel_ids": [""],
+  "plex_access_token": "",
+  "plex_recent_item_count": 5,
+  "plex_server_url": "http://127.0.0.1:32400"
+}
