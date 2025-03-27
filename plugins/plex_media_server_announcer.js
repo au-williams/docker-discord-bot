@@ -1,4 +1,4 @@
-import { ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, escapeNumberedList } from "discord.js";
+import { ActionRowBuilder, ActivityType, AttachmentBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, escapeNumberedList, PresenceUpdateStatus } from "discord.js";
 import { Config } from "../services/config.js";
 import { Emitter } from "../services/emitter.js";
 import { Logger } from "../services/logger.js";
@@ -18,6 +18,8 @@ date.plugin(ordinal);
 
 const config = new Config(import.meta.filename);
 const logger = new Logger(import.meta.filename);
+
+let cachedSessionSize;
 
 ///////////////////////////////////////////////////////////////////////////////
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ //
@@ -81,6 +83,39 @@ export async function checkAndAnnounceUpdates({ client, listener }) {
   const plexRecentItems = await fetchPlexRecentItems();
   let plexServer;
 
+  if (config.discord_enable_rich_presence) {
+    const sessions = await fetchPlexSessions();
+
+    if (sessions.size !== cachedSessionSize && sessions.size === 0) {
+      client.user.setPresence({ activities: null, status: PresenceUpdateStatus.Online });
+    }
+    else if (sessions.size !== cachedSessionSize) {
+      const isMovie = sessions.Metadata.some(item => item.librarySectionTitle.toLowerCase().includes("movie"));
+      const isMusic = sessions.Metadata.some(item => item.librarySectionTitle.toLowerCase().includes("music"));
+      const isShow = sessions.Metadata.some(item => item.librarySectionTitle.toLowerCase().includes("show"));
+
+      let activityName;
+      let activityType = ActivityType.Streaming;
+
+      if ([isMovie, isMusic, isShow].filter(Boolean).length > 1) {
+        activityName = "media";
+      }
+      else if (isMovie) {
+        activityName = sessions.size === 1 ? "a movie" : "movies";
+      }
+      else if (isShow) {
+        activityName = sessions.size === 1 ? "a show" : "shows";
+      }
+      else if (isMusic) {
+        activityName = "music";
+      }
+
+      activityName += ` to ${sessions.size} ${Utilities.getPluralizedString("client", sessions.size)}`;
+      // TODO: status doesn't seem to work. Why? The code is correct per the documentation.
+      client.user.setPresence({ activities: [{ name: activityName, type: activityType }], status: "dnd" });
+    }
+  }
+
   for(const plexRecentItem of plexRecentItems) {
     const isMovie = plexRecentItem.librarySectionTitle.toLowerCase().includes("movie");
     const isShow = plexRecentItem.librarySectionTitle.toLowerCase().includes("show");
@@ -122,7 +157,7 @@ export async function checkAndAnnounceUpdates({ client, listener }) {
 
       if (existingMessage) continue; // Message was already sent!
 
-      plexServer ??= await fetchPlexServerInfo();
+      plexServer ??= await fetchPlexServer();
 
       if (!imdbGuid) {
         const guids = await fetchPlexGuids(plexRecentItem);
@@ -217,7 +252,19 @@ export async function checkAndAnnounceUpdates({ client, listener }) {
 /**
  *
  */
-export async function fetchPlexServerInfo() {
+export async function fetchPlexSessions() {
+  return await fetch(`${config.plex_server_url}/status/sessions`, {
+    headers: { "Accept": "application/json", "X-Plex-Token": config.plex_access_token },
+    method: "GET"
+  })
+  .then(response => response.json())
+  .then(response => response.MediaContainer);
+}
+
+/**
+ *
+ */
+export async function fetchPlexServer() {
   return await fetch(`${config.plex_server_url}/servers`, {
     headers: { "Accept": "application/json", "X-Plex-Token": config.plex_access_token },
     method: "GET"
