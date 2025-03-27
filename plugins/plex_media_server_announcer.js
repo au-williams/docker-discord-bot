@@ -87,7 +87,7 @@ export async function checkAndAnnounceUpdates({ client, listener }) {
     const sessions = await fetchPlexSessions();
 
     if (sessions.size !== cachedSessionSize && sessions.size === 0) {
-      client.user.setPresence({ activities: null, status: PresenceUpdateStatus.Online });
+      client.user.setPresence({ activities: [], status: PresenceUpdateStatus.Online });
       cachedSessionSize = sessions.size;
     }
     else if (sessions.size !== cachedSessionSize) {
