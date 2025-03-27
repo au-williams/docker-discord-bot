@@ -103,7 +103,7 @@ export async function checkAndAnnounceUpdates({ client, listener }) {
       }
 
       embedDescription ??=
-        `${escapeNumberedList(Utilities.getTruncatedStringTerminatedByWord(plexRecentItem.parentSummary || plexRecentItem.summary, 200))}`;
+        `_${escapeNumberedList(Utilities.getTruncatedStringTerminatedByWord(plexRecentItem.parentSummary || plexRecentItem.summary, 200))}_`;
 
       embedFields ??= [
         {

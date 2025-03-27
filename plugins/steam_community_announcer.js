@@ -131,7 +131,7 @@ export async function checkAndAnnounceUpdates({ client, listener }) {
       const content = Utilities.removeHtmlCodeTags(steamAppAnnouncement.contents);
       const embedImage = discord_override_embed_image?.trim() || await findLandscapeImage(steamAppAnnouncement) || steamAppDetailsData.header_image;
       const embedTitle = discord_override_embed_title?.trim() || steamAppDetailsData.name;
-      const shortDescription = Utilities.getTruncatedStringTerminatedByWord(content, 133);
+      const shortDescription = Utilities.getTruncatedStringTerminatedByWord(content, 200);
       const shortDate = date.format(new Date(steamAppAnnouncement.date * 1000), "MMMM DDD");
 
       const embeds = [new EmbedBuilder()

@@ -115,7 +115,7 @@ export async function checkAndAnnounceUpdates({ client, listener }) {
       const websitePreview = await getLinkPreview(hostName);
 
       const content = Utilities.removeHtmlCodeTags(article["content:encoded"] || article.content);
-      const embedDescription = Utilities.getTruncatedStringTerminatedByWord(content, 133);
+      const embedDescription = Utilities.getTruncatedStringTerminatedByWord(content, 200);
       const embedTitle = discord_override_embed_title?.trim() || websitePreview.siteName || websitePreview.title;
       const shortDate = date.format(new Date(article.pubDate), "MMMM DDD");
 
