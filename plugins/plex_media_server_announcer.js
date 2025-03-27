@@ -13,13 +13,8 @@ import ordinal from "date-and-time/plugin/ordinal";
 import path from "path";
 date.plugin(ordinal);
 
-// TODO:
-// Streaming Plex with 2 users
-
 const config = new Config(import.meta.filename);
 const logger = new Logger(import.meta.filename);
-
-let cachedSessionSize;
 
 ///////////////////////////////////////////////////////////////////////////////
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ //
@@ -32,6 +27,11 @@ export const CronJobs = new Set([
     .setEnabled(Messages.isServiceEnabled)
     .setExpression(config.announcement_cron_job_expression)
     .setFunction(checkAndAnnounceUpdates)
+    .setTriggered(),
+  new CronJob()
+    .setEnabled(config.discord_enable_custom_activity)
+    .setExpression(config.announcement_cron_job_expression)
+    .setFunction(checkAndUpdateActivity)
     .setTriggered()
 ]);
 
@@ -74,6 +74,44 @@ const buttonUnsubscribeMe = new ButtonBuilder()
 ///////////////////////////////////////////////////////////////////////////////
 
 /**
+ * Check for Plex session info to display in the client activity.
+ * @param {object} param
+ * @param {Client} param.client The Discord.js client
+ * @param {Listener} param.listener
+ */
+export async function checkAndUpdateActivity({ client, listener }) {
+  const sessions = await fetchPlexSessions();
+  const currentActivityName = client.user.presence.activities[0]?.name;
+
+  if (sessions.size) {
+    const isMovie = sessions.Metadata.some(item => item.librarySectionTitle.toLowerCase().includes("movie"));
+    const isMusic = sessions.Metadata.some(item => item.librarySectionTitle.toLowerCase().includes("music"));
+    const isShow = sessions.Metadata.some(item => item.librarySectionTitle.toLowerCase().includes("show"));
+
+    let updatedActivityName = [isMovie, isMusic, isShow].filter(Boolean).length > 1
+      ? "media"
+      : isMovie && "movie" || isMusic && "music" || isShow && "show" || "undefined";
+
+    if (sessions.size === 1 && !isMusic) updatedActivityName = `a ${updatedActivityName}`;
+    else if (sessions.size > 1 && !isMusic) updatedActivityName = `${updatedActivityName}s`;
+    updatedActivityName += ` to ${sessions.size} ${Utilities.getPluralizedString("client", sessions.size)}`;
+
+    console.log(currentActivityName)
+    console.log(updatedActivityName)
+
+    if (currentActivityName !== updatedActivityName) {
+      logger.debug(`Setting activity to "${updatedActivityName}"`, listener);
+      const activities = [{ name: updatedActivityName, type: ActivityType.Streaming }];
+      client.user.setPresence({ activities, status: PresenceUpdateStatus.DoNotDisturb });
+    }
+  }
+  else if (currentActivityName) {
+    logger.debug(`Removing activity "${currentActivityName}"`, listener);
+    client.user.setPresence({ activities: [], status: PresenceUpdateStatus.Online });
+  }
+}
+
+/**
  * Check for pending announcements on startup and a regular time interval
  * @param {object} param
  * @param {Client} param.client The Discord.js client
@@ -82,41 +120,6 @@ const buttonUnsubscribeMe = new ButtonBuilder()
 export async function checkAndAnnounceUpdates({ client, listener }) {
   const plexRecentItems = await fetchPlexRecentItems();
   let plexServer;
-
-  if (config.discord_enable_rich_presence) {
-    const sessions = await fetchPlexSessions();
-
-    if (sessions.size !== cachedSessionSize && sessions.size === 0) {
-      client.user.setPresence({ activities: [], status: PresenceUpdateStatus.Online });
-      cachedSessionSize = sessions.size;
-    }
-    else if (sessions.size !== cachedSessionSize) {
-      const isMovie = sessions.Metadata.some(item => item.librarySectionTitle.toLowerCase().includes("movie"));
-      const isMusic = sessions.Metadata.some(item => item.librarySectionTitle.toLowerCase().includes("music"));
-      const isShow = sessions.Metadata.some(item => item.librarySectionTitle.toLowerCase().includes("show"));
-
-      let activityName;
-      let activityType = ActivityType.Streaming;
-
-      if ([isMovie, isMusic, isShow].filter(Boolean).length > 1) {
-        activityName = "media";
-      }
-      else if (isMovie) {
-        activityName = sessions.size === 1 ? "a movie" : "movies";
-      }
-      else if (isShow) {
-        activityName = sessions.size === 1 ? "a show" : "shows";
-      }
-      else if (isMusic) {
-        activityName = "music";
-      }
-
-      activityName += ` to ${sessions.size} ${Utilities.getPluralizedString("client", sessions.size)}`;
-      // TODO: status doesn't seem to work. Why? The code is correct per the documentation.
-      client.user.setPresence({ activities: [{ name: activityName, type: activityType }], status: "dnd" });
-      cachedSessionSize = sessions.size;
-    }
-  }
 
   for(const plexRecentItem of plexRecentItems) {
     const isMovie = plexRecentItem.librarySectionTitle.toLowerCase().includes("movie");

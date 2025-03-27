@@ -1,7 +1,7 @@
 {
-  "announcement_cron_job_expression": "*/5 * * * *",
+  "announcement_cron_job_expression": "*/1 * * * *",
   "discord_announcement_channel_ids": [],
-  "discord_enable_rich_presence": true,
+  "discord_enable_custom_activity": true,
   "discord_subscribed_users": {},
   "plex_access_token": "",
   "plex_recent_item_count": 5,
