@@ -88,6 +88,7 @@ export async function checkAndAnnounceUpdates({ client, listener }) {
 
     if (sessions.size !== cachedSessionSize && sessions.size === 0) {
       client.user.setPresence({ activities: null, status: PresenceUpdateStatus.Online });
+      cachedSessionSize = sessions.size;
     }
     else if (sessions.size !== cachedSessionSize) {
       const isMovie = sessions.Metadata.some(item => item.librarySectionTitle.toLowerCase().includes("movie"));
@@ -113,6 +114,7 @@ export async function checkAndAnnounceUpdates({ client, listener }) {
       activityName += ` to ${sessions.size} ${Utilities.getPluralizedString("client", sessions.size)}`;
       // TODO: status doesn't seem to work. Why? The code is correct per the documentation.
       client.user.setPresence({ activities: [{ name: activityName, type: activityType }], status: "dnd" });
+      cachedSessionSize = sessions.size;
     }
   }
 
