@@ -116,7 +116,6 @@ export async function checkAndUpdateActivity({ client, listener }) {
  */
 export async function checkAndAnnounceUpdates({ client, listener }) {
   // Sort items by aired order and group by parent id
-  console.log(await fetchPlexPlaylistItems(config.plex_playlist_keys))
   const plexRecentItems = await fetchPlexPlaylistItems(config.plex_playlist_keys)
     .then(items => items.sort((a, b) => a.parentIndex - b.parentIndex || a.index - b.index).reduce((previous, current) => {
       const highestRatingKey = current.grandparentRatingKey || current.parentRatingKey || current.ratingKey;
@@ -176,7 +175,6 @@ export async function checkAndAnnounceUpdates({ client, listener }) {
       plexServer ??= await fetchPlexServer();
 
       if (!imdbGuid) {
-        // const guids = await fetchPlexGuids(highestRatingKey);
         imdbGuid = metadata.Guid?.map(({ id }) => id).find(id => id.startsWith("imdb://"))?.replace("imdb://", "");
       }
 
@@ -261,6 +259,9 @@ export async function checkAndAnnounceUpdates({ client, listener }) {
   }
 }
 
+/**
+ *
+ */
 export async function fetchPlexMetadata(key) {
   return await fetch(`${config.plex_server_url}/library/metadata/${key}`, {
     headers: { "Accept": "application/json", "X-Plex-Token": config.plex_access_token },
@@ -274,15 +275,32 @@ export async function fetchPlexMetadata(key) {
  *
  */
 export async function fetchPlexPlaylistItems(playlistKeys) {
+  const busyLibrarySectionIds = await fetch(`${config.plex_server_url}/activities`, {
+    headers: { "Accept": "application/json", "X-Plex-Token": config.plex_access_token },
+    method: "GET"
+  })
+  .then(response => response.json())
+  .then(response => response.MediaContainer?.Activity?.map(item => item.Context.librarySectionID) ?? []);
+
   const result = [];
 
   for (const playlistKey of playlistKeys) {
-    await fetch(`${config.plex_server_url}/playlists/${playlistKey}/items`, {
+    const playlist = await fetch(`${config.plex_server_url}/playlists/${playlistKey}/items`, {
       headers: { "Accept": "application/json", "X-Plex-Token": config.plex_access_token },
       method: "GET"
     })
     .then(response => response.json())
-    .then(response => result.push(response.MediaContainer?.Metadata));
+    .then(response => response.MediaContainer?.Metadata);
+
+    const librarySectionID =
+      playlist?.find(item => item.librarySectionID)?.librarySectionID?.toString();
+
+    if (busyLibrarySectionIds.includes(librarySectionID)) {
+      logger.debug(`Library ${librarySectionID} is busy. Skipping fetch.`);
+      continue;
+    }
+
+    result.push(playlist);
   }
 
   // TODO: this should be cleaned up
