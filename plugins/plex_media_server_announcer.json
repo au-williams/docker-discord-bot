@@ -4,6 +4,6 @@
   "discord_enable_custom_activity": true,
   "discord_subscribed_users": {},
   "plex_access_token": "",
-  "plex_recent_item_count": 5,
+  "plex_playlist_keys": [],
   "plex_server_url": "http://127.0.0.1:32400"
 }
