@@ -280,7 +280,7 @@ export async function fetchPlexPlaylistItems(playlistKeys) {
     method: "GET"
   })
   .then(response => response.json())
-  .then(response => response.MediaContainer?.Activity?.map(item => item.Context.librarySectionID) ?? []);
+  .then(response => response.MediaContainer?.Activity?.map(item => item?.Context?.librarySectionID) ?? []);
 
   const result = [];
 
