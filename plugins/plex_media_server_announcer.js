@@ -300,7 +300,7 @@ export async function fetchPlexPlaylistItems(playlistKeys) {
     method: "GET"
   })
   .then(response => response.json())
-  .then(response => response.MediaContainer?.Activity?.map(item => item?.Context?.librarySectionID) ?? []);
+  .then(response => response.MediaContainer?.Activity?.map(item => item?.Context?.librarySectionID).filter(Boolean) ?? []);
 
   const result = [];
 
@@ -315,7 +315,7 @@ export async function fetchPlexPlaylistItems(playlistKeys) {
     const librarySectionID =
       playlist?.find(item => item.librarySectionID)?.librarySectionID?.toString();
 
-    if (busyLibrarySectionIds.filter(Boolean).includes(librarySectionID)) {
+    if (busyLibrarySectionIds.includes(librarySectionID)) {
       logger.debug(`Library ${librarySectionID} is busy. Skipping fetch.`);
       continue;
     }
