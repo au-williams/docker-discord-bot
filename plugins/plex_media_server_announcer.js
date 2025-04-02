@@ -55,6 +55,12 @@ export const Listeners = Object.freeze({
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ //
 ///////////////////////////////////////////////////////////////////////////////
 
+///////////////////////////////////////////////////////////////////////////////
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ //
+// #region PLUGIN COMPONENTS                                                 //
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ //
+///////////////////////////////////////////////////////////////////////////////
+
 const buttonSubscribeMe = new ButtonBuilder()
   .setCustomId(Interactions.ButtonSubscribeMe)
   .setEmoji("🔔")
@@ -66,6 +72,12 @@ const buttonUnsubscribeMe = new ButtonBuilder()
   .setEmoji("🔕")
   .setLabel("Unsubscribe me")
   .setStyle(ButtonStyle.Danger);
+
+///////////////////////////////////////////////////////////////////////////////
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ //
+// #endregion PLUGIN COMPONENTS                                              //
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ //
+///////////////////////////////////////////////////////////////////////////////
 
 ///////////////////////////////////////////////////////////////////////////////
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ //
@@ -88,17 +100,31 @@ export async function checkAndUpdateActivity({ client, listener }) {
     const isMusic = sessions.Metadata.some(item => item.librarySectionTitle.toLowerCase().includes("music"));
     const isShow = sessions.Metadata.some(item => item.librarySectionTitle.toLowerCase().includes("show"));
 
-    let updatedActivityName = [isMovie, isMusic, isShow].filter(Boolean).length > 1
-      ? "media"
-      : isMovie && "movie" || isMusic && "music" || isShow && "show" || "undefined";
+    let updatedActivityName;
+
+    if ([isMovie, isMusic, isShow].filter(Boolean).length > 1) {
+      updatedActivityName = "media";
+    }
+    else if (isMovie) {
+      updatedActivityName = "movie";
+    }
+    else if (isMusic) {
+      updatedActivityName = "music";
+    }
+    else if (isShow) {
+      updatedActivityName = "show";
+    }
+    else {
+      throw new Error("Unexpected value");
+    }
 
     if (sessions.size === 1 && !isMusic) updatedActivityName = `a ${updatedActivityName}`;
     else if (sessions.size > 1 && !isMusic) updatedActivityName = `${updatedActivityName}s`;
-    updatedActivityName += ` to ${sessions.size} ${Utilities.getPluralizedString("client", sessions.size)}`;
+    updatedActivityName = `Streaming ${updatedActivityName} to ${sessions.size} ${Utilities.getPluralizedString("client", sessions.size)}`;
 
     if (currentActivityName !== updatedActivityName) {
       logger.debug(`Setting activity to "${updatedActivityName}"`, listener);
-      const activities = [{ name: updatedActivityName, type: ActivityType.Streaming }];
+      const activities = [{ name: updatedActivityName, type: ActivityType.Custom }];
       client.user.setPresence({ activities, status: PresenceUpdateStatus.DoNotDisturb });
     }
   }
@@ -133,17 +159,13 @@ export async function checkAndAnnounceUpdates({ client, listener }) {
     const metadata = await fetchPlexMetadata(highestRatingKey);
 
     let channel;
-
-    let embedTitle = `${metadata.title} (${metadata.year})`;
-
     let embedImage;
+    let embedTitle = `${metadata.title} (${metadata.year})`;
     let embeds;
     let embedThumbnail;
     let files;
     let imdbGuid;
     let shortDate;
-
-    // Everything added BEFORE last message was sent will not be sent.
 
     for(const channel_id of config.discord_announcement_channel_ids) {
       const existingMessage = Messages
@@ -153,7 +175,7 @@ export async function checkAndAnnounceUpdates({ client, listener }) {
       let embedAuthor;
 
       if (recentItem.type === "movie") {
-        if (existingMessage) continue;
+        if (existingMessage) continue; // Continue if the movie has already been announced.
         embedAuthor = "New movie in Plex Media Server";
       }
 
@@ -161,11 +183,12 @@ export async function checkAndAnnounceUpdates({ client, listener }) {
 
       if (recentItem.type === "episode") {
         if (existingMessage) {
-          const filterDate = item => new Date(item.addedAt * 1000) > existingMessage.createdAt
-          unannouncedEpisodes = recentItem.episodes.filter(filterDate);
-          if (!unannouncedEpisodes.length) continue; // Message was already sent!
+          // Filter the episodes returned by the Plex API for the episodes added AFTER the last announcement message was sent.
+          unannouncedEpisodes = recentItem.episodes.filter(item => new Date(item.addedAt * 1000) > existingMessage.createdAt);
+          if (!unannouncedEpisodes.length) continue; // Continue if all episodes have already been announced.
         }
         else {
+          // No message exists which means no episodes have been announced.
           unannouncedEpisodes = recentItem.episodes;
         }
 
@@ -183,19 +206,13 @@ export async function checkAndAnnounceUpdates({ client, listener }) {
       const value2 = `[Plex (${recentItem.librarySectionTitle})](https://app.plex.tv/desktop#!/server/${plexServer.machineIdentifier}/details?key=/library/metadata/${highestRatingKey})`;
       embedFields.push({ inline: true, name: "View Details", value: value1 }, { inline: true, name: "View Details", value: value2 });
 
-      if (unannouncedEpisodes?.length === 3) {
-        const listItems = unannouncedEpisodes.slice(0, 3);
-        let value0 = listItems.map(i => `- \`${formatSeasonEpisodeLabel(i)}\` ["${i.title}"](https://app.plex.tv/desktop#!/server/${plexServer.machineIdentifier}/details?key=/library/metadata/${recentItem.ratingKey})`).join("\n");
-        embedFields.unshift({ name: "Episodes Added", value: value0 });
-      }
-
-      else if (unannouncedEpisodes?.length < 3 || unannouncedEpisodes?.length > 3) {
-        const listItems = unannouncedEpisodes.slice(0, 2);
-        const remainingCount = unannouncedEpisodes.length - listItems.length;
-        // let value0 = listItems.map(i => `- \`${formatSeasonEpisodeLabel(i)}\` "${i.title}"`).join("\n");
-        let value0 = listItems.map(i => `- \`${formatSeasonEpisodeLabel(i)}\` ["${i.title}"](https://app.plex.tv/desktop#!/server/${plexServer.machineIdentifier}/details?key=/library/metadata/${recentItem.ratingKey})`).join("\n");
-        if (remainingCount) value0 += `\n- ... and ${remainingCount} more`;
-        embedFields.unshift({ name: `${Utilities.getPluralizedString("Episode", unannouncedEpisodes)} Added`, value: value0 });
+      // Append the unannounced episodes to the embed in "S00E00 EPISODE_TITLE" format.
+      if (unannouncedEpisodes.length) {
+        let items = unannouncedEpisodes.slice(0, unannouncedEpisodes.length === 3 ? 3 : 2);
+        let value = items.map(i => `- \`${formatSeasonEpisodeLabel(i)}\` ["${i.title}"](https://app.plex.tv/desktop#!/server/${plexServer.machineIdentifier}/details?key=/library/metadata/${recentItem.ratingKey})`).join("\n");
+        const remainingCount = unannouncedEpisodes.length - items.length;
+        if (remainingCount) value += `\n- ... and ${remainingCount} more`;
+        embedFields.unshift({ name: `${Utilities.getPluralizedString("Episode", unannouncedEpisodes)} Added`, value });
       }
 
       // Fetch the file from the relative Plex link. Using the URL as-is does not load in Discord.
@@ -209,7 +226,6 @@ export async function checkAndAnnounceUpdates({ client, listener }) {
       embedThumbnail ??= await new Downloader({
         directory: `${config.temp_directory_path}/${nanoid()}`,
         fileName: "embed_thumbnail.jpg",
-        // url: `${config.plex_server_url}${(metadata.Image.find(i => i.type === "clearLogo") || metadata.Image.find(i => i.type === "coverPoster")).url}.jpg`
         url: `${config.plex_server_url}${recentItem.grandparentThumb || recentItem.parentThumb || recentItem.thumb}.jpg`
       }).download().then(({ filePath }) => filePath);
 
@@ -230,7 +246,7 @@ export async function checkAndAnnounceUpdates({ client, listener }) {
         .setFooter({ text: `Added on ${shortDate} using PMS version ${plexServer.version}.` })
         .setImage(`attachment://${path.basename(embedImage)}`)
         .setThumbnail(`attachment://${path.basename(embedThumbnail)}`)
-        .setTitle(`${embedTitle} `)];
+        .setTitle(embedTitle)];
 
       channel ??= client.channels.cache.get(channel_id);
       const message = await channel.send({ embeds, files });
@@ -260,7 +276,9 @@ export async function checkAndAnnounceUpdates({ client, listener }) {
 }
 
 /**
- *
+ * Fetches the `/library/metadata` endpoint from Plex for the library item key and returns the most useful data.
+ * @param {string} key
+ * @returns {object}
  */
 export async function fetchPlexMetadata(key) {
   return await fetch(`${config.plex_server_url}/library/metadata/${key}`, {
@@ -272,7 +290,9 @@ export async function fetchPlexMetadata(key) {
 }
 
 /**
- *
+ * Fetches the `/activities` endpoint from Plex for the playlist key and returns the most useful data.
+ * @param {string} playlistKeys
+ * @returns {object}
  */
 export async function fetchPlexPlaylistItems(playlistKeys) {
   const busyLibrarySectionIds = await fetch(`${config.plex_server_url}/activities`, {
@@ -300,27 +320,16 @@ export async function fetchPlexPlaylistItems(playlistKeys) {
       continue;
     }
 
+    if (!playlist) continue;
     result.push(playlist);
   }
 
-  // TODO: this should be cleaned up
-  return result.flat().filter(Boolean);
+  return result.flat();
 }
 
 /**
- *
- */
-export async function fetchPlexSessions() {
-  return await fetch(`${config.plex_server_url}/status/sessions`, {
-    headers: { "Accept": "application/json", "X-Plex-Token": config.plex_access_token },
-    method: "GET"
-  })
-  .then(response => response.json())
-  .then(response => response.MediaContainer);
-}
-
-/**
- *
+ * Fetches the `/servers` endpoint from Plex and returns the most useful data.
+ * @returns {object}
  */
 export async function fetchPlexServer() {
   return await fetch(`${config.plex_server_url}/servers`, {
@@ -332,7 +341,23 @@ export async function fetchPlexServer() {
 }
 
 /**
- *
+ * Fetches the `/status/sessions` endpoint from Plex and returns the most useful data.
+ * @returns {object}
+ */
+export async function fetchPlexSessions() {
+  return await fetch(`${config.plex_server_url}/status/sessions`, {
+    headers: { "Accept": "application/json", "X-Plex-Token": config.plex_access_token },
+    method: "GET"
+  })
+  .then(response => response.json())
+  .then(response => response.MediaContainer);
+}
+
+
+/**
+ * Format items into S##E## format.
+ * @param {object} item
+ * @returns {string}
  */
 export function formatSeasonEpisodeLabel(item) {
   const s = `S${item.parentIndex < 10 ? "0" : ""}${item.parentIndex}`;
@@ -410,7 +435,7 @@ export async function onButtonUnsubscribeMe({ interaction, listener }) {
  * @param {object} param
  * @param {ButtonInteraction} param.interaction
  * @param {Listener} param.listener
- * @param {object} param.rss_feed
+ * @param {string} param.ratingKey
  */
 export async function updateSubscribeMessage({ interaction, listener, ratingKey }) {
   const subscribers = config.discord_subscribed_users[ratingKey]?.filter(userId => userId.trim()).map(userId => `<@${userId}>`);
