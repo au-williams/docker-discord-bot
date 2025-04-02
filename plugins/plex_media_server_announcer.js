@@ -93,43 +93,43 @@ const buttonUnsubscribeMe = new ButtonBuilder()
  */
 export async function checkAndUpdateActivity({ client, listener }) {
   const sessions = await fetchPlexSessions();
-  const currentActivityName = client.user.presence.activities[0]?.name;
+  const currentActivityState = client.user.presence.activities[0]?.state;
 
   if (sessions.size) {
     const isMovie = sessions.Metadata.some(item => item.librarySectionTitle.toLowerCase().includes("movie"));
     const isMusic = sessions.Metadata.some(item => item.librarySectionTitle.toLowerCase().includes("music"));
     const isShow = sessions.Metadata.some(item => item.librarySectionTitle.toLowerCase().includes("show"));
 
-    let updatedActivityName;
+    let updatedActivityState;
 
     if ([isMovie, isMusic, isShow].filter(Boolean).length > 1) {
-      updatedActivityName = "media";
+      updatedActivityState = "media";
     }
     else if (isMovie) {
-      updatedActivityName = "movie";
+      updatedActivityState = "movie";
     }
     else if (isMusic) {
-      updatedActivityName = "music";
+      updatedActivityState = "music";
     }
     else if (isShow) {
-      updatedActivityName = "show";
+      updatedActivityState = "show";
     }
     else {
       throw new Error("Unexpected value");
     }
 
-    if (sessions.size === 1 && !isMusic) updatedActivityName = `a ${updatedActivityName}`;
-    else if (sessions.size > 1 && !isMusic) updatedActivityName = `${updatedActivityName}s`;
-    updatedActivityName = `Streaming ${updatedActivityName} to ${sessions.size} ${Utilities.getPluralizedString("client", sessions.size)}`;
+    if (sessions.size === 1 && !isMusic) updatedActivityState = `a ${updatedActivityState}`;
+    else if (sessions.size > 1 && !isMusic) updatedActivityState = `${updatedActivityState}s`;
+    updatedActivityState = `Streaming ${updatedActivityState} to ${sessions.size} ${Utilities.getPluralizedString("client", sessions.size)}`;
 
-    if (currentActivityName !== updatedActivityName) {
-      logger.debug(`Setting activity to "${updatedActivityName}"`, listener);
-      const activities = [{ name: updatedActivityName, type: ActivityType.Custom }];
+    if (currentActivityState !== updatedActivityState) {
+      logger.debug(`Setting activity to "${updatedActivityState}"`, listener);
+      const activities = [{ name: updatedActivityState, type: ActivityType.Custom }];
       client.user.setPresence({ activities, status: PresenceUpdateStatus.DoNotDisturb });
     }
   }
-  else if (currentActivityName) {
-    logger.debug(`Removing activity "${currentActivityName}"`, listener);
+  else if (currentActivityState) {
+    logger.debug(`Removing activity "${currentActivityState}"`, listener);
     client.user.setPresence({ activities: [], status: PresenceUpdateStatus.Online });
   }
 }
