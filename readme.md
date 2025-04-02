@@ -131,7 +131,9 @@ These are the JavaScript files in the `plugins` folder. JSON files of the same n
 
 <details>
 
+<!-- ------------------------------ -->
 <!-- plugins/cat_facts_scheduler.js -->
+<!-- ------------------------------ -->
 
 <summary>🧩 plugins/cat_facts_scheduler.js</summary>
 
@@ -151,7 +153,9 @@ Note: The [catfact.ninja API](https://catfact.ninja/) has awful data consistency
 
 </details>
 
+<!-- ----------------------------- -->
 <!-- plugins/caturday_scheduler.js -->
+<!-- ----------------------------- -->
 
 <details>
 
@@ -174,7 +178,9 @@ This JavaScript file sends a picture of a users pet to the announcement channel 
 
 </details>
 
+<!-- --------------------------------------- -->
 <!-- plugins/deep_rock_galactic_announcer.js -->
+<!-- --------------------------------------- -->
 
 <details>
 
@@ -196,7 +202,9 @@ This JavaScript file sends assignment updates for the video game [Deep Rock Gala
 
 </details>
 
+<!-- ----------------------------------------- -->
 <!-- plugins/discord_direct_message_manager.js -->
+<!-- ----------------------------------------- -->
 
 <details>
 
@@ -204,7 +212,9 @@ This JavaScript file sends assignment updates for the video game [Deep Rock Gala
 
 </details>
 
+<!-- ------------------------------------------- -->
 <!-- plugins/discord_guild_role_color_manager.js -->
+<!-- ------------------------------------------- -->
 
 <details>
 
@@ -223,7 +233,23 @@ This JavaScript file creates a guild role for each member based on their profile
 
 </details>
 
+<!-- -------------------------------------- -->
+<!-- plugins/plex_media_server_announcer.js -->
+<!-- -------------------------------------- -->
+
+<details>
+
+<summary>🧩 plugins/plex_media_server_announcer.js</summary>
+
+### 🧩 plugins/plex_media_server_announcer.js
+
+<img src="assets/readme_plex_media_server_announcer.png" style="height: 550px;"></img>
+
+</details>
+
+<!-- -------------------------------- -->
 <!-- plugins/plex_music_downloader.js -->
+<!-- -------------------------------- -->
 
 <details>
 
@@ -249,7 +275,9 @@ This JavaScript file sends a message reply in response to a message with a media
 
 </details>
 
+<!-- ------------------------------------ -->
 <!-- plugins/qbittorrent_webui_manager.js -->
+<!-- ------------------------------------ -->
 
 <details>
 
@@ -273,7 +301,9 @@ This JavaScript file manages the host [qBittorrent](https://www.qbittorrent.org/
 
 </details>
 
+<!-- -------------------------------- -->
 <!-- plugins/rss_article_announcer.js -->
+<!-- -------------------------------- -->
 
 <details>
 
@@ -285,7 +315,9 @@ This JavaScript file manages the host [qBittorrent](https://www.qbittorrent.org/
 
 </details>
 
+<!-- ------------------------------------ -->
 <!-- plugins/steam_community_announcer.js -->
+<!-- ------------------------------------ -->
 
 <details>
 

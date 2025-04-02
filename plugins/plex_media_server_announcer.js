@@ -315,7 +315,7 @@ export async function fetchPlexPlaylistItems(playlistKeys) {
     const librarySectionID =
       playlist?.find(item => item.librarySectionID)?.librarySectionID?.toString();
 
-    if (busyLibrarySectionIds.includes(librarySectionID)) {
+    if (busyLibrarySectionIds.filter(Boolean).includes(librarySectionID)) {
       logger.debug(`Library ${librarySectionID} is busy. Skipping fetch.`);
       continue;
     }
