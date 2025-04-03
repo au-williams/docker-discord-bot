@@ -192,8 +192,10 @@ export async function checkAndAnnounceUpdates({ client, listener }) {
           unannouncedEpisodes = recentItem.episodes;
         }
 
-        embedAuthor= `New ${Utilities.getPluralizedString("episode", unannouncedEpisodes)} in Plex Media Server`;
+        embedAuthor = `New ${Utilities.getPluralizedString("episode", unannouncedEpisodes)} in Plex Media Server`;
       }
+
+      unannouncedEpisodes ??= [];
 
       plexServer ??= await fetchPlexServer();
 
