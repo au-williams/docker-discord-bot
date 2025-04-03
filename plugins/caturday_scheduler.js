@@ -325,19 +325,30 @@ export async function cronJobMaintenance({ client, listener }) {
     const member = channel.guild.members.cache.get(userId);
     const user = client.users.cache.get(userId);
 
-    const displayAvatarUrl = member?.displayAvatarURL() || user.displayAvatarURL();
-    const displayName = member?.displayName || user.displayName;
+    const currentDisplayAvatarUrl = message.embeds[0].data.author.icon_url;
+    const currentDisplayName = message.embeds[0].data.author.name;
 
-    const isObsoleteAvatarUrl = message.embeds[0].data.author.icon_url !== displayAvatarUrl;
-    const isObsoleteName = message.embeds[0].data.author.name !== displayName;
+    const updatedDisplayAvatarUrl = member?.displayAvatarURL() || user.displayAvatarURL();
+    const updatedDisplayName = member?.displayName || user.displayName;
+
+    const isObsoleteAvatarUrl = currentDisplayAvatarUrl !== updatedDisplayAvatarUrl;
+    const isObsoleteName = currentDisplayName !== updatedDisplayName;
     if (!isObsoleteAvatarUrl && !isObsoleteName) continue;
 
+    if (isObsoleteAvatarUrl) {
+      logger.debug(`"${currentDisplayName}" embed avatar URL was updated from "${currentDisplayAvatarUrl}" to "${updatedDisplayAvatarUrl}"`);
+    }
+
+    if (isObsoleteName) {
+      logger.debug(`"${currentDisplayName}" embed title was updated to "${updatedDisplayName}"`);
+    }
+
     const vibrantAvatarColor = isObsoleteAvatarUrl
-      ? await Utilities.getVibrantColorFromUrl(displayAvatarUrl)
+      ? await Utilities.getVibrantColorFromUrl(updatedDisplayAvatarUrl)
       : message.embeds[0].data.color;
 
     const embed = EmbedBuilder.from(message.embeds[0]);
-    embed.setAuthor({ iconURL: displayAvatarUrl, name: displayName, url: `https://discordapp.com/users/${userId}` });
+    embed.setAuthor({ iconURL: updatedDisplayAvatarUrl, name: updatedDisplayName, url: `https://discordapp.com/users/${userId}` });
     embed.setColor(vibrantAvatarColor);
 
     message
