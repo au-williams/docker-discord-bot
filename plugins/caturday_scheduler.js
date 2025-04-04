@@ -336,11 +336,11 @@ export async function cronJobMaintenance({ client, listener }) {
     if (!isObsoleteAvatarUrl && !isObsoleteName) continue;
 
     if (isObsoleteAvatarUrl) {
-      logger.debug(`"${currentDisplayName}" embed avatar URL was updated from "${currentDisplayAvatarUrl}" to "${updatedDisplayAvatarUrl}"`);
+      logger.debug(`"${currentDisplayName}" embed avatar URL was updated from "${currentDisplayAvatarUrl}" to "${updatedDisplayAvatarUrl}"`, listener);
     }
 
     if (isObsoleteName) {
-      logger.debug(`"${currentDisplayName}" embed title was updated to "${updatedDisplayName}"`);
+      logger.debug(`"${currentDisplayName}" embed title was updated to "${updatedDisplayName}"`, listener);
     }
 
     const vibrantAvatarColor = isObsoleteAvatarUrl
