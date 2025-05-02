@@ -6,7 +6,7 @@ import Listener from "../entities/Listener.js";
 
 const logger = new Logger(import.meta.filename);
 
-const { enable_messages_service } = fs.readJsonSync("config.json");
+const { enable_messages_service, message_service_channel_ids } = fs.readJsonSync("config.json");
 
 ///////////////////////////////////////////////////////////////////////////////
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ //
@@ -16,7 +16,7 @@ const { enable_messages_service } = fs.readJsonSync("config.json");
 
 export const Listeners = Object.freeze({
   [Events.ClientReady]: new Listener()
-    .setEnabled(enable_messages_service)
+    .setEnabled(enable_messages_service && message_service_channel_ids?.length)
     .setFunction(initializeMessages)
     .setRunOrder(-100), // Run before all plugins and services!
   [Events.MessageCreate]: new Listener()
@@ -197,6 +197,11 @@ export async function initializeMessages({ client, listener }) {
   }
 
   for(const channel of channels) {
+    if (!(
+      message_service_channel_ids.includes("*") ||
+      message_service_channel_ids.includes(channel.id)
+    )) continue;
+
     let fetchedMessages = await channel.messages
       .fetch({ cache: true, limit: 1 })
       .catch(() => []);

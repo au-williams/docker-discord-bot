@@ -6,5 +6,6 @@
   "enable_logger_timestamps": true,
   "enable_messages_service": true,
   "enable_temp_file_deletion": true,
+  "message_service_channel_ids": ["*"],
   "temp_directory_path": "./temp"
 }

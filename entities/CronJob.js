@@ -19,7 +19,6 @@ export default class CronJob {
    * @returns {CronJob}
    */
   setEnabled(isEnabled = true) {
-    Utilities.throwTypes(["boolean", "Function", "AsyncFunction"], isEnabled);
     this.isEnabled = isEnabled;
     return this;
   }

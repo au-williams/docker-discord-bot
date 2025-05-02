@@ -238,7 +238,8 @@ export class Emitter {
     const isTriggered = await Utilities.evalAsBoolean(cronJob.isTriggered);
 
     if (!isEnabled) {
-      logger.warn(`CronJob "${cronJob.func.name}" is not enabled. Skipping scheduling.`, listener);
+      const log = `CronJob "${cronJob.func.name}" is not enabled. Skipping scheduling.`;
+      listener.isService ? logger.debug(log, listener) : logger.warn(log, listener);
       cron.stop();
     }
     else if (isTriggered) {
@@ -357,7 +358,8 @@ async function executeListener(params) {
 
   const isListenerEnabled = listener.isEnabled;
   if (!isListenerEnabled) {
-    logger.warn(`Listener "${listener.id}" is not enabled. Skipping scheduling.`, listener);
+    const log = `Listener "${listener.id}" is not enabled. Skipping scheduling.`;
+    listener.isService ? logger.debug(log, listener) : logger.warn(log, listener);
     return;
   }
 

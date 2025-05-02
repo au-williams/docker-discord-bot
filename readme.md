@@ -18,16 +18,17 @@ My Discord bot made with [discord.js](https://discord.js.org/) for the scalable 
 > <details>
 >  <summary>🛠️ config.json</summary>
 >
-> | Key                          | Description                                                                                                                                                                                       | Required |
-> | :--------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | :------- |
-> | "discord_bot_admin_user_ids" | The Discord user ID(s) to treat as admin. [(how to find)](https://support.discord.com/hc/en-us/articles/206346498-Where-can-I-find-my-User-Server-Message-ID)                                     | `true`   |
-> | "discord_bot_login_token"    | The Discord login token used by the bot. [(how to find)](https://docs.discordbotstudio.org/setting-up-dbs/finding-your-bot-token)                                                                 | `true`   |
-> | "discord_config_channel_id"  | The Discord channel ID for the [Config service](#%EF%B8%8F-servicesconfigjs). [(how to find)](https://support.discord.com/hc/en-us/articles/206346498-Where-can-I-find-my-User-Server-Message-ID) | `false`  |
-> | "enable_logger_debug"        | Enables displaying the [Logger service](#%EF%B8%8F-servicesloggerjs) `debug` type logs.                                                                                                           | `true`   |
-> | "enable_logger_timestamps"   | Enables displaying timestamps in the [Logger service](#%EF%B8%8F-servicesloggerjs) logs.                                                                                                          | `true`   |
-> | "enable_messages_service"    | Enables the [Messages service](#%EF%B8%8F-servicesmessagesjs) collection on bot startup.                                                                                                          | `true`   |
-> | "enable_temp_file_deletion"  | Enables deleting temporary files in the temp directory.                                                                                                                                           | `true`   |
-> | "temp_directory_path"        | The directory path where temporary files are stored.                                                                                                                                              | `true`   |
+> | Key                           | Description                                                                                                                                                                                       | Required |
+> | :---------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | :------- |
+> | "discord_bot_admin_user_ids"  | The Discord user ID(s) to treat as admin. [(how to find)](https://support.discord.com/hc/en-us/articles/206346498-Where-can-I-find-my-User-Server-Message-ID)                                     | `true`   |
+> | "discord_bot_login_token"     | The Discord login token used by the bot. [(how to find)](https://docs.discordbotstudio.org/setting-up-dbs/finding-your-bot-token)                                                                 | `true`   |
+> | "discord_config_channel_id"   | The Discord channel ID for the [Config service](#%EF%B8%8F-servicesconfigjs). [(how to find)](https://support.discord.com/hc/en-us/articles/206346498-Where-can-I-find-my-User-Server-Message-ID) | `false`  |
+> | "enable_logger_debug"         | Enables displaying the [Logger service](#%EF%B8%8F-servicesloggerjs) `debug` type logs.                                                                                                           | `true`   |
+> | "enable_logger_timestamps"    | Enables displaying timestamps in the [Logger service](#%EF%B8%8F-servicesloggerjs) logs.                                                                                                          | `true`   |
+> | "enable_messages_service"     | Enables the [Messages service](#%EF%B8%8F-servicesmessagesjs) collection on bot startup.                                                                                                          | `true`   |
+> | "enable_temp_file_deletion"   | Enables deleting temporary files in the temp directory.                                                                                                                                           | `true`   |
+> | "message_service_channel_ids" | Restricts message collection by Discord channel/DM ID.                                                                                                                                            | `true`   |
+> | "temp_directory_path"         | The directory path where temporary files are stored.                                                                                                                                              | `true`   |
 
 </details>
 

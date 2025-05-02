@@ -199,11 +199,10 @@ export default class Listener {
   /**
    * Set if the Listener should be enabled. This is typically used for debug or
    * missing dependency purposes such as when the Messages service is disabled.
-   * @param {boolean|Function|Promise<boolean>} isEnabled
+   * @param {boolean|Function|string|Promise<boolean>|Promise<string>} isEnabled
    * @returns {Listener}
    */
   setEnabled(isEnabled) {
-    Utilities.throwTypes(["boolean", "Function", "AsyncFunction"], isEnabled);
     this.isEnabled = isEnabled;
     return this;
   }
